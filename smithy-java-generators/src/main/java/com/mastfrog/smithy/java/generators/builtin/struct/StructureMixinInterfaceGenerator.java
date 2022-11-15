@@ -1,4 +1,3 @@
-
 package com.mastfrog.smithy.java.generators.builtin.struct;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -6,12 +5,14 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractStructureGenerator;
 import com.mastfrog.smithy.java.generators.util.TypeNames;
+import static com.mastfrog.smithy.java.generators.util.TypeNames.typeNameOf;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 import software.amazon.smithy.model.traits.MixinTrait;
@@ -55,6 +56,13 @@ final class StructureMixinInterfaceGenerator extends AbstractStructureGenerator 
                 .named(nm)
                 .withModifier(PUBLIC)
                 .toInterface();
+
+        for (ShapeId mixinId : shape.getMixins()) {
+            Shape mixin = model.expectShape(mixinId);
+            String mixinPackage = names().packageOf(mixin);
+            maybeImport(cb, mixinPackage + "." + typeNameOf(mixin));
+            cb.extending(typeNameOf(mixin));
+        }
 
         applyDocumentation(cb);
         for (StructureMember<?> m : helper.membersSortedByName()) {
