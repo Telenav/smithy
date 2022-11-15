@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.telenav.smithy</groupId>
+        <artifactId>server-test</artifactId>
+        <version>1.0.2</version>
+    </parent>
+
+    <artifactId>blog-service-model</artifactId>
+
+    <properties>
+        <!-- Ensure javadoc includes generated smithy sources and builders. -->
+        <sourcepath>src/main/java:target/generated-sources/smithy:target/generated-sources/annotations</sourcepath>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>smithy-maven-plugin</artifactId>
+                <version>${project.version}</version>
+                <configuration>
+                    <pretend>false</pretend>
+                    <languages>java</languages>
+                </configuration>
+                <!--
+                These dependencies determine what traits and code
+                generators are available when generating code.
+                -->
+                <dependencies>
+                    <!--
+                    Defines the following custom traits consumed by
+                    the java code generators:
+                        - @builder - applies the @GenerateBuilder annotation
+                            to constructors, so a builder for the type is
+                            generated
+                        - @samples - Allows elements to specify valid and
+                            invalid examples - these are needed so we can
+                            generate tests of string values that need to
+                            match a regular expression
+                        - @identity - allows for marking a subset of the
+                            elements of a structure as being the only ones
+                            that contribute to equals() and hashCode() - useful
+                            for elements that have database-provided unique ids
+                    -->
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>simple-smithy-extensions</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <!--
+                    Contains the code generators for Java.
+                    -->
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>simple-smithy-extensions-java</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <!--
+                    All this does is bind the exception type that is
+                    generated on invalid input - needed to generate appropriate
+                    http error messages.
+                    -->
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>smithy-java-http-extensions</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>smithy-simple-server-generator</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>com.mastfrog</groupId>
+                        <artifactId>graph</artifactId>
+                        <version>${mastfrog.version}</version>
+                    </dependency>
+
+                </dependencies>
+                <executions>
+                    <execution>
+                        <id>smithygen</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate-smithy</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Set the next line to true to generate
+                            stack trace fragment comments into the sources
+                            showing what line of what class caused given lines
+                            of code to be generated. -->
+                            <debug>false</debug>
+                            <!-- Just to prove this works: -->
+                            <settings>
+                                <foo>bar</foo>
+                            </settings>
+                            <targets>model,modeltest,server,server-spi,client</targets>
+                            <!--<targets>model,server</targets>-->
+                            <namespaces>com.telenav.blog,com.telenav.safety</namespaces>
+                            
+                            <destinations>
+                                <client>${basedir}/../blog-client-demo/src/main/java</client>
+                                <server>${basedir}/../blog-server-generated-impl/src/main/java</server>
+                                <server-spi>${basedir}/../blog-server-spi/src/main/java/</server-spi>
+                            </destinations>
+
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Needed to generate builders from Smithy sources - there
+            appears to be no way to convince javac to do it. -->
+            <plugin>
+                <groupId>org.bsc.maven</groupId>
+                <artifactId>maven-processor-plugin</artifactId>
+                <version>5.0-rc3</version>
+                <executions>
+                    <execution>
+                        <id>annogen</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>process</goal>
+                        </goals>
+                        <!--<inherited>false</inherited>-->
+                        <configuration>
+                            <processors>
+                                <processor>
+                                    com.mastfrog.builder.annotation.processors.BuilderAnnotationProcessor
+                                </processor>
+                            </processors>
+                            <outputDirectory>${project.build.directory}/generated-sources/annotations</outputDirectory>
+                            <appendSourceArtifacts>true</appendSourceArtifacts>
+                            <additionalSourceDirectories>
+                                <additionalSourceDirectory>
+                                    ${project.basedir}/target/generated-sources/smithy
+                                </additionalSourceDirectory>
+                                <additionalSourceDirectory>
+                                    ${project.basedir}/target/generated-sources/annotations
+                                </additionalSourceDirectory>
+                            </additionalSourceDirectories>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>add-source</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>target/generated-sources/smithy</source>
+                                <source>target/generated-sources/annotations</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.10.1</version>
+                <configuration>
+                    <!--<verbose>true</verbose>-->
+                    <!--                    <includes>
+                        <include>src/main/java/**/*.java</include>
+                        <include>target/generated-sources/annotations/**/*.java</include>
+                        <include>target/generated-sources/smithy/**/*.java</include>
+                    </includes>-->
+
+                    <compilerArgs>
+                        <arg>-sourcepath</arg>
+                        <arg>src/main/java:target/generated-sources/smithy:target/generated-sources/annotations</arg>
+                        <arg>-d</arg>
+                        <arg>${basedir}/target/classes</arg>
+                        <arg>-implicit:class</arg>
+                    </compilerArgs>
+
+                    <buildDirectory>target/classes</buildDirectory>
+                </configuration>
+                <!--                <executions>
+                    <execution>
+                        <id>pre-compile</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>real-compile</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <useIncrementalCompilation>false</useIncrementalCompilation>
+                            <compilerArgs>
+                                <arg>-sourcepath</arg>
+                                <arg>target/generated-sources/smithy</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </execution>
+                </executions>-->
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog.builder</groupId>
+            <artifactId>builder-annotations</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog.builder</groupId>
+            <artifactId>builder-annotation-processors</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>simple-smithy-extensions</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>smithy-java-http-extensions</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>jackson-configuration</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>javax.inject</groupId>
+            <artifactId>javax.inject</artifactId>
+        </dependency>
+
+    </dependencies>
+</project>

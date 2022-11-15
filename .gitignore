@@ -1,0 +1,61 @@
+derby.log
+.nbrun
+*.class
+*.orig
+.DS_Store
+.orig
+.rej
+.tmp
+.swp
+tags/
+gensrc/
+.ant-targets-build.xml
+.classpath/
+.project/
+.externalToolBuilders/
+^hs_err_pid*
+*.orig$
+target/
+
+# System Files
+Thumbs.db
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+/demo/demo-project/nbproject/
+/demo/demo-server-spi/nbproject/
+/demo/demo-client/nbproject/
+
+/demo/demo-server-spi/src/
+/demo/demo-client/src/
+/demo/demo-model/src/
+/test/maven-plugin-test/nbproject/
+/server-test/blog-service-model/nbproject/
+
+# These files are generated on every build - do not
+# commit them
+/test/maven-plugin-test/src/test/
+/server-test/blog-service-model/src/test/
+/server-test/blog-client-demo/src/main/java/
+/server-test/blog-server-generated-impl/src/main/java/
+/server-test/blog-server-spi/src/main/java/
+/smithy-simple-server-generator/nbproject/
+/safety-service-test/safety-service-model/src/main/java
+/safety-service-test/safety-service-server/src/main/java
+/safety-service-test/safety-service-server-spi/src/main/java
+/safety-service-test/safety-service-client/src/main/java
+/safety-service-test/safety-service-model/src/test/java
