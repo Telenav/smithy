@@ -34,7 +34,7 @@ final class CompositeSmithyResponse<T> implements SmithyResponse<T> {
     private final CompletableFuture<T> future;
     private final SmithyResponseHead head;
 
-    public CompositeSmithyResponse(CompletableFuture<T> future, SmithyResponseHead head) {
+    CompositeSmithyResponse(CompletableFuture<T> future, SmithyResponseHead head) {
         this.future = future;
         this.head = head;
     }
@@ -47,7 +47,7 @@ final class CompositeSmithyResponse<T> implements SmithyResponse<T> {
     }
 
     @Override
-    public <T> SmithyResponse add(HeaderSpec<T> header, T value) {
+    public <R> CompositeSmithyResponse<T> add(HeaderSpec<R> header, R value) {
         checkCompleted();
         head.add(header, value);
         return this;
