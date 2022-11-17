@@ -31,6 +31,7 @@ import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHel
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
 import com.mastfrog.smithy.java.generators.util.NumberKind;
 import com.mastfrog.smithy.simple.extensions.UnitsTrait;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -62,12 +63,32 @@ final class ConversionMethodGenerator implements StructureContributor {
             withConversionParams(helper, (enumMember, numberMember) -> {
                 generateUnitConversionMethod(cb, enumMember, helper, numberMember);
                 generateParseMethod(cb, enumMember, helper, numberMember);
+                generateFormatMethod(cb, helper, numberMember);
                 return null;
             });
         }
     }
 
-    public <T> void generateParseMethod(ClassBuilder<T> cb, StructureMember<EnumShape> enumMember, StructureGenerationHelper helper, StructureMember<NumberShape> numberMember) {
+    private <T> void generateFormatMethod(ClassBuilder<T> cb, StructureGenerationHelper helper, StructureMember<NumberShape> numberMember) {
+        cb.method("formatValue", mth -> {
+            cb.importing(NumberFormat.class);
+            mth.docComment("Format the value of this " + cb.className()
+                    + " using the passed formatter."
+                    + "\n@param formatter a NumberFormat"
+                    + "\n@return a string")
+                    .withModifier(PUBLIC)
+                    .addArgument("NumberFormat", "formatter")
+                    .returning("String")
+                    .body(bb -> {
+                        helper.generateNullCheck("formatter", bb, cb);
+                        bb.returningInvocationOf("format")
+                                .withArgument(numberMember.field())
+                                .on("formatter");
+                    });
+        });
+    }
+
+    private <T> void generateParseMethod(ClassBuilder<T> cb, StructureMember<EnumShape> enumMember, StructureGenerationHelper helper, StructureMember<NumberShape> numberMember) {
         cb.method("parse", mth -> {
             cb.importing(Optional.class);
             Random rnd = new Random(enumMember.target().getId().hashCode());
@@ -163,7 +184,7 @@ final class ConversionMethodGenerator implements StructureContributor {
         });
     }
 
-    public <T> void generateUnitConversionMethod(ClassBuilder<T> cb, StructureMember<EnumShape> enumMember, StructureGenerationHelper helper, StructureMember<NumberShape> numberMember) {
+    private <T> void generateUnitConversionMethod(ClassBuilder<T> cb, StructureMember<EnumShape> enumMember, StructureGenerationHelper helper, StructureMember<NumberShape> numberMember) {
         cb.method("to", mth -> {
             mth.withModifier(PUBLIC)
                     .docComment("Convert this " + cb.className() + " to an instance using "
@@ -205,7 +226,7 @@ final class ConversionMethodGenerator implements StructureContributor {
         });
     }
 
-    static <T> T withConversionParams(StructureGenerationHelper helper,
+    private static <T> T withConversionParams(StructureGenerationHelper helper,
             BiFunction<StructureMember<EnumShape>, StructureMember<NumberShape>, T> c) {
         List<StructureMember<?>> mems = helper.members();
         if (mems.size() != 2) {

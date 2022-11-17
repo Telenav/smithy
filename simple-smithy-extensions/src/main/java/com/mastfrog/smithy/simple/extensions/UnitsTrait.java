@@ -23,7 +23,6 @@
  */
 package com.mastfrog.smithy.simple.extensions;
 
-import static com.mastfrog.smithy.simple.extensions.IdentityTrait.n2s;
 import com.mastfrog.util.service.ServiceProvider;
 import java.util.Optional;
 import software.amazon.smithy.model.FromSourceLocation;
@@ -42,10 +41,16 @@ import software.amazon.smithy.model.traits.TraitService;
 /**
  * Trait that can be applied to enum members to indicate that they specify units
  * of something (such as miles, or kilometers, or minutes or seconds). THere
- * must be exactly one enum member that either does not specify a value, or
- * specifies it to be 1 or 1.0, which is used as a base type - in which case,
- * conversion code can be generated to interconvert between numbers using these
- * units.
+ * must be exactly one enum member that specifies its value to be 1, which is
+ * used as a base type - in which case, conversion code can be generated to
+ * interconvert between numbers using these units.
+ * <p>
+ * Using smithy-java-generators, this will also result in conversion methods
+ * being added to any structure type which consists of a single field which is a
+ * number alongside one which is an enum shape whose members have the units
+ * trait - these are presumed to represent values which are in a unit of some
+ * sort that can be converted into others.
+ * </p>
  *
  * @author Tim Boudreau
  */

@@ -1,4 +1,3 @@
-
 package com.mastfrog.smithy.java.generators.builtin;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -17,6 +16,7 @@ import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.smithy.java.generators.util.JavaTypes;
 import com.mastfrog.smithy.java.generators.util.NumberKind;
 import java.nio.file.Path;
+import java.text.NumberFormat;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import static javax.lang.model.element.Modifier.FINAL;
@@ -79,8 +79,50 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
         generateEquals(cb);
         generateHashCode(cb);
         generateAlternateGetters(cb);
+        generateScaleMethod(cb);
         generateNumberImplementation(cb);
+        generateFormatMethod(cb);
         addTo.accept(cb);
+    }
+
+    private void generateFormatMethod(ClassBuilder<String> cb) {
+        cb.method("format", mth -> {
+            cb.importing(NumberFormat.class);
+            mth.docComment("Format the value of this " + cb.className()
+                    + " using the passed formatter."
+                    + "\n@param formatter a NumberFormat"
+                    + "\n@return a string")
+                    .withModifier(PUBLIC)
+                    .addArgument("NumberFormat", "formatter")
+                    .returning("String")
+                    .body(bb -> {
+                        generateNullCheck("formatter", bb, cb);
+                        bb.returningInvocationOf("format")
+                                .withArgument(VALUE_FIELD)
+                                .on("formatter");
+                    });
+            ;
+        });
+    }
+
+    private void generateScaleMethod(ClassBuilder<String> cb) {
+        if (kind.isFloatingPoint()) {
+            cb.method("scaleAsLong", mth -> {
+                mth.withModifier(PUBLIC)
+                        .docComment("Create a scaled version of this value using the passed multiplier, "
+                                + "cast to long."
+                                + "\n@param multiplier"
+                                + "\n@return this value of this " + cb.className() + " multiplied by "
+                                + "<code>multiplier</code> and cast to long.")
+                        .addArgument("double", "multiplier")
+                        .returning("long")
+                        .body(bb -> {
+                            Value mul = variable("multiplier");
+                            Value val = variable(VALUE_FIELD);
+                            bb.returning(mul.times(val).castToLong());
+                        });
+            });
+        }
     }
 
     private void sanityCheckRange() {

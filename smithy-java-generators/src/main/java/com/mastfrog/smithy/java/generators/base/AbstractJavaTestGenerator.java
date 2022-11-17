@@ -87,6 +87,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
 import static software.amazon.smithy.model.shapes.ShapeType.INT_ENUM;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DeprecatedTrait;
 import software.amazon.smithy.model.traits.LengthTrait;
 import software.amazon.smithy.model.traits.RangeTrait;
@@ -274,7 +275,20 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                             .as(typeNameOf(shape));
                 }
                 return new InstanceInfo(null, val);
-//                break;
+            case UNION:
+                UnionShape union = shape.asUnionShape().get();
+                List<MemberShape> members = new ArrayList<>(union.members());
+                int ix = rnd.nextInt(members.size());
+                MemberShape target = members.get(ix);
+                Shape theTarget = model.expectShape(target.getTarget());
+                InstanceInfo member = declareInstance(name + "_unionMember", theTarget, bb, typeNameOf(theTarget), target);
+                bb.lineComment("Randomly pick member " + ix + " of type " + typeNameOf(theTarget));
+                String unionSubtype = currentTypeName + "With" + typeNameOf(theTarget);
+                bb.declare(val)
+                        .initializedWithNew(nb -> {
+                            nb.withArgument(member.instanceVar).ofType(currentTypeName + "." + unionSubtype);
+                        }).as(typeNameOf(union));
+                return new InstanceInfo(member.instanceVar, val);
 
         }
 
@@ -810,7 +824,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                 targetLength = max - min;
             }
             if (targetLength <= 0) {
-                targetLength = Math.max(1, Math.min(min, max-1));
+                targetLength = Math.max(1, Math.min(min, max - 1));
             }
             return rs.get(min + rnd.nextInt(targetLength))
                     .toLowerCase();

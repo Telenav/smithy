@@ -38,7 +38,7 @@ public enum NumberKind {
     DOUBLE, FLOAT, LONG, INT, SHORT, BYTE;
 
     public String supplierType() {
-        switch ( this ) {
+        switch (this) {
             case DOUBLE:
                 return DoubleSupplier.class.getName();
             case LONG:
@@ -49,13 +49,13 @@ public enum NumberKind {
                 return null;
         }
     }
-    
+
     public String parseMethod() {
         return "parse" + capitalize(name().toLowerCase());
     }
 
-    public Number convert( BigDecimal dec ) {
-        switch ( this ) {
+    public Number convert(BigDecimal dec) {
+        switch (this) {
             case DOUBLE:
                 return dec.doubleValue();
             case FLOAT:
@@ -69,21 +69,21 @@ public enum NumberKind {
             case SHORT:
                 return dec.shortValueExact();
             default:
-                throw new AssertionError( this );
+                throw new AssertionError(this);
         }
     }
 
     public String boxedType() {
-        switch ( this ) {
+        switch (this) {
             case INT:
                 return "Integer";
             default:
-                return capitalize( name().toLowerCase() );
+                return capitalize(name().toLowerCase());
         }
     }
 
     public String supplierMethod() {
-        switch ( this ) {
+        switch (this) {
             case DOUBLE:
                 return "getAsDouble";
             case INT:
@@ -96,7 +96,7 @@ public enum NumberKind {
     }
 
     public String numberMethod() {
-        switch ( this ) {
+        switch (this) {
             case BYTE:
                 return "byteValue";
             case DOUBLE:
@@ -110,30 +110,30 @@ public enum NumberKind {
             case SHORT:
                 return "shortValue";
             default:
-                throw new AssertionError( this );
+                throw new AssertionError(this);
 
         }
     }
 
-    public static NumberKind forShape( Shape shape ) {
-        if ( shape.isFloatShape() ) {
+    public static NumberKind forShape(Shape shape) {
+        if (shape.isFloatShape()) {
             return FLOAT;
-        } else if ( shape.isDoubleShape() ) {
+        } else if (shape.isDoubleShape()) {
             return DOUBLE;
-        } else if ( shape.isLongShape() ) {
+        } else if (shape.isLongShape()) {
             return LONG;
-        } else if ( shape.isIntegerShape() ) {
+        } else if (shape.isIntegerShape()) {
             return INT;
-        } else if ( shape.isShortShape() ) {
+        } else if (shape.isShortShape()) {
             return SHORT;
-        } else if ( shape.isByteShape() ) {
+        } else if (shape.isByteShape()) {
             return BYTE;
         }
         return null;
     }
 
-    public String formatNumber( Object number ) {
-        switch ( this ) {
+    public String formatNumber(Object number) {
+        switch (this) {
             case BYTE:
                 return "(byte) " + number;
             case INT:
@@ -147,7 +147,7 @@ public enum NumberKind {
             case FLOAT:
                 return number + "F";
             default:
-                throw new AssertionError( this );
+                throw new AssertionError(this);
         }
     }
 
@@ -155,4 +155,7 @@ public enum NumberKind {
         return name().toLowerCase();
     }
 
+    public boolean isFloatingPoint() {
+        return this == DOUBLE || this == FLOAT;
+    }
 }

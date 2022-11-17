@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 package com.mastfrog.smithy.java.generators.builtin.struct.impl;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -67,6 +66,7 @@ final class GeneratedAnnotationContributor implements StructureContributor {
                             arr.literal("clean");
                         }
                     }
+                    arr.literal(type.getSimpleName());
                     ab.addArgument("comments", type.getSimpleName() + " in " + type.getPackageName());
                 });
             });

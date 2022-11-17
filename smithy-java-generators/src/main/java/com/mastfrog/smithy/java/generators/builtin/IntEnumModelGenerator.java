@@ -25,6 +25,7 @@ package com.mastfrog.smithy.java.generators.builtin;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
+import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.NumberLiteral;
 import com.mastfrog.java.vogon.ClassBuilder.Value;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
@@ -35,8 +36,10 @@ import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.smithy.java.generators.util.JavaSymbolProvider;
 import static com.mastfrog.smithy.java.generators.util.JavaSymbolProvider.escape;
+import com.mastfrog.util.strings.Strings;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -132,9 +135,12 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
                     }
                 });
 
+        List<String> constants = new ArrayList<>();
         shape.getEnumValues().forEach((String name, Integer value) -> {
 
-            ClassBuilder.FieldBuilder<ClassBuilder<String>> f = cb.field(JavaSymbolProvider.escape(name))
+            String fieldName = escape(name);
+            constants.add(fieldName);
+            ClassBuilder.FieldBuilder<ClassBuilder<String>> f = cb.field(fieldName)
                     .withModifier(PUBLIC, STATIC, FINAL);
 
             MemberShape mem = shape.getAllMembers().get(name);
@@ -146,6 +152,18 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
                         });
             }
             f.initializedWithNew().withArgument(value).ofType(cb.className()).ofType(cb.className());
+        });
+
+        String allField = "EVERY_" + Strings.camelCaseToDelimited(cb.className(), '_').toUpperCase();
+        cb.field(allField, fld -> {
+            InvocationBuilder<?> inv = fld.withModifier(PUBLIC, STATIC, FINAL)
+                    .initializedFromInvocationOf("asList");
+            for (String c : constants) {
+                inv = inv.withArgument(c);
+            }
+            inv.on("Arrays");
+            cb.importing(Arrays.class, List.class);
+            fld.ofType("List<" + cb.className() + ">");
         });
 
         cb.overridePublic("getAsInt")
