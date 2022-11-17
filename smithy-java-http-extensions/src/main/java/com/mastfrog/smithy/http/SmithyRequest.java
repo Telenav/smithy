@@ -74,6 +74,18 @@ public interface SmithyRequest {
     Optional<CharSequence> uriQueryParameter(CharSequence name, boolean decode);
 
     /**
+     * Resource closing - if there are resources (database connections,
+     * file streams, etc.) that could leak if the client's connection is broken
+     * during the process of responding, pass a method reference or similar
+     * here to ensure cleanup happens when the client connection is closed,
+     * regardless of <i>how</i> it is closed.
+     * 
+     * @param run A runnable, close or cancel method reference or similar
+     */
+    default void onClose(Runnable run) {
+        
+    }
+    /**
      * Get a query parameter, applying URL decoding.
      *
      * @param name The parameter name

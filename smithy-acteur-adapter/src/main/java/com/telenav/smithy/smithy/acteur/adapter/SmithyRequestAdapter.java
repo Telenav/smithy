@@ -23,6 +23,7 @@
  */
 package com.telenav.smithy.smithy.acteur.adapter;
 
+import com.mastfrog.acteur.Closables;
 import com.mastfrog.acteur.HttpEvent;
 import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.smithy.http.SmithyRequest;
@@ -30,6 +31,7 @@ import io.netty.buffer.ByteBuf;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.util.Optional;
+import static java.util.Optional.empty;
 import java.util.Set;
 
 /**
@@ -39,13 +41,34 @@ import java.util.Set;
 final class SmithyRequestAdapter implements SmithyRequest {
 
     private final HttpEvent event;
+    private final Closables closables;
 
-    private SmithyRequestAdapter(HttpEvent event) {
+    private SmithyRequestAdapter(HttpEvent event, Closables clos) {
         this.event = event;
+        this.closables = clos;
     }
 
-    static SmithyRequestAdapter wrap(HttpEvent evt) {
-        return new SmithyRequestAdapter(evt);
+    static SmithyRequestAdapter wrap(HttpEvent evt, Closables clos) {
+        return new SmithyRequestAdapter(evt, clos);
+    }
+
+    @Override
+    public void onClose(Runnable run) {
+        closables.add(run);
+    }
+
+    @Override
+    public <T> Optional<T> unwrap(Class<T> type) {
+        return SmithyRequest.super.unwrap(type)
+                .or(() -> {
+                    if (type.isInstance(event)) {
+                        return Optional.of(type.cast(event));
+                    }
+                    if (type.isInstance(closables)) {
+                        return Optional.of(type.cast(closables));
+                    }
+                    return empty();
+                });
     }
 
     public <T> T header(HeaderValueType<T> value) {
@@ -72,6 +95,7 @@ final class SmithyRequestAdapter implements SmithyRequest {
         return event.httpHeader(header);
     }
 
+    @Override
     public Optional<CharSequence> httpHeader(CharSequence name) {
         return event.httpHeader(name);
     }
@@ -80,6 +104,7 @@ final class SmithyRequestAdapter implements SmithyRequest {
         return event.uriAnchor();
     }
 
+    @Override
     public Optional<CharSequence> uriPathElement(int index) {
         if (event.path().size() > index) {
             return Optional.<CharSequence>of(event.path().getElement(index).toString());
@@ -88,22 +113,27 @@ final class SmithyRequestAdapter implements SmithyRequest {
 //        return event.uriPathElement(index);
     }
 
+    @Override
     public Optional<CharSequence> uriQueryParameter(CharSequence name, boolean decode) {
         return event.uriQueryParameter(name, decode);
     }
 
+    @Override
     public Optional<CharSequence> uriQueryParameter(CharSequence name) {
         return event.uriQueryParameter(name);
     }
 
+    @Override
     public <N extends Number> Optional<N> uriQueryParameter(CharSequence name, Class<N> type) {
         return event.uriQueryParameter(name, type);
     }
 
+    @Override
     public Optional<Boolean> booleanUriQueryParameter(CharSequence name) {
         return event.booleanUriQueryParameter(name);
     }
 
+    @Override
     public <N extends Number> Optional<N> uriPathElement(int index, Class<N> type) {
         return event.uriPathElement(index, type);
     }
@@ -112,18 +142,22 @@ final class SmithyRequestAdapter implements SmithyRequest {
         return event.uriAnchor(type);
     }
 
+    @Override
     public String httpMethod() {
         return event.httpMethod();
     }
 
+    @Override
     public boolean isMethod(Object o) {
         return event.isMethod(o);
     }
 
+    @Override
     public String requestUri(boolean preferHeaders) {
         return event.requestUri(preferHeaders);
     }
 
+    @Override
     public String requestUri() {
         return event.requestUri();
     }
@@ -133,6 +167,7 @@ final class SmithyRequestAdapter implements SmithyRequest {
         return event.httpHeaderNames();
     }
 
+    @Override
     public String toString() {
         return event.toString();
     }

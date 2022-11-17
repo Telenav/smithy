@@ -25,6 +25,7 @@ package com.telenav.smithy.smithy.acteur.adapter;
 
 import com.google.inject.Binder;
 import com.google.inject.Inject;
+import com.mastfrog.acteur.Closables;
 import com.mastfrog.acteur.HttpEvent;
 import com.mastfrog.smithy.http.SmithyRequest;
 import javax.inject.Provider;
@@ -44,15 +45,17 @@ public class SmithyActeurAdapter implements com.google.inject.Module {
     static class SmithyRequestAdapterProvider implements Provider<SmithyRequest> {
 
         private final Provider<HttpEvent> eventProvider;
+        private final Provider<Closables> closeProvider;
 
         @Inject
-        SmithyRequestAdapterProvider(Provider<HttpEvent> eventProvider) {
+        SmithyRequestAdapterProvider(Provider<HttpEvent> eventProvider, Provider<Closables> clos) {
             this.eventProvider = eventProvider;
+            this.closeProvider = clos;
         }
 
         @Override
         public SmithyRequest get() {
-            return SmithyRequestAdapter.wrap(eventProvider.get());
+            return SmithyRequestAdapter.wrap(eventProvider.get(), closeProvider.get());
         }
     }
 
