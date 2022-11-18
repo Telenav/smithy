@@ -70,3 +70,26 @@ structure authenticated {
     payload : String = "smithy.api#String"
 }
 
+/// An RPC-based protocol that sends JSON payloads. This protocol does not use
+/// HTTP binding traits.
+@protocolDefinition(
+    traits: [
+        cors
+        endpoint
+        hostLabel
+        http
+        httpError
+        httpHeader
+        httpLabel
+        httpPayload
+        httpQuery
+        httpQueryParams
+        httpResponseCode
+        jsonName
+        timestampFormat
+    ]
+)
+@trait(
+    selector: "service"
+)
+structure genericRestProtocol {}

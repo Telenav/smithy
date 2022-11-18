@@ -6,8 +6,10 @@ use com.telenav.smithy#identity
 use com.telenav.smithy#builder
 use com.telenav.smithy#samples
 use com.telenav.smithy#authenticated
+use com.telenav.smithy#genericRestProtocol
 
 /// A service for blogs
+@genericRestProtocol
 @cors(additionalAllowedHeaders:["x-telenav-req-id"], additionalExposedHeaders: ["x-telenav-req-id"])
 service BlogService {
     version : "1.0"
