@@ -76,7 +76,7 @@ final class FloatModelGenerator extends AbstractNumberGenerator<FloatShape> {
                     .returning( "float" )
                     .body( bb -> {
                         IfBuilder<?> test = bb.iff().booleanExpression(
-                                "doubleValue < Float.MIN_VALUE || doubleValue > Float.MAX_VALUE" );
+                                "doubleValue < -Float.MAX_VALUE || doubleValue > Float.MAX_VALUE" );
                         validationExceptions().createThrow( cb, test,
                                 "Value must be within the bounds of Float but is", "doubleValue" );
                         test.endIf();

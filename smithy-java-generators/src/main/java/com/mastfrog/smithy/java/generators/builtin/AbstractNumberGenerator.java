@@ -67,6 +67,7 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
         sanityCheckRange();
         ClassBuilder<String> cb = classHead();
+        generateFactoryMethod(cb);
         applyDocumentation(cb);
         generateDefaultField(cb);
         generateValueField(cb);
@@ -83,6 +84,64 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
         generateNumberImplementation(cb);
         generateFormatMethod(cb);
         addTo.accept(cb);
+    }
+
+    private void generateFactoryMethod(ClassBuilder<String> cb) {
+        cb.method(decapitalize(cb.className()), mth -> {
+            mth.withModifier(PUBLIC, STATIC)
+                    .docComment("Convenience factory method."
+                            + "\n@param value the value of a new " + cb.className()
+                            + "\nreturn a " + cb.className())
+                    .returning(cb.className());
+            switch (kind) {
+                case BYTE:
+                case SHORT:
+                    mth.addArgument("int", "value");
+                    break;
+                case FLOAT:
+                    mth.addArgument("double", "value");
+                    break;
+                default:
+                    mth.addArgument(kind.primitiveTypeName(), "value");
+                    break;
+            }
+            mth.body(bb -> {
+                switch (kind) {
+                    case BYTE:
+                        IfBuilder<?> test = bb.iff().booleanExpression("value < Byte.MIN_VALUE || value > Byte.MAX_VALUE");
+                        validationExceptions().createThrow(cb, test, "Value out of range of byte", "value");
+                        test.endIf();
+                        bb.returningNew(nb -> {
+                            nb.withArgument(variable("value").castToByte())
+                                    .ofType(cb.className());
+                        });
+                        break;
+                    case SHORT:
+                        IfBuilder<?> test2 = bb.iff().booleanExpression("value < Short.MIN_VALUE || value > Short.MAX_VALUE");
+                        validationExceptions().createThrow(cb, test2, "Value out of range of short", "value");
+                        test2.endIf();
+                        bb.returningNew(nb -> {
+                            nb.withArgument(variable("value").castToShort())
+                                    .ofType(cb.className());
+                        });
+                        break;
+                    case FLOAT:
+                        IfBuilder<?> test3 = bb.iff().booleanExpression("value < -Float.MAX_VALUE || value > Float.MAX_VALUE");
+                        validationExceptions().createThrow(cb, test3, "Value out of range of float", "value");
+                        test3.endIf();
+                        bb.returningNew(nb -> {
+                            nb.withArgument(variable("value").castToFloat())
+                                    .ofType(cb.className());
+                        });
+                        break;
+                    default:
+                        bb.returningNew(nb -> {
+                            nb.withArgument("value")
+                                    .ofType(cb.className());
+                        });
+                }
+            });
+        });
     }
 
     private void generateFormatMethod(ClassBuilder<String> cb) {
