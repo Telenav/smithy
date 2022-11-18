@@ -407,7 +407,10 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
 
                         bb.lineComment("Configure our settings - port and similar");
                         bb.declare("settingsBuilder")
-                                .initializedByInvoking("builder")
+                                .initializedByInvoking("addDefaultsFromEtc")
+                                .onInvocationOf("addDefaultsFromProcessWorkingDir")
+                                .onInvocationOf("builder")
+                                .withStringLiteral(shape.getId().getName())
                                 .on("Settings")
                                 .as("SettingsBuilder");
 
@@ -576,6 +579,8 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
             + "<code>ServerModule.PORT</code>.  Note this is an asynchronous framework - a "
             + "<i>very</i> small number of threads can handle thousands of concurrent requests. "
             + "They may also be set using system properties.\n"
+            + "\nSettings can also be loaded from a file named $YOUR_SERVICE_NAME.properties which "
+            + "will be looked for in /etc, /opt/local/etc, $HOME and ./"
             + "<ul>"
             + "<li><b>ServerModule.PORT</b> - <code>port</code> - the HTTP port</li>"
             + "<li><b>ServerModule.MAX_CONTENT_LENGTH</b> - <code>maxContentLength</code> - set "
