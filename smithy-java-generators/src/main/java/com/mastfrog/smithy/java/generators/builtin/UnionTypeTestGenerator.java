@@ -176,6 +176,14 @@ final class UnionTypeTestGenerator extends AbstractJavaTestGenerator<UnionShape>
                     .initializedWithNew(nb -> nb.ofType("ObjectMapper"))
                     .as("ObjectMapper");
 
+            if (hasTimestampInClosure(this.shape)) {
+                bb.lineComment("Needed for Instant deserialization");
+                currentClassBuilder.importing("com.mastfrog.jackson.configuration.JacksonConfigurer");
+                bb.invoke("configureFromMetaInfServices")
+                        .withArgument("mapper")
+                        .on("JacksonConfigurer");
+            }
+
             bb.declare("json")
                     .initializedByInvoking("writeValueAsString")
                     .withArgument("instance")

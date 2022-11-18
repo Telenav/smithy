@@ -1210,4 +1210,27 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         }
     }
 
+    protected boolean hasTimestampInClosure(Shape shape) {
+        return hasTimestampInClosure(shape, model, new HashSet<>());
+    }
+
+    private static boolean hasTimestampInClosure(Shape shape, Model mdl, Set<ShapeId> seen) {
+        if (seen.contains(shape.getId())) {
+            return false;
+        }
+        seen.add(shape.getId());
+        if (shape.getType() == ShapeType.TIMESTAMP) {
+            return true;
+        }
+        if (shape.isStructureShape()) {
+            StructureShape ss = shape.asStructureShape().get();
+            for (Map.Entry<String, MemberShape> e : ss.getAllMembers().entrySet()) {
+                if (hasTimestampInClosure(mdl.expectShape(e.getValue().getTarget()), mdl, seen)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
 }

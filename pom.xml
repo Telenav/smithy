@@ -33,7 +33,7 @@
         <module>server-test</module>
 
         <!-- Leaving this out of the initial build -->
-        <!--        <module>test</module> -->
+        <!--<module>test</module>--> 
 
         <module>smithy-simple-server-generator</module>
         <module>smithy-acteur-adapter</module>
@@ -51,7 +51,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <smithy.version>1.24.0</smithy.version>
         <nemesis.version>2.0.110</nemesis.version>
-
+        <wordy.version>1.5.47</wordy.version>
     </properties>
 
     <dependencyManagement>
@@ -62,7 +62,6 @@
                 <artifactId>smithy-extensions</artifactId>
                 <version>${project.version}</version>
             </dependency>
-
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>smithy-generators</artifactId>
@@ -128,7 +127,7 @@
                 <artifactId>safety-service-impl</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            
+
             <dependency>
                 <groupId>com.mastfrog</groupId>
                 <artifactId>jackson-configuration</artifactId>
@@ -231,8 +230,14 @@
             <dependency>
                 <groupId>com.telenav.cactus</groupId>
                 <artifactId>cactus-maven-log</artifactId>
-                <version>1.5.32</version>
-            </dependency>            
+                <version>${wordy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.telenav.cactus</groupId>
+                <artifactId>wordy</artifactId>
+                <version>${wordy.version}</version>
+                <!--<scope>test</scope>-->
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <build>
@@ -277,6 +282,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>3.4.1</version>
                     <configuration>
                         <quiet>true</quiet>
                         <doclint>none</doclint>
@@ -284,7 +290,41 @@
                         <source>11</source>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.0.0-M7</version>
 
+                    <configuration>
+
+                        <parallel>all</parallel>
+                        <parallelMavenExecution>true</parallelMavenExecution>
+                        <perCoreThreadCount>6</perCoreThreadCount>
+                        <threadCount>20</threadCount>
+                        <forkCount>16</forkCount>
+                        <reuseForks>true</reuseForks>
+                        <trimStackTrace>false</trimStackTrace>
+
+                        <systemPropertyVariables>
+                            <unit.test>true</unit.test>
+                            <acteur.debug>false</acteur.debug>
+                            <forkNumber>${surefire.forkNumber}</forkNumber>
+                            <!-- <io.netty.leakDetection.level>advanced</io.netty.leakDetection.level> -->
+                            <system.exit.on.bind.failure>false</system.exit.on.bind.failure>
+                        </systemPropertyVariables>
+
+                        <properties>
+
+                            <configurationParameters>
+                                <junit.jupiter.execution.parallel.enabled>true</junit.jupiter.execution.parallel.enabled>
+                                <junit.jupiter.execution.parallel.mode.default>concurrent</junit.jupiter.execution.parallel.mode.default>
+                                <junit.jupiter.execution.parallel.mode.classes.default>concurrent</junit.jupiter.execution.parallel.mode.classes.default>
+                                <junit.jupiter.execution.parallel.config.strategy>dynamic</junit.jupiter.execution.parallel.config.strategy>
+                            </configurationParameters>
+
+                        </properties>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>

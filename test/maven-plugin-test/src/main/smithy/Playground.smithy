@@ -5,7 +5,7 @@ namespace smithy.playground
 use com.telenav.smithy#identity
 use com.telenav.smithy#builder
 use com.telenav.smithy#samples
-
+use com.telenav.smithy#fuzzyNameMatch
 /// A string shape with length and pattern.
 @pattern("^[0-9a-f]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$")
 @length(min:36, max:36)
@@ -40,6 +40,7 @@ list Attendees {
     member : Person
 }
 
+@fuzzyNameMatch
 enum TimeLengthUnits {
     SECONDS = "Seconds",
     MINUTES = "Minutes",
