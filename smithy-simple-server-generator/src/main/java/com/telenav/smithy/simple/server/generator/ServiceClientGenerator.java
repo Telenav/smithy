@@ -29,14 +29,17 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
+import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
+import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry;
 import static com.mastfrog.smithy.java.generators.util.JavaSymbolProvider.escape;
 import com.mastfrog.smithy.java.generators.util.TypeNames;
 import static com.mastfrog.smithy.java.generators.util.TypeNames.typeNameOf;
 import com.mastfrog.util.preconditions.ConfigurationError;
+import com.mastfrog.util.strings.Strings;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -78,9 +81,13 @@ import software.amazon.smithy.model.traits.RequiredTrait;
 public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     private final ResourceGraph graph;
+    private final boolean generateDebugComments;
 
-    public ServiceClientGenerator(ServiceShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
+    public ServiceClientGenerator(ServiceShape shape, Model model, Path destSourceRoot,
+            GenerationTarget target, LanguageWithVersion language,
+            SmithyGenerationSettings sgs) {
         super(shape, model, destSourceRoot, target, language);
+        generateDebugComments = sgs.is(DEBUG);
         graph = OperationGenerator.ensureGraphs(model, shape);
     }
 
@@ -122,6 +129,9 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                         "com.mastfrog.smithy.client.result.ServiceResult",
                         "java.util.concurrent.CompletableFuture"
                 );
+        if (generateDebugComments) {
+            cb.generateDebugLogCode();
+        }
 
         Registry.applyGeneratedAnnotation(getClass(), cb);
 
@@ -290,18 +300,40 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                             (headerMembers, headerForMemberName, requiredHeaderTraits) -> {
                                 generateHeaderSettingHttpInvocation(bb, true, httpMethod, outputType, headerMembers, headerForMemberName, requiredHeaderTraits, cb,
                                         iv -> {
+                                            if (isNoInputTraits(input)) {
+                                                return iv.withArgument("input");
+                                            }
                                             return iv.withArgument("null");
                                         });
                             });
                     if (!hadHeaderProperties2) {
                         bb.returningInvocationOf(httpMethod)
-                                .withArgument("null")
+                                // The input may simply *be* the payload, with no
+                                // header/query/label traits involved
+                                .withArgument(input.isPresent() ? "input" : "null")
                                 .withArgumentFromInvoking("toString").on("uri")
                                 .withClassArgument(outputType)
                                 .on("super");
                     }
                 });
         }
+    }
+
+    private boolean isNoInputTraits(Optional<Shape> inputShape) {
+        if (!inputShape.isPresent()) {
+            return false;
+        }
+        StructureShape ss = inputShape.get().asStructureShape().get();
+        for (Map.Entry<String, MemberShape> e : ss.getAllMembers().entrySet()) {
+            boolean found = e.getValue().getTrait(HttpQueryTrait.class).isPresent()
+                    || e.getValue().getTrait(HttpLabelTrait.class).isPresent()
+                    || e.getValue().getTrait(HttpHeaderTrait.class).isPresent()
+                    || e.getValue().getTrait(HttpPayloadTrait.class).isPresent();
+            if (found) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public <T, B extends BlockBuilderBase<T, BlockBuilder<T>, T>> void generateHeaderSettingHttpInvocation(B bb, boolean twoArg,
@@ -311,16 +343,16 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
         this.generateHeaderSettingHttpInvocation(bb, twoArg, httpMethod, outputType, headerMembers, headerForMemberName, requiredHeaderTraits, cb, x -> x);
     }
 
-    public <T, B extends BlockBuilderBase<T, BlockBuilder<T>, T>> void generateHeaderSettingHttpInvocation(B bb, boolean twoArg,
+    public <T, B extends BlockBuilderBase<T, BlockBuilder<T>, T>> void generateHeaderSettingHttpInvocation(
+            B bb, boolean twoArg,
             String httpMethod, String outputType, Set<Map.Entry<String, MemberShape>> headerMembers,
-            Map<String, String> headerForMemberName, Set<String> requiredHeaderTraits, ClassBuilder<String> cb,
+            Map<String, String> headerForMemberName, Set<String> requiredHeaderTraits,
+            ClassBuilder<String> cb,
             UnaryOperator<InvocationBuilder<BlockBuilder<T>>> op) {
 
         bb.lineComment("Have header properties: " + headerForMemberName);
         InvocationBuilder<BlockBuilder<T>> ret = op.apply(bb.returningInvocationOf(httpMethod));
-
-        ret
-                .withArgumentFromInvoking("toString").on("uri")
+        ret.withArgumentFromInvoking("toString").on("uri")
                 .withClassArgument(outputType)
                 .withLambdaArgument(lbb -> {
                     lbb.withArgument("request");

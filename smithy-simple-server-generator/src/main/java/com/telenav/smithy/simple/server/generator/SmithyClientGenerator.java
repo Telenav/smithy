@@ -62,7 +62,7 @@ public class SmithyClientGenerator implements SmithyGenerator {
         if (shape.isServiceShape()) {
             return singleton(new ServiceClientGenerator(
                     shape.asServiceShape().get(), model,
-                    path, gt, lwv));
+                    path, gt, lwv, sgs));
         }
         return emptySet();
     }
