@@ -33,7 +33,7 @@
         <module>server-test</module>
 
         <!-- Leaving this out of the initial build -->
-        <!--<module>test</module>--> 
+        <!--<module>test</module>-->
 
         <module>smithy-simple-server-generator</module>
         <module>smithy-acteur-adapter</module>
@@ -100,31 +100,6 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>smithy-acteur-adapter</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.telenav.smithy</groupId>
-                <artifactId>safety-service-model</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.telenav.smithy</groupId>
-                <artifactId>safety-service-server-spi</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.telenav.smithy</groupId>
-                <artifactId>safety-service-server</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.telenav.smithy</groupId>
-                <artifactId>safety-service-client</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.telenav.smithy</groupId>
-                <artifactId>safety-service-impl</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -236,7 +211,11 @@
                 <groupId>com.telenav.cactus</groupId>
                 <artifactId>wordy</artifactId>
                 <version>${wordy.version}</version>
-                <!--<scope>test</scope>-->
+            </dependency>
+            <dependency>
+                <groupId>com.telenav.cactus</groupId>
+                <artifactId>cactus-util</artifactId>
+                <version>${wordy.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
