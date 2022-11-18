@@ -35,13 +35,11 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import com.mastfrog.smithy.client.result.ServiceResult;
 import java.net.URI;
-import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -146,13 +144,6 @@ public abstract class BaseServiceClient<S> {
     protected final <T> CompletableFuture<ServiceResult<T>> get(String urlBase,
             Class<T> type) {
         return requestWithBody(ClientHttpMethod.GET, null, urlBase, type, null);
-//        JacksonBodyHandler<T> handler = new JacksonBodyHandler<>(
-//                Duration.ofMinutes(10), mapper(), type);
-//        config.owner().checker().track(handler);
-//        config.request(urlBase, handler, bldr -> {
-//            config.decorateRequest(urlBase, ClientHttpMethod.GET, Optional.empty(), bldr.GET());
-//        });
-//        return handler.bodyFuture;
     }
 
     protected final <T> CompletableFuture<ServiceResult<T>> get(String urlBase,
@@ -162,25 +153,11 @@ public abstract class BaseServiceClient<S> {
                 c.accept(bldr);
             }
         });
-//        JacksonBodyHandler<T> handler = new JacksonBodyHandler<>(
-//                Duration.ofMinutes(10), mapper(), type);
-//        config.owner().checker().track(handler);
-//        config.request(urlBase, handler, bldr -> {
-//            config.decorateRequest(urlBase, ClientHttpMethod.GET, Optional.empty(), bldr.GET());
-//        });
-//        return handler.bodyFuture;
     }
 
     protected final <T> CompletableFuture<ServiceResult<T>> delete(String urlBase,
             Class<T> type) {
         return requestWithBody(ClientHttpMethod.DELETE, null, urlBase, type, null);
-//        JacksonBodyHandler<T> handler = new JacksonBodyHandler<>(
-//                Duration.ofMinutes(10), mapper(), type);
-//        config.owner().checker().track(handler);
-//        config.request(urlBase, handler, bldr -> {
-//            config.decorateRequest(urlBase, ClientHttpMethod.DELETE, Optional.empty(), bldr.DELETE());
-//        });
-//        return handler.bodyFuture;
     }
 
     protected final <T> CompletableFuture<ServiceResult<T>> delete(String urlBase,
@@ -190,24 +167,10 @@ public abstract class BaseServiceClient<S> {
                 c.accept(bldr);
             }
         });
-//        JacksonBodyHandler<T> handler = new JacksonBodyHandler<>(
-//                Duration.ofMinutes(10), mapper(), type);
-//        config.owner().checker().track(handler);
-//        config.request(urlBase, handler, bldr -> {
-//            config.decorateRequest(urlBase, ClientHttpMethod.DELETE, Optional.empty(), bldr.DELETE());
-//        });
-//        return handler.bodyFuture;
     }
 
     protected final <T> CompletableFuture<ServiceResult<T>> post(String urlBase, Class<T> type) {
         return requestWithBody(ClientHttpMethod.POST, null, urlBase, type, null);
-//        JacksonBodyHandler<T> handler = new JacksonBodyHandler<>(
-//                Duration.ofMinutes(10), mapper(), type);
-//        config.owner().checker().track(handler);
-//        config.request(urlBase, handler, bldr -> {
-//            config.decorateRequest(urlBase, ClientHttpMethod.POST, Optional.empty(), bldr.POST(BodyPublishers.noBody()));
-//        });
-//        return handler.bodyFuture;
     }
 
     protected final <I, T> CompletableFuture<ServiceResult<T>> post(I input, String urlBase,
@@ -218,38 +181,6 @@ public abstract class BaseServiceClient<S> {
     protected final <I, T> CompletableFuture<ServiceResult<T>> post(I input, String urlBase,
             Class<T> type, ThrowingBiConsumer<HttpRequest.Builder, byte[]> c) {
         return requestWithBody(ClientHttpMethod.POST, input, urlBase, type, c);
-//        try {
-//            ObjectMapper mapper = mapper();
-//            JacksonBodyHandler<T> handler = new JacksonBodyHandler<>(
-//                    Duration.ofMinutes(10), mapper, type);
-//            config.owner().checker().track(handler);
-//            debugLog("POST " + urlBase + " for " + type.getSimpleName() + " with " + input);
-//            CompletableFuture<HttpResponse<ServiceResult<T>>> origFuture = config.request(urlBase, handler, bldr -> {
-//                byte[] bytes = mapper.writeValueAsBytes(input);
-//                if (c != null) {
-//                    c.accept(bldr, bytes);
-//                }
-//                config.decorateRequest(urlBase, ClientHttpMethod.POST, Optional.of(bytes), bldr.POST(BodyPublishers.ofByteArray(bytes)));
-//                debugLog("deco req " + bldr.build());
-//            });
-//            origFuture.whenComplete((res, thr) -> {
-//                debugLog("ORIG FUT RESULT " + res);
-//                debugLog("ORIG FUT THROWN: " + thr);
-//                if (thr != null) {
-//                    thr.printStackTrace(System.err);
-//                }
-//            });
-//            handler.bodyFuture.whenComplete((sr, thr) -> {
-//                debugLog("BODY FUT RESULT " + sr);
-//                debugLog("BODY FUT THROWN: " + thr);
-//                if (thr != null) {
-//                    thr.printStackTrace(System.err);
-//                }
-//            });
-//            return handler.bodyFuture;
-//        } catch (Exception ex) {
-//            return Exceptions.chuck(ex);
-//        }
     }
 
     protected final <I, T> CompletableFuture<ServiceResult<T>> put(I input, String urlBase, Class<T> type) {
@@ -258,23 +189,6 @@ public abstract class BaseServiceClient<S> {
 
     protected final <I, T> CompletableFuture<ServiceResult<T>> put(I input, String urlBase, Class<T> type, ThrowingBiConsumer<HttpRequest.Builder, byte[]> c) {
         return requestWithBody(ClientHttpMethod.PUT, input, urlBase, type, c);
-//        try {
-//            ObjectMapper mapper = mapper();
-//            JacksonBodyHandler<T> handler = new JacksonBodyHandler<>(
-//                    config.duration("requestMaxDuration", DEFAULT_MAX_DURATION), mapper, type);
-//            config.owner().checker().track(handler);
-//            config.request(urlBase, handler, bldr -> {
-//                byte[] bytes = mapper.writeValueAsBytes(input);
-//                if (c != null) {
-//                    c.accept(bldr, bytes);
-//                }
-//                config.decorateRequest(urlBase, ClientHttpMethod.PUT,
-//                        Optional.of(bytes), bldr.PUT(BodyPublishers.ofByteArray(bytes)));
-//            });
-//            return handler.bodyFuture;
-//        } catch (Exception ex) {
-//            return Exceptions.chuck(ex);
-//        }
     }
 
     private final <I, T> CompletableFuture<ServiceResult<T>> requestWithBody(

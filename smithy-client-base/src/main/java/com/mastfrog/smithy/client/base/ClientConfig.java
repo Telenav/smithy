@@ -107,7 +107,7 @@ public final class ClientConfig {
         // and serialization of Optionals
         return JacksonConfigurer.apply(new ObjectMapper(),
                 JacksonConfigurer.javaTimeConfigurer(
-                        TimeSerializationMode.TIME_AS_ISO_STRING, 
+                        TimeSerializationMode.TIME_AS_ISO_STRING,
                         DurationSerializationMode.DURATION_AS_ISO_STRING),
                 JacksonConfigurer.localeConfigurer(),
                 JacksonConfigurer.optionalSerializer());
@@ -147,7 +147,7 @@ public final class ClientConfig {
             file = Paths.get(path);
         }
         if (Files.exists(file) && !Files.isDirectory(file) && Files.isReadable(file)) {
-            try ( InputStream in = Files.newInputStream(file, READ)) {
+            try (InputStream in = Files.newInputStream(file, READ)) {
                 result.load(in);
             } catch (IOException ex) {
                 Logger.getLogger(ClientConfig.class.getName()).log(Level.SEVERE, null, ex);
@@ -187,7 +187,7 @@ public final class ClientConfig {
     }
 
     <T> T withClient(ServiceClientConfig config, ThrowingFunction<HttpClient, T> supp) throws Exception {
-        try ( QuietAutoClosable ac = inContext(config)) {
+        try (QuietAutoClosable ac = inContext(config)) {
             return supp.apply(client);
         }
     }
@@ -204,7 +204,7 @@ public final class ClientConfig {
                 Thread.currentThread().setName(config.serviceName()
                         + "-" + config.serviceVersion());
             }
-            try ( QuietAutoClosable ac = inContext(config)) {
+            try (QuietAutoClosable ac = inContext(config)) {
                 run.run();
             } finally {
                 if (config != null) {
@@ -222,7 +222,7 @@ public final class ClientConfig {
                 Thread.currentThread().setName(config.serviceName()
                         + "-" + config.serviceVersion());
             }
-            try ( QuietAutoClosable ac = inContext(config)) {
+            try (QuietAutoClosable ac = inContext(config)) {
                 return run.call();
             } finally {
                 if (config != null) {
@@ -240,7 +240,7 @@ public final class ClientConfig {
 
         public Exe() {
             // Pending - make configurable
-            super(8, 64, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
+            super(8, 128, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
                     new TF(), new Rej());
         }
 
