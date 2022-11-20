@@ -30,7 +30,6 @@ import com.mastfrog.function.throwing.ThrowingConsumer;
 import com.mastfrog.function.throwing.ThrowingFunction;
 import com.mastfrog.smithy.client.listeners.ClientHttpMethod;
 import static com.mastfrog.util.preconditions.Checks.notNull;
-import com.mastfrog.util.preconditions.Exceptions;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -61,7 +60,10 @@ public final class ServiceClientConfig {
     private final String defaultEndpoint;
     private final String version;
 
-    public ServiceClientConfig(String serviceName, ClientConfig clientConfig, Map<String, String> metadata, String defaultEndpoint, String version) {
+    public ServiceClientConfig(String serviceName,
+            ClientConfig clientConfig,
+            Map<String, String> metadata,
+            String defaultEndpoint, String version) {
         this.serviceName = serviceName;
         this.clientConfig = clientConfig;
         this.defaultEndpoint = defaultEndpoint;
@@ -109,17 +111,19 @@ public final class ServiceClientConfig {
     }
 
     public <R> CompletableFuture<HttpResponse<R>> request(URI fullUri, ThrowingConsumer<HttpRequest.Builder> c, BodyHandler<R> handler) {
+        System.out.println("REQUEST " + fullUri + " on " + Thread.currentThread().getName());
         try {
             return run(client -> {
                 HttpRequest.Builder bldr = HttpRequest.newBuilder(fullUri);
-                bldr.header("user-agent", serviceName + "-" + version);
+                bldr.header("user-agent", serviceName + "-Client-" + version);
                 c.accept(bldr);
                 HttpRequest req = bldr.build();
                 CompletableFuture<HttpResponse<R>> result = client.sendAsync(req, handler);
                 return result;
             });
         } catch (Exception ex) {
-            return Exceptions.chuck(ex);
+            ex.printStackTrace();
+            return CompletableFuture.failedFuture(ex);
         }
     }
 

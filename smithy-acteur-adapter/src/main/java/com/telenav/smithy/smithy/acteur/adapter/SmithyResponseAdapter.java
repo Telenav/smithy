@@ -39,6 +39,7 @@ import java.util.concurrent.CompletableFuture;
 public final class SmithyResponseAdapter {
 
     public static <T> SmithyResponse<T> smithyResponse(Response response, CompletableFuture<T> fut) {
+        response.chunked(true);
         return SmithyResponse.smithyResponse(new HeadAdapter(response), fut);
     }
 

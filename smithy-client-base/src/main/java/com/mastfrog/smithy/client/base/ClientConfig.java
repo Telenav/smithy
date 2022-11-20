@@ -51,6 +51,7 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -82,13 +83,21 @@ public final class ClientConfig {
         mapper = createMapper();
         client = HttpClient.newBuilder().executor(threadPool)
                 .followRedirects(HttpClient.Redirect.ALWAYS)
-                .connectTimeout(Duration.ofSeconds(20))
+                .connectTimeout(Duration.ofSeconds(20)) // XXX should be configurable
+                .version(HttpClient.Version.HTTP_1_1)
+                .executor(threadPool)
                 .build();
     }
 
     static void debugLog(String what) {
         if (DEBUG_LOG) {
             System.err.println(what);
+        }
+    }
+
+    static void debugLog(Supplier<String> what) {
+        if (DEBUG_LOG) {
+            System.err.println(what.get());
         }
     }
 
@@ -267,14 +276,25 @@ public final class ClientConfig {
 
         @Override
         public Thread newThread(Runnable r) {
-            Thread t = new Thread(r, "Smithy-Client " + count++);
+            Thread t = new ClientThread("smithy-http-client-" + count++, r);
             t.setDaemon(true);
             t.setUncaughtExceptionHandler((th, ex) -> {
                 System.out.println(th + " " + ex);
                 ex.printStackTrace();
             });
-            debugLog("Create a new thread " + count);
+            debugLog(() -> "Create a new thread " + count);
             return t;
+        }
+    }
+
+    static boolean isClientThread() {
+        return Thread.currentThread().getClass() == ClientThread.class;
+    }
+
+    private static class ClientThread extends Thread {
+
+        ClientThread(String name, Runnable r) {
+            super(r, name);
         }
     }
 

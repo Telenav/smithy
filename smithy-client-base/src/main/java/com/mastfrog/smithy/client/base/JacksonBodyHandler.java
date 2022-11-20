@@ -146,7 +146,7 @@ final class JacksonBodyHandler<T>
         return bodyFuture;
     }
 
-    Optional<Flow.Subscription> subscription() {
+    synchronized Optional<Flow.Subscription> subscription() {
         return Optional.ofNullable(subscription);
     }
 
@@ -219,32 +219,35 @@ final class JacksonBodyHandler<T>
 
     @Override
     public void onComplete() {
-        debugLog("ON COMPLETE - info " + info);
+        debugLog("ON COMPLETE - info " + (info == null ? "--" : info.statusCode()));
         if (info != null) {
             if (info.statusCode() > 399) {
-                Charset charset = info.headers().firstValue("content-type")
-                        .map(ct -> {
-                            Matcher m = CHARSET_PATTERN_IN_CONTENT_TYPE_HEADER.matcher(ct);
-                            if (m.find()) {
-                                try {
-                                    return Charset.forName(m.group(1));
-                                } catch (Exception ex) {
-                                    Logger.getLogger(JacksonBodyHandler.class.getName()).log(Level.WARNING, "Bad charset " + m.group(1), ex);
-                                    return UTF_8;
-                                }
-                            }
-                            return null;
-                        }).orElse(UTF_8);
-
-                String body;
-                synchronized (bytes) {
-                    body = new String(bytes.toByteArray(), charset);
-                }
-                completeFuture(ServiceResult.failed(info, body));
-                state.getAndUpdate(old -> old.withReason(CompletionReason.FAILED));
-            } else {
+                String body = "";
                 try {
-                    T obj;
+                    Charset charset = info.headers().firstValue("content-type")
+                            .map(ct -> {
+                                Matcher m = CHARSET_PATTERN_IN_CONTENT_TYPE_HEADER.matcher(ct);
+                                if (m.find()) {
+                                    try {
+                                        return Charset.forName(m.group(1));
+                                    } catch (Exception ex) {
+                                        Logger.getLogger(JacksonBodyHandler.class.getName()).log(Level.WARNING, "Bad charset " + m.group(1), ex);
+                                        return UTF_8;
+                                    }
+                                }
+                                return null;
+                            }).orElse(UTF_8);
+
+                    synchronized (bytes) {
+                        body = new String(bytes.toByteArray(), charset);
+                    }
+                } finally {
+                    completeFuture(ServiceResult.failed(info, body));
+                    state.getAndUpdate(old -> old.withReason(CompletionReason.FAILED));
+                }
+            } else {
+                T obj;
+                try {
                     synchronized (bytes) {
                         if (bytes.size() > 0) {
                             obj = mapper.readValue(bytes.toByteArray(), type);
@@ -262,6 +265,11 @@ final class JacksonBodyHandler<T>
                     completeFuture(ServiceResult.decodingError(body, ex));
                     state.getAndUpdate(old -> old.withState(State.DONE)
                             .withReason(CompletionReason.INVALID_RESPONSE));
+
+                } catch (Throwable th) {
+                    bodyFuture.completeExceptionally(th);
+                    state.getAndUpdate(old -> old.withState(State.DONE).withReason(CompletionReason.ERRORED));
+                    return;
                 }
             }
         }
@@ -272,7 +280,10 @@ final class JacksonBodyHandler<T>
         if (checkTimeout()) {
             return this;
         }
-        info = responseInfo;
+        System.out.println("APPLY. " + responseInfo);
+        synchronized (this) {
+            info = responseInfo;
+        }
         state.getAndUpdate(old -> {
             HttpOperationState result = old;
             if (old.state().ordinal() < State.HEADERS_RECEIVED.ordinal()) {

@@ -32,11 +32,9 @@ import com.mastfrog.java.vogon.ClassBuilder.NewBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
 import com.mastfrog.smithy.java.generators.util.TypeNames;
 import com.mastfrog.util.strings.Escaper;
-import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.traits.DefaultTrait;
 
 /**

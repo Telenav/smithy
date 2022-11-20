@@ -49,6 +49,5 @@ public class RequestIDDecorator implements RequestDecorator {
                 + "/" + Integer.toString(hash, 36) 
                 + "/" + Long.toString(INDEX.getAndIncrement(), 36);
         req.header(REQ_ID_HEADER, value);
-        System.out.println("ADD HEADER " + REQ_ID_HEADER + ": " + value);
     }
 }

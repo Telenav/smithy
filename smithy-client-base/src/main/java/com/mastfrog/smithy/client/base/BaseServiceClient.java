@@ -195,24 +195,32 @@ public abstract class BaseServiceClient<S> {
             ClientHttpMethod method, I input, String urlBase,
             Class<T> responseBody,
             ThrowingBiConsumer<HttpRequest.Builder, byte[]> c) {
+        JacksonBodyHandler<T> handler = new JacksonBodyHandler<>(
+                config.duration("requestMaxDuration", DEFAULT_MAX_DURATION), mapper, responseBody);
         try {
             ObjectMapper mapper = mapper();
-            JacksonBodyHandler<T> handler = new JacksonBodyHandler<>(
-                    config.duration("requestMaxDuration", DEFAULT_MAX_DURATION), mapper, responseBody);
             config.owner().checker().track(handler);
             CompletableFuture<HttpResponse<ServiceResult<T>>> origFuture
                     = config.request(urlBase, handler, bldr -> {
-                        byte[] bytes;
-                        if (input != null) {
-                            bytes = mapper.writeValueAsBytes(input);
-                        } else {
-                            bytes = null;
+                        try {
+                            byte[] bytes;
+                            if (input != null) {
+                                bytes = mapper.writeValueAsBytes(input);
+                            } else {
+                                bytes = null;
+                            }
+                            if (c != null) {
+                                c.accept(bldr, bytes);
+                            }
+                            config.decorateRequest(urlBase, method, Optional.ofNullable(bytes),
+                                    method.apply(bldr, bytes == null ? BodyPublishers.noBody() 
+                                            : BodyPublishers.ofByteArray(bytes))
+//                                            : new DebugBodyPublisher(bytes, config.owner().executor()))
+                            );
+                        } catch (Throwable thrown) {
+                            thrown.printStackTrace();
+                            handler.bodyFuture.completeExceptionally(thrown);
                         }
-                        if (c != null) {
-                            c.accept(bldr, bytes);
-                        }
-                        config.decorateRequest(urlBase, method, Optional.ofNullable(bytes),
-                                method.apply(bldr, bytes == null ? BodyPublishers.noBody() : BodyPublishers.ofByteArray(bytes)));
                     });
             origFuture.whenComplete((res, thr) -> {
                 if (thr != null) {
@@ -225,11 +233,12 @@ public abstract class BaseServiceClient<S> {
                 }
             });
             return handler.bodyFuture;
-        } catch (Exception ex) {
-            return Exceptions.chuck(ex);
+        } catch (Throwable ex) {
+            handler.cancel();
+            return CompletableFuture.failedFuture(ex);
         }
     }
-
+    
     protected URIBuilder uri() {
         return new URIBuilder();
     }
