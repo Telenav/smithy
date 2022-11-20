@@ -25,10 +25,13 @@ package com.mastfrog.smithy.generators;
 
 import static com.mastfrog.smithy.generators.GenerationSwitches.DRY_RUN;
 import com.mastfrog.util.file.FileUtils;
+import static com.mastfrog.util.file.FileUtils.deltree;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -55,8 +58,20 @@ public final class GenerationResults {
         if (ctx.settings().is(GenerationSwitches.DONT_CLEAN_SOURCE_ROOTS)) {
             return;
         }
-        for (Path root : roots) {
-            FileUtils.deltree(root);
+        if (!dryRun) {
+            for (Path root : roots) {
+                deleteChildrenOf(root);
+            }
+        }
+    }
+
+    private void deleteChildrenOf(Path path) throws IOException {
+        if (Files.exists(path)) {
+            Set<Path> all = new LinkedHashSet<>();
+            Files.list(path).filter(p -> Files.isDirectory(p)).forEachOrdered(all::add);
+            for (Path p : all) {
+                deltree(p);
+            }
         }
     }
 
