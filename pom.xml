@@ -45,7 +45,6 @@
         <builder-builder.version>1.0.9</builder-builder.version>
         <atomic-state.version>1.0.4</atomic-state.version>
         <bouncycastle.version>1.70</bouncycastle.version>
-        <mastfrog.concurrent.version>${mastfrog.version}</mastfrog.concurrent.version>
         <java.vogon.version>${mastfrog.version}</java.vogon.version>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
@@ -267,41 +266,6 @@
                         <doclint>none</doclint>
                         <additionalOptions>-html5</additionalOptions>
                         <source>11</source>
-                    </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.0.0-M7</version>
-
-                    <configuration>
-
-                        <parallel>all</parallel>
-                        <parallelMavenExecution>true</parallelMavenExecution>
-                        <perCoreThreadCount>6</perCoreThreadCount>
-                        <threadCount>20</threadCount>
-                        <forkCount>16</forkCount>
-                        <reuseForks>true</reuseForks>
-                        <trimStackTrace>false</trimStackTrace>
-
-                        <systemPropertyVariables>
-                            <unit.test>true</unit.test>
-                            <acteur.debug>false</acteur.debug>
-                            <forkNumber>${surefire.forkNumber}</forkNumber>
-                            <!-- <io.netty.leakDetection.level>advanced</io.netty.leakDetection.level> -->
-                            <system.exit.on.bind.failure>false</system.exit.on.bind.failure>
-                        </systemPropertyVariables>
-
-                        <properties>
-
-                            <configurationParameters>
-                                <junit.jupiter.execution.parallel.enabled>true</junit.jupiter.execution.parallel.enabled>
-                                <junit.jupiter.execution.parallel.mode.default>concurrent</junit.jupiter.execution.parallel.mode.default>
-                                <junit.jupiter.execution.parallel.mode.classes.default>concurrent</junit.jupiter.execution.parallel.mode.classes.default>
-                                <junit.jupiter.execution.parallel.config.strategy>dynamic</junit.jupiter.execution.parallel.config.strategy>
-                            </configurationParameters>
-
-                        </properties>
                     </configuration>
                 </plugin>
             </plugins>
