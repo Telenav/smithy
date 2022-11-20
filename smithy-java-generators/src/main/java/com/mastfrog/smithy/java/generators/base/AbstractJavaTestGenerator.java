@@ -1222,12 +1222,9 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         if (shape.getType() == ShapeType.TIMESTAMP) {
             return true;
         }
-        if (shape.isStructureShape()) {
-            StructureShape ss = shape.asStructureShape().get();
-            for (Map.Entry<String, MemberShape> e : ss.getAllMembers().entrySet()) {
-                if (hasTimestampInClosure(mdl.expectShape(e.getValue().getTarget()), mdl, seen)) {
-                    return true;
-                }
+        for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+            if (hasTimestampInClosure(mdl.expectShape(e.getValue().getTarget()), mdl, seen)) {
+                return true;
             }
         }
         return false;
