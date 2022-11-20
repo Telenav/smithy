@@ -279,7 +279,7 @@ public final class ClientConfig {
             Thread t = new ClientThread("smithy-http-client-" + count++, r);
             t.setDaemon(true);
             t.setUncaughtExceptionHandler((th, ex) -> {
-                System.out.println(th + " " + ex);
+                System.out.println(th.getName() + " " + ex);
                 ex.printStackTrace();
             });
             debugLog(() -> "Create a new thread " + count);

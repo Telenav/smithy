@@ -280,7 +280,6 @@ final class JacksonBodyHandler<T>
         if (checkTimeout()) {
             return this;
         }
-        System.out.println("APPLY. " + responseInfo);
         synchronized (this) {
             info = responseInfo;
         }

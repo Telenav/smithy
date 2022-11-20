@@ -10,6 +10,7 @@ derby.log
 tags/
 gensrc/
 .ant-targets-build.xml
+nb-configuration.xml
 .classpath/
 .project/
 .externalToolBuilders/

@@ -111,7 +111,6 @@ public final class ServiceClientConfig {
     }
 
     public <R> CompletableFuture<HttpResponse<R>> request(URI fullUri, ThrowingConsumer<HttpRequest.Builder> c, BodyHandler<R> handler) {
-        System.out.println("REQUEST " + fullUri + " on " + Thread.currentThread().getName());
         try {
             return run(client -> {
                 HttpRequest.Builder bldr = HttpRequest.newBuilder(fullUri);
