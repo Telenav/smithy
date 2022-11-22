@@ -89,6 +89,33 @@ final class StructureTestGenerator extends AbstractJavaTestGenerator<StructureSh
                                 .inScope();
 
                     }
+                } else {
+                    if (!mi.member.isRequired() && !mi.member.hasDefault()) {
+
+                        bb.invoke("assertTrue")
+                                .withArgumentFromInvoking("isPresent")
+                                .onInvocationOf(mi.member.getterName())
+                                .on(structInfo.name)
+                                .withStringLiteral("Optional for " + mi.member.jsonName() + " should not be empty")
+                                .inScope();
+
+                        bb.invoke("assertSame")
+                                .withArgument(mi.memberVar)
+                                .withArgumentFromInvoking("get")
+                                .onInvocationOf(mi.member.getterName())
+                                .on(structInfo.name)
+                                .withStringLiteral("Return value of getter for " + mi.member.jsonName() + " does not match.")
+                                .inScope();
+
+                    } else {
+                        bb.invoke("assertEquals")
+                                .withArgument(mi.memberVar)
+                                .withArgumentFromInvoking(mi.member.getterName())
+                                .on(structInfo.name)
+                                .withStringLiteral("Return value of getter for " + mi.member.jsonName() + " does not match.")
+                                .inScope();
+
+                    }
                 }
             }
 
