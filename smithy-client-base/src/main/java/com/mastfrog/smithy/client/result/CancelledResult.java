@@ -30,7 +30,14 @@ import com.mastfrog.smithy.client.state.CompletionReason;
  * @author Tim Boudreau
  */
 final class CancelledResult<T> implements ServiceResult<T> {
-    
+
+    private static final CancelledResult<Object> INSTANCE = new CancelledResult<>();
+
+    @SuppressWarnings("unchecked")
+    static <T> CancelledResult<T> cancelled() {
+        return (CancelledResult<T>) INSTANCE;
+    }
+
     @Override
     public boolean isTimedOut() {
         return true;
@@ -45,7 +52,7 @@ final class CancelledResult<T> implements ServiceResult<T> {
     public CompletionReason reason() {
         return CompletionReason.CANCELLED;
     }
-    
+
     @Override
     public String toString() {
         return reason().name().toLowerCase();

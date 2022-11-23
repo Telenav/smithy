@@ -201,12 +201,15 @@ public abstract class BaseServiceClient<S> {
             Class<T> responseBodyType,
             ThrowingBiConsumer<HttpRequest.Builder, byte[]> c) {
         try {
+            // Converts a byte[] based response into one decoded by Jackson
             JacksonBodyHandlerWrapper<T> handler = new JacksonBodyHandlerWrapper<>(mapper, responseBodyType);
+            // Make our HTTP request
             CompletableFuture<HttpResponse<ServiceResult<T>>> result = config.request(urlBase, handler, bldr -> {
                 byte[] bytes;
                 if (input != null) {
                     bytes = mapper.writeValueAsBytes(input);
                 } else {
+                    // Null may be a perfectly valid response
                     bytes = null;
                 }
                 if (c != null) {
@@ -217,19 +220,25 @@ public abstract class BaseServiceClient<S> {
                                 : BodyPublishers.ofByteArray(bytes))
                 );
             });
+            // And wrapper that as a future returning a service result
             CompletableFuture<ServiceResult<T>> res = result.handleAsync((resp, thrown) -> {
                 Throwable th = thrown instanceof ExecutionException
                         && thrown.getCause() != null ? thrown.getCause() : thrown;
                 if (th != null) {
                     if (th instanceof CancellationException) {
+                        // We were cancelled
                         return ServiceResult.cancelled();
                     } else if (th instanceof TimeoutException) {
+                        // We timed out
                         return ServiceResult.timeout();
                     }
+                    // Something else went wrong
                     return ServiceResult.thrown(th);
                 }
+                // Just unwrap the service result body
                 return resp.body();
             }, config.owner().executor());
+            // Ensure we honor the client timeout
             Duration timeout = config.duration("requestMaxDuration", DEFAULT_MAX_DURATION);
             res.completeOnTimeout(ServiceResult.timeout(), timeout.toMillis(), TimeUnit.MILLISECONDS);
             return res;

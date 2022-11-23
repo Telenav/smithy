@@ -130,7 +130,7 @@ public interface ServiceResult<T> {
     }
 
     static <T> ServiceResult<T> cancelled() {
-        return new CancelledResult<>();
+        return CancelledResult.cancelled();
     }
 
 }
