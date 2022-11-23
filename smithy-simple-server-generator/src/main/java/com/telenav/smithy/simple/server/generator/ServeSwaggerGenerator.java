@@ -68,123 +68,100 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         String swaggerPath = settings.getString("swaggerPath").orElse(null);
         if (swaggerPath == null) {
-//            return;
             swaggerPath = "/swagger";
         }
         addTo.accept(generateSwaggerSchemaLoader());
         addTo.accept(generateSwaggerActeur(swaggerPath));
-
     }
 
     private ClassBuilder<String> generateSwaggerActeur(String swaggerPath) {
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape) + ".swagger")
-                .named("SwaggerActeur")
-                .withModifier(FINAL)
+                .named("SwaggerActeur");
+        cb.withModifier(FINAL)
                 .importing(
                         "com.mastfrog.acteur.Acteur",
+                        "com.mastfrog.acteur.CheckIfModifiedSinceHeader",
+                        "com.mastfrog.acteur.CheckIfNoneMatchHeader",
                         "com.mastfrog.acteur.HttpEvent",
+                        "com.mastfrog.acteur.annotations.Concluders",
                         "com.mastfrog.acteur.annotations.HttpCall",
+                        "com.mastfrog.acteur.preconditions.Description",
+                        "com.mastfrog.acteur.preconditions.Methods",
+                        "com.mastfrog.acteur.preconditions.Path",
+                        "javax.inject.Inject",
                         "static com.mastfrog.acteur.header.entities.CacheControl.PUBLIC_MUST_REVALIDATE_MAX_AGE_1_DAY",
                         "static com.mastfrog.acteur.headers.Headers.CACHE_CONTROL",
+                        "static com.mastfrog.acteur.headers.Headers.CONTENT_LENGTH",
                         "static com.mastfrog.acteur.headers.Headers.CONTENT_TYPE",
                         "static com.mastfrog.acteur.headers.Headers.ETAG",
-                        "static com.mastfrog.acteur.headers.Headers.IF_MODIFIED_SINCE",
-                        "static com.mastfrog.acteur.headers.Headers.IF_NONE_MATCH",
                         "static com.mastfrog.acteur.headers.Headers.LAST_MODIFIED",
                         "static com.mastfrog.acteur.headers.Method.GET",
                         "static com.mastfrog.acteur.headers.Method.HEAD",
-                        "com.mastfrog.acteur.preconditions.Methods",
-                        "com.mastfrog.acteur.preconditions.Description",
-                        "com.mastfrog.acteur.preconditions.Path",
                         "static com.mastfrog.mime.MimeType.JSON_UTF_8",
-                        "static io.netty.handler.codec.http.HttpResponseStatus.GONE",
-                        "static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED",
-                        "javax.inject.Inject")
+                        "static io.netty.handler.codec.http.HttpResponseStatus.GONE"
+                )
                 .extending("Acteur")
                 .annotatedWith("Description", anno
-                        -> anno.addArgument("value", "Serves OpenAPI API documentation")
+                        -> anno.addArgument("value", "Serves OpenAPI API documentation generated from the Smithy model.")
                         .addArgument("category", "Swagger"))
                 .annotatedWith("HttpCall",
                         anno -> anno.addArgument("order", Integer.MAX_VALUE))
                 .annotatedWith("Path",
                         anno -> anno.addArgument("value", swaggerPath))
                 .annotatedWith("Methods", anno -> anno.addExpressionArgument("value", "{GET, HEAD}"))
+                .annotatedWith("Concluders", anno -> {
+                    // These run AFTER our acteur to actually send a response
+                    anno.addArrayArgument("value", arr -> {
+                        arr.expression("CheckIfNoneMatchHeader.class")
+                                .expression("CheckIfModifiedSinceHeader.class")
+                                .expression(cb.className() + ".SendSwaggerPayload.class");
+                    });
+                })
+                .innerClass("SendSwaggerPayload", inner -> {
+                    inner.extending("Acteur")
+                            .withModifier(STATIC, FINAL)
+                            .docComment("Concluder acteur that actually sends the payload, if CheckIfModifiedSinceHeader "
+                                    + "and CheckIfModifiedSinceHeader did not detect matching HTTP cache headers and short-circuit "
+                                    + "with a <code>304 Not Modified</code> response")
+                            .annotatedWith("Description").withValue("Sends the Swagger JSON payload.")
+                            .constructor(con -> {
+                                con.annotatedWith("Inject").closeAnnotation()
+                                        .addArgument("SwaggerInfo", "info")
+                                        .body(bb -> {
+                                            bb.lineComment("We know the size, no need for chunked transport.");
+                                            bb.invoke("setChunked")
+                                                    .withArgument(false)
+                                                    .inScope();
+                                            bb.declare("bytes")
+                                                    .initializedByInvoking("get")
+                                                    .onInvocationOf("body")
+                                                    .on("info")
+                                                    .as("byte[]");
+                                            bb.blankLine().lineComment("Set the content length header.");
+                                            bb.invoke("add")
+                                                    .withArgument("CONTENT_LENGTH")
+                                                    .withArgumentFromField("length").of("bytes")
+                                                    .inScope();
+                                            bb.blankLine().lineComment("And send the payload");
+                                            bb.invoke("ok")
+                                                    .withArgument("bytes")
+                                                    .inScope();
+                                        });
+                            });
+                })
                 .constructor(con -> {
                     con.annotatedWith("Inject").closeAnnotation()
                             .addArgument("HttpEvent", "event")
                             .addArgument("SwaggerInfo", "info")
                             .body(bb -> {
                                 bb.iff().booleanExpression("!info.body().isPresent()")
+                                        .lineComment("In an IDE? The swagger.json was not generated.")
                                         .invoke("reply")
                                         .withArgument("GONE")
                                         .inScope()
                                         .statement("return")
                                         .endIf();
-                                bb.declare("matched")
-                                        .initializedByInvoking("orElse")
-                                        .withArgument(false)
-                                        .onInvocationOf("or")
-                                        .withLambdaArgument(lb -> {
-                                            lb.body(lbb -> {
-                                                lbb.returningInvocationOf("map")
-                                                        .withLambdaArgument(lbb1 -> {
-                                                            lbb1.withArgument("lastModified");
-                                                            lbb1.body(lb1b1 -> {
-                                                                lb1b1.returningInvocationOf("orElse")
-                                                                        .withArgument(false)
-                                                                        .onInvocationOf("map")
-                                                                        .withLambdaArgument()
-                                                                        .withArgument("ifModifiedSince")
-                                                                        .body(ims -> {
-                                                                            ims.declare("modifiedMatch")
-                                                                                    .initializedByInvoking("equals")
-                                                                                    .withArgument("ifModifiedSince")
-                                                                                    .on("lastModified")
-                                                                                    .as("boolean");
-                                                                            Variable v = variable("modifiedMatch");
-                                                                            Value inv
-                                                                                    = invocationOf("isBefore")
-                                                                                            .withArgument("ifModifiedSince")
-                                                                                            .on("lastModified");
-                                                                            ims.returning(v.logicalOrWith(inv));
-                                                                        })
-                                                                        .onInvocationOf("httpHeader")
-                                                                        .withArgument("IF_MODIFIED_SINCE")
-                                                                        .on("event");
-                                                            });
-                                                        })
-                                                        .onInvocationOf("lastModified")
-                                                        .on("info");
-                                            });
-                                        })
-                                        //                                        .initializedByInvoking("orElse")
-                                        //                                        .withArgument(false)
-                                        .onInvocationOf("map")
-                                        .withLambdaArgument(lb -> {
-                                            lb.withArgument("ifNoneMatch")
-                                                    .body(lbb -> {
-                                                        lbb.returningInvocationOf("orElse")
-                                                                .withArgument(false)
-                                                                .onInvocationOf("map")
-                                                                .withLambdaArgument(lblb -> {
-                                                                    lblb.withArgument("etag")
-                                                                            .body(lbbb -> {
-                                                                                lbbb.returningInvocationOf("equals").withArgument("ifNoneMatch").on("etag");
-                                                                            });
-                                                                })
-                                                                .onInvocationOf("etag")
-                                                                .on("info");
-                                                    });
-                                        }).onInvocationOf("httpHeader")
-                                        .withArgument("IF_NONE_MATCH")
-                                        .on("event")
-                                        .as("boolean");
-                                bb.iff().booleanExpression("matched")
-                                        .invoke("reply")
-                                        .withArgument("NOT_MODIFIED")
-                                        .inScope()
-                                        .statement("return")
-                                        .endIf();
+                                bb.blankLine().lineComment("Set the Last-Modified HTTP cache header");
                                 bb.invoke("ifPresent")
                                         .withLambdaArgument(lb -> {
                                             lb.withArgument("zdt")
@@ -197,6 +174,7 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                         })
                                         .onInvocationOf("lastModified")
                                         .on("info");
+                                bb.blankLine().lineComment("Set the ETag HTTP cache header");
                                 bb.invoke("ifPresent")
                                         .withLambdaArgument(lb -> {
                                             lb.withArgument("etag")
@@ -213,24 +191,29 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                         .withArgument("CONTENT_TYPE")
                                         .withArgument("JSON_UTF_8")
                                         .inScope();
+                                bb.blankLine().lineComment("Cache headers are not much use if we don't tell the")
+                                        .lineComment("client how it should use them.  This defines that clients")
+                                        .lineComment("should always phone-home to check if it has changed, and discard")
+                                        .lineComment("the content after one day.");
                                 bb.invoke("add")
                                         .withArgument("CACHE_CONTROL")
                                         .withArgument("PUBLIC_MUST_REVALIDATE_MAX_AGE_1_DAY")
                                         .inScope();
+                                bb.blankLine().lineComment("If this is a HEAD request, we're done");
                                 bb.iff(invocationOf("is")
                                         .withArgument("HEAD")
                                         .onInvocationOf("method").on("event"))
+                                        .lineComment("No payload, just send an OK for HEAD - @Concluders will not run")
                                         .invoke("ok").inScope()
                                         .statement("return")
                                         .endIf();
-                                bb.invoke("ok")
-                                        .withArgumentFromInvoking("get")
-                                        .onInvocationOf("body")
-                                        .on("info")
-                                        .inScope();
+                                bb.blankLine().lineComment("We do NOT send the response here - SendSwaggerPayload will do that")
+                                        .lineComment("*after* CheckIfNoneMatchHeader and CheckIfModifiedSinceHeader get a")
+                                        .lineComment("chance to send a 304 response if the client already has an identical")
+                                        .lineComment("cached payload.");
+                                bb.invoke("next").inScope();
                             });
                 });
-
         return cb;
     }
 
