@@ -34,6 +34,7 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import com.mastfrog.smithy.client.result.ServiceResult;
+import static com.mastfrog.util.preconditions.Exceptions.chuck;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
@@ -46,6 +47,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -193,52 +198,46 @@ public abstract class BaseServiceClient<S> {
 
     private final <I, T> CompletableFuture<ServiceResult<T>> requestWithBody(
             ClientHttpMethod method, I input, String urlBase,
-            Class<T> responseBody,
+            Class<T> responseBodyType,
             ThrowingBiConsumer<HttpRequest.Builder, byte[]> c) {
-        JacksonBodyHandler<T> handler = new JacksonBodyHandler<>(
-                config.duration("requestMaxDuration", DEFAULT_MAX_DURATION), mapper, responseBody);
         try {
-            ObjectMapper mapper = mapper();
-            config.owner().checker().track(handler);
-            CompletableFuture<HttpResponse<ServiceResult<T>>> origFuture
-                    = config.request(urlBase, handler, bldr -> {
-                        try {
-                            byte[] bytes;
-                            if (input != null) {
-                                bytes = mapper.writeValueAsBytes(input);
-                            } else {
-                                bytes = null;
-                            }
-                            if (c != null) {
-                                c.accept(bldr, bytes);
-                            }
-                            config.decorateRequest(urlBase, method, Optional.ofNullable(bytes),
-                                    method.apply(bldr, bytes == null ? BodyPublishers.noBody() 
-                                            : BodyPublishers.ofByteArray(bytes))
-//                                            : new DebugBodyPublisher(bytes, config.owner().executor()))
-                            );
-                        } catch (Throwable thrown) {
-                            thrown.printStackTrace();
-                            handler.bodyFuture.completeExceptionally(thrown);
-                        }
-                    });
-            origFuture.whenComplete((res, thr) -> {
-                if (thr != null) {
-                    thr.printStackTrace(System.err);
+            JacksonBodyHandlerWrapper<T> handler = new JacksonBodyHandlerWrapper<>(mapper, responseBodyType);
+            CompletableFuture<HttpResponse<ServiceResult<T>>> result = config.request(urlBase, handler, bldr -> {
+                byte[] bytes;
+                if (input != null) {
+                    bytes = mapper.writeValueAsBytes(input);
+                } else {
+                    bytes = null;
                 }
-            });
-            handler.bodyFuture.whenComplete((sr, thr) -> {
-                if (thr != null) {
-                    thr.printStackTrace(System.err);
+                if (c != null) {
+                    c.accept(bldr, bytes);
                 }
+                config.decorateRequest(urlBase, method, Optional.ofNullable(bytes),
+                        method.apply(bldr, bytes == null ? BodyPublishers.noBody()
+                                : BodyPublishers.ofByteArray(bytes))
+                );
             });
-            return handler.bodyFuture;
-        } catch (Throwable ex) {
-            handler.cancel();
-            return CompletableFuture.failedFuture(ex);
+            CompletableFuture<ServiceResult<T>> res = result.handleAsync((resp, thrown) -> {
+                Throwable th = thrown instanceof ExecutionException
+                        && thrown.getCause() != null ? thrown.getCause() : thrown;
+                if (th != null) {
+                    if (th instanceof CancellationException) {
+                        return ServiceResult.cancelled();
+                    } else if (th instanceof TimeoutException) {
+                        return ServiceResult.timeout();
+                    }
+                    return ServiceResult.thrown(th);
+                }
+                return resp.body();
+            }, config.owner().executor());
+            Duration timeout = config.duration("requestMaxDuration", DEFAULT_MAX_DURATION);
+            res.completeOnTimeout(ServiceResult.timeout(), timeout.toMillis(), TimeUnit.MILLISECONDS);
+            return res;
+        } catch (Exception | Error e) {
+            return CompletableFuture.completedFuture(ServiceResult.thrown(e));
         }
     }
-    
+
     protected URIBuilder uri() {
         return new URIBuilder();
     }
@@ -480,5 +479,4 @@ public abstract class BaseServiceClient<S> {
             return obj.toString();
         }
     }
-
 }

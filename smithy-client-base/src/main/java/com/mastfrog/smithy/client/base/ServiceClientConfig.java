@@ -63,7 +63,8 @@ public final class ServiceClientConfig {
     public ServiceClientConfig(String serviceName,
             ClientConfig clientConfig,
             Map<String, String> metadata,
-            String defaultEndpoint, String version) {
+            String defaultEndpoint,
+            String version) {
         this.serviceName = serviceName;
         this.clientConfig = clientConfig;
         this.defaultEndpoint = defaultEndpoint;
@@ -71,7 +72,7 @@ public final class ServiceClientConfig {
         this.metadata = metadata;
         // Validate the endpoint early
         URI.create(endpoint());
-    } // Validate the endpoint early
+    }
 
     public String serviceName() {
         return serviceName;
@@ -81,7 +82,8 @@ public final class ServiceClientConfig {
         return version;
     }
 
-    void decorateRequest(String service, ClientHttpMethod httpMethod, Optional<byte[]> body, HttpRequest.Builder bldr) throws Exception {
+    void decorateRequest(String service, ClientHttpMethod httpMethod, Optional<byte[]> body,
+            HttpRequest.Builder bldr) throws Exception {
         each(DECORATORS, dec -> {
             dec.decorateRequest(service, httpMethod, body, bldr);
         });
@@ -114,11 +116,10 @@ public final class ServiceClientConfig {
         try {
             return run(client -> {
                 HttpRequest.Builder bldr = HttpRequest.newBuilder(fullUri);
-                bldr.header("user-agent", serviceName + "-Client-" + version);
+                bldr.header("user-agent", serviceName.toLowerCase() + "-client-" + version);
                 c.accept(bldr);
                 HttpRequest req = bldr.build();
-                CompletableFuture<HttpResponse<R>> result = client.sendAsync(req, handler);
-                return result;
+                return client.sendAsync(req, handler);
             });
         } catch (Exception ex) {
             ex.printStackTrace();

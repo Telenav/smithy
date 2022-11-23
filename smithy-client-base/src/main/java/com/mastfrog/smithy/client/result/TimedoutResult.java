@@ -31,11 +31,18 @@ import com.mastfrog.smithy.client.state.CompletionReason;
  */
 final class TimedoutResult<T> implements ServiceResult<T> {
 
+    static TimedoutResult<Object> INSTANCE = new TimedoutResult<>();
+
+    @SuppressWarnings("unchecked")
+    static <T> TimedoutResult<T> timedoutResult() {
+        return (TimedoutResult<T>) INSTANCE;
+    }
+
     @Override
     public boolean isTimedOut() {
         return true;
     }
-    
+
     @Override
     public boolean isComplete() {
         return true;

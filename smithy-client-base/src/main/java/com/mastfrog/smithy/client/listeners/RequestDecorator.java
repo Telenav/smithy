@@ -30,6 +30,8 @@ import java.util.ServiceLoader;
 import java.util.Set;
 
 /**
+ * Can decorate a request with headers or similar. Registerable via
+ * META-INF/services.
  *
  * @author Tim Boudreau
  */

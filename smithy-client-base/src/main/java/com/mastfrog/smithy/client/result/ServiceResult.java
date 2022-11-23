@@ -126,7 +126,7 @@ public interface ServiceResult<T> {
     }
 
     static <T> ServiceResult<T> timeout() {
-        return new TimedoutResult<>();
+        return TimedoutResult.timedoutResult();
     }
 
     static <T> ServiceResult<T> cancelled() {

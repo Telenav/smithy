@@ -39,5 +39,4 @@ public enum CompletionReason {
     public boolean isCompleted() {
         return this != NOT_COMPLETED;
     }
-
 }

@@ -72,7 +72,6 @@ public final class ClientConfig {
             : Paths.get(".config/SmithyClient/client.properties");
     private static final ClientConfig INSTANCE = new ClientConfig();
     private static final ThreadLocal<ServiceClientConfig> caller = new ThreadLocal<>();
-    private final ClientTimeoutChecker checker = new ClientTimeoutChecker(this);
     private final Exe threadPool = new Exe();
     private final HttpClient client;
     private final Map<String, String> metadata;
@@ -120,10 +119,6 @@ public final class ClientConfig {
                         DurationSerializationMode.DURATION_AS_ISO_STRING),
                 JacksonConfigurer.localeConfigurer(),
                 JacksonConfigurer.optionalSerializer());
-    }
-
-    ClientTimeoutChecker checker() {
-        return checker;
     }
 
     public static int currentSecond() {

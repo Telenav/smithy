@@ -26,7 +26,6 @@ package com.mastfrog.smithy.client.listeners;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
-import java.net.http.HttpRequest.BodyPublishers;
 import static java.net.http.HttpRequest.BodyPublishers.noBody;
 import java.util.Optional;
 
