@@ -82,8 +82,15 @@ public final class ServiceClientConfig {
         return version;
     }
 
+    public String outboundContentType() {
+        return metadata("contentType").orElse("application/json;charset=utf-8");
+    }
+
     void decorateRequest(String service, ClientHttpMethod httpMethod, Optional<byte[]> body,
             HttpRequest.Builder bldr) throws Exception {
+        if (body.isPresent()) {
+            bldr.header("content-type", outboundContentType());
+        }
         each(DECORATORS, dec -> {
             dec.decorateRequest(service, httpMethod, body, bldr);
         });
