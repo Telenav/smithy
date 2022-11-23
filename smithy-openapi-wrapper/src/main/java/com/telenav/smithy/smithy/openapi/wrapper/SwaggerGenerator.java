@@ -110,7 +110,7 @@ final class SwaggerGenerator implements ModelElementGenerator {
             this.api = api;
             this.log = log;
             Path root = ctx.destinations().sourceRootFor(target, service, ver, ctx.settings())
-                    .resolve(service.getId().getNamespace().replace('.', '/'));
+                    .resolve(service.getId().getNamespace().replace('.', '/')).resolve("swagger");
             dest = root.resolve("swagger.json");
         }
 

@@ -77,27 +77,28 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
     }
 
     private ClassBuilder<String> generateSwaggerActeur(String swaggerPath) {
-        ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
+        ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape) + ".swagger")
                 .named("SwaggerActeur")
                 .withModifier(FINAL)
                 .importing(
                         "com.mastfrog.acteur.Acteur",
                         "com.mastfrog.acteur.HttpEvent",
                         "com.mastfrog.acteur.annotations.HttpCall",
-                        "com.mastfrog.acteur.headers.Headers",
+                        "static com.mastfrog.acteur.header.entities.CacheControl.PUBLIC_MUST_REVALIDATE_MAX_AGE_1_DAY",
+                        "static com.mastfrog.acteur.headers.Headers.CACHE_CONTROL",
                         "static com.mastfrog.acteur.headers.Headers.CONTENT_TYPE",
                         "static com.mastfrog.acteur.headers.Headers.ETAG",
                         "static com.mastfrog.acteur.headers.Headers.IF_MODIFIED_SINCE",
                         "static com.mastfrog.acteur.headers.Headers.IF_NONE_MATCH",
                         "static com.mastfrog.acteur.headers.Headers.LAST_MODIFIED",
                         "static com.mastfrog.acteur.headers.Method.GET",
+                        "static com.mastfrog.acteur.headers.Method.HEAD",
                         "com.mastfrog.acteur.preconditions.Methods",
                         "com.mastfrog.acteur.preconditions.Description",
                         "com.mastfrog.acteur.preconditions.Path",
                         "static com.mastfrog.mime.MimeType.JSON_UTF_8",
                         "static io.netty.handler.codec.http.HttpResponseStatus.GONE",
                         "static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED",
-                        "java.time.ZonedDateTime",
                         "javax.inject.Inject")
                 .extending("Acteur")
                 .annotatedWith("Description", anno
@@ -107,7 +108,7 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         anno -> anno.addArgument("order", Integer.MAX_VALUE))
                 .annotatedWith("Path",
                         anno -> anno.addArgument("value", swaggerPath))
-                .annotatedWith("Methods", anno -> anno.addExpressionArgument("value", "GET"))
+                .annotatedWith("Methods", anno -> anno.addExpressionArgument("value", "{GET, HEAD}"))
                 .constructor(con -> {
                     con.annotatedWith("Inject").closeAnnotation()
                             .addArgument("HttpEvent", "event")
@@ -212,6 +213,16 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                         .withArgument("CONTENT_TYPE")
                                         .withArgument("JSON_UTF_8")
                                         .inScope();
+                                bb.invoke("add")
+                                        .withArgument("CACHE_CONTROL")
+                                        .withArgument("PUBLIC_MUST_REVALIDATE_MAX_AGE_1_DAY")
+                                        .inScope();
+                                bb.iff(invocationOf("is")
+                                        .withArgument("HEAD")
+                                        .onInvocationOf("method").on("event"))
+                                        .invoke("ok").inScope()
+                                        .statement("return")
+                                        .endIf();
                                 bb.invoke("ok")
                                         .withArgumentFromInvoking("get")
                                         .onInvocationOf("body")
@@ -224,7 +235,7 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
     }
 
     public ClassBuilder<String> generateSwaggerSchemaLoader() {
-        ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
+        ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape) + ".swagger")
                 .named("SwaggerInfo")
                 .withModifier(FINAL)
                 .importing(
@@ -255,8 +266,8 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                     .on("ZonedDateTime")
                     .ofType("ZonedDateTime");
         });
-        cb.field("bytes").withModifier(PRIVATE).ofType("byte[]");
-        cb.field("etag").withModifier(PRIVATE).ofType("String");
+        cb.field("bytes").withModifier(PRIVATE, FINAL).ofType("byte[]");
+        cb.field("etag").withModifier(PRIVATE, FINAL).ofType("String");
 
         cb.constructor(con -> {
             con.body(bb -> {
