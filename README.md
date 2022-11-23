@@ -84,6 +84,7 @@ We are using the parser for Smithy models from the Smithy project, which has som
 The `test/` project is not currently in the build of the main pom - an issue with the
 plugin not running in a Maven multi-module build, to be diagnosed.
 
+
 What's here?
 ============
 
@@ -130,6 +131,9 @@ Embryonic Smithy tooling, specifically:
    server code to in order to differentiate validation problems as bad requests;
    eventually will contain generic APIs for a few other things to avoid code
    generation from being tied to a specific server framework.
+* `smithy-openapi-wrapper` - if included in the `<dependencies>` section where
+   using the Maven plugin, will generate Swagger documentation from your smithy model
+ * `smithy-simple-server-generator` - generates an HTTP server
 
 Other Stuff
 -----------
@@ -241,3 +245,36 @@ Current extension points:
    contributing to equals(), toString() and hashCode() computation, enhancing javadoc,
    and more.  `BuilderExtensionsJava` and `StructureIdentityExtensionsJava` in the
    `simple-smithy-extensions-java` project are both examples of usage.
+
+
+Useful Custom Traits
+====================
+
+We define a few traits in `simple-smithy-extensions` that fill holes and allow us to
+generate easier-to-use model classes:
+
+ * `@fuzzyNameMatching` - applicable to enum types, allows JSON containing lower-cased
+   enum member names and/or substituting '-' for '_'
+ * `@identity` - tells the code generation infrastructure that `equals()` and `hashCode()`
+   should only use the so-annotated members for equality tests - this is useful for types
+   that have one field which is a primary key in the database
+ * `@builder` - generated code should contain a builder for the type
+ * `@samples` - provide samples of valid and invalid values - these are used both for
+   documentation and for generating unit tests of pojo classes. *If you use the `@pattern`
+   annotation for string members and want to generate unit tests for your POJOS, you **must** 
+   include samples* - we do not reverse-engineer valid and invalid values from regular 
+   expressions.  Example: `@samples(valid : ["xx", "yy"], invalid : ["x", "y"])`.
+ * `@units` - mark an enum as being a *unit* - each member must have `@units` followed by
+   a number, and *one of the members must have the value `1`*.  This results in two things:
+   The generated Java enum will have conversion methods that take a number and a unit
+   (following the same pattern as the JDK's `TimeUnit`'s `convert()` method), **and**
+   any structure type which consists of an instance of the enum and a number - the amount 
+   pattern - will *also get conversion methods* - so you will get methods that let you
+   do things like `someDistance.to(MILES)` for free.
+ * `@authenticated` - mark an operation as requiring authentication - authentication
+   can be optional (imagine a blog engine where the blog owner can see unmoderated comments,
+   but all users can make the same call but not see them), and takes an ad-hoc string describing
+   the kind of authentication.  Using this trait will result in an additional interface you
+   need to implement in your server project, one for each distinct string.  If unspecified,
+   `"basic"` is assumed, for HTTP basic authentication (but you can implement the interface
+   to do whatever you want)
