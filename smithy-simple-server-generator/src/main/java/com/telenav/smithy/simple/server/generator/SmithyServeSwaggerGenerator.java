@@ -21,22 +21,19 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.smithy.openapi.wrapper;
+package com.telenav.smithy.simple.server.generator;
 
-import static com.mastfrog.smithy.generators.FeatureBridge.SWAGGER_GENERATION_PRESENT;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
-import com.mastfrog.smithy.generators.Problems;
-import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
+import static java.util.Collections.emptyList;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 
@@ -45,7 +42,7 @@ import software.amazon.smithy.model.shapes.Shape;
  * @author Tim Boudreau
  */
 @ServiceProvider(SmithyGenerator.class)
-public class SmithyOpenapiWrapper implements SmithyGenerator {
+public class SmithyServeSwaggerGenerator implements SmithyGenerator {
 
     @Override
     public boolean supportsGenerationTarget(GenerationTarget target) {
@@ -58,18 +55,15 @@ public class SmithyOpenapiWrapper implements SmithyGenerator {
     }
 
     @Override
-    public void prepare(Model model, SmithyGenerationContext ctx, Problems problems) {
-        ctx.put(SWAGGER_GENERATION_PRESENT, Boolean.TRUE);
-    }
-
-    @Override
     public Collection<? extends ModelElementGenerator> generatorsFor(Shape shape,
             Model model, Path destSourceRoot, GenerationTarget targets,
             LanguageWithVersion language, SmithyGenerationSettings settings,
             SmithyGenerationLogger logger) {
         if (shape.isServiceShape()) {
-            return singleton(new SwaggerGenerator(model, shape.asServiceShape().get(), targets, language));
+            return Arrays.asList(new ServeSwaggerGenerator(shape.asServiceShape().get(),
+                    model, destSourceRoot, targets, language, settings));
         }
-        return emptySet();
+        return emptyList();
     }
+
 }

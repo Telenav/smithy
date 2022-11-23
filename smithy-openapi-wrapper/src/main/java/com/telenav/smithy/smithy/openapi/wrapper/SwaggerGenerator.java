@@ -109,8 +109,9 @@ final class SwaggerGenerator implements ModelElementGenerator {
         OpenApiCode(OpenApi api, SmithyGenerationContext ctx, SmithyGenerationLogger log) {
             this.api = api;
             this.log = log;
-            Path root = ctx.destinations().sourceRootFor(target, service, ver, ctx.settings());
-            dest = root.resolve(service.getId().getName() + "-" + service.getVersion() + "-OpenApi.json");
+            Path root = ctx.destinations().sourceRootFor(target, service, ver, ctx.settings())
+                    .resolve(service.getId().getNamespace().replace('.', '/'));
+            dest = root.resolve("swagger.json");
         }
 
         @Override

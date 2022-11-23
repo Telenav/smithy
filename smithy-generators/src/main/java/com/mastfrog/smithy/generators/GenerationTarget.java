@@ -40,11 +40,13 @@ public class GenerationTarget {
     public static final String NAME_SERVER_SPI = "server-spi";
     public static final String NAME_CLIENT = "client";
     public static final String NAME_MODEL_TEST = "modeltest";
+    public static final String NAME_DOCS = "docs";
     public static final GenerationTarget MODEL = new GenerationTarget(NAME_MODEL);
     public static final GenerationTarget SERVER = new GenerationTarget(NAME_SERVER);
     public static final GenerationTarget SERVER_SPI = new GenerationTarget(NAME_SERVER_SPI);
     public static final GenerationTarget CLIENT = new GenerationTarget(NAME_CLIENT);
     public static final GenerationTarget MODEL_TEST = new GenerationTarget(NAME_MODEL_TEST);
+    public static final GenerationTarget DOCS = new GenerationTarget(NAME_DOCS);
     private final String name;
 
     public GenerationTarget(String name) {
