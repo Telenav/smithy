@@ -62,7 +62,7 @@ final class JacksonBodyHandlerWrapper<T> implements HttpResponse.BodyHandler<Ser
                 T obj = mapper.readValue(bytes, type);
                 return ServiceResult.success(responseInfo, obj);
             } catch (IOException ex) {
-                return ServiceResult.decodingError(new String(bytes, UTF_8), ex);
+                return ServiceResult.decodingError(bytes == null ? null : new String(bytes, UTF_8), ex);
             } catch (Throwable e) {
                 return ServiceResult.thrown(e);
             }
