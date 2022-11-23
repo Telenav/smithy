@@ -13,18 +13,8 @@
     
     <dependencies>
         <dependency>
-            <groupId>com.mastfrog.atomicstate</groupId>
-            <artifactId>atomic-state</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>annotation-processors</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.mastfrog.atomicstate</groupId>
-            <artifactId>atomic-state-annotation-processor</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>

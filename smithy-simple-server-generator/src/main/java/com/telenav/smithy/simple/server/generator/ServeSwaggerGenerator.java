@@ -84,6 +84,8 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         "com.mastfrog.acteur.Acteur",
                         "com.mastfrog.acteur.HttpEvent",
                         "com.mastfrog.acteur.annotations.HttpCall",
+                        "static java.time.temporal.ChronoField.MILLI_OF_SECOND",
+                        "static java.time.temporal.ChronoField.NANO_OF_SECOND",
                         "static com.mastfrog.acteur.header.entities.CacheControl.PUBLIC_MUST_REVALIDATE_MAX_AGE_1_DAY",
                         "static com.mastfrog.acteur.headers.Headers.CACHE_CONTROL",
                         "static com.mastfrog.acteur.headers.Headers.CONTENT_TYPE",
@@ -115,11 +117,18 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             .addArgument("SwaggerInfo", "info")
                             .body(bb -> {
                                 bb.iff().booleanExpression("!info.body().isPresent()")
+                                        .lineComment("Loading swagger failed somehow - not generated into classpath?")
                                         .invoke("reply")
                                         .withArgument("GONE")
                                         .inScope()
                                         .statement("return")
                                         .endIf();
+                                bb.lineComment("Test if either of the If-Modified-Since or If-None-Match headers")
+                                        .lineComment("are effectively identical to the Last-Modifed or Etag headers")
+                                        .lineComment("we would send (compensating for time-zones and double-quoted")
+                                        .lineComment("or un-double-quoted etag)")
+                                        .blankLine()
+                                        .lineComment("If either matches, we should send a 304 Not Modified response and no payload.");
                                 bb.declare("matched")
                                         .initializedByInvoking("orElse")
                                         .withArgument(false)
@@ -136,9 +145,18 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                                                         .withLambdaArgument()
                                                                         .withArgument("ifModifiedSince")
                                                                         .body(ims -> {
+                                                                            ims.lineComment("Ensure we are comparing apples to apples:");
                                                                             ims.declare("modifiedMatch")
                                                                                     .initializedByInvoking("equals")
-                                                                                    .withArgument("ifModifiedSince")
+                                                                                    .withArgumentFromInvoking("with")
+                                                                                    .withArgument("MILLI_OF_SECOND")
+                                                                                    .withArgument(0)
+                                                                                    .onInvocationOf("with")
+                                                                                    .withArgument("NANO_OF_SECOND")
+                                                                                    .withArgument(0)
+                                                                                    .onInvocationOf("toInstant")
+                                                                                    .on("ifModifiedSince")
+                                                                                    .onInvocationOf("toInstant")
                                                                                     .on("lastModified")
                                                                                     .as("boolean");
                                                                             Variable v = variable("modifiedMatch");
@@ -157,12 +175,11 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                                         .on("info");
                                             });
                                         })
-                                        //                                        .initializedByInvoking("orElse")
-                                        //                                        .withArgument(false)
                                         .onInvocationOf("map")
                                         .withLambdaArgument(lb -> {
                                             lb.withArgument("ifNoneMatch")
                                                     .body(lbb -> {
+                                                        lbb.lineComment("We only get here if the if-modified-since test didn't pan out.");
                                                         lbb.returningInvocationOf("orElse")
                                                                 .withArgument(false)
                                                                 .onInvocationOf("map")
@@ -179,12 +196,14 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                         .withArgument("IF_NONE_MATCH")
                                         .on("event")
                                         .as("boolean");
+                                bb.blankLine().lineComment("If a cache header was matched, we're done.");
                                 bb.iff().booleanExpression("matched")
                                         .invoke("reply")
                                         .withArgument("NOT_MODIFIED")
                                         .inScope()
                                         .statement("return")
                                         .endIf();
+                                bb.blankLine().lineComment("Add our cache headers to the response.");
                                 bb.invoke("ifPresent")
                                         .withLambdaArgument(lb -> {
                                             lb.withArgument("zdt")
@@ -209,20 +228,26 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                         })
                                         .onInvocationOf("etag")
                                         .on("info");
+                                bb.blankLine().lineComment("Ensure we send the correct application/json content type.");
                                 bb.invoke("add")
                                         .withArgument("CONTENT_TYPE")
                                         .withArgument("JSON_UTF_8")
                                         .inScope();
+                                bb.blankLine().lineComment("Include a Cache-Control header so the caller knows")
+                                        .lineComment("how long the response can be cached.");
                                 bb.invoke("add")
                                         .withArgument("CACHE_CONTROL")
                                         .withArgument("PUBLIC_MUST_REVALIDATE_MAX_AGE_1_DAY")
                                         .inScope();
+                                bb.blankLine().lineComment("In the special case that this is a HEAD request")
+                                        .lineComment("we want to bail out before sending the payload.");
                                 bb.iff(invocationOf("is")
                                         .withArgument("HEAD")
                                         .onInvocationOf("method").on("event"))
                                         .invoke("ok").inScope()
                                         .statement("return")
                                         .endIf();
+                                bb.blankLine().lineComment("Send the response and we're done.");
                                 bb.invoke("ok")
                                         .withArgumentFromInvoking("get")
                                         .onInvocationOf("body")
@@ -250,7 +275,10 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         "java.util.Base64",
                         "java.util.Optional",
                         "javax.inject.Singleton"
-                ).annotatedWith("Singleton").closeAnnotation();
+                ).annotatedWith("Singleton").closeAnnotation()
+                .docComment("Singleton object which loads the swagger json on instantiation and"
+                        + " can provide it to SwaggerActeur, along with cache header information,"
+                        + " to serve it.");
         cb.field("SERVER_START", fld -> {
             fld.withModifier(PRIVATE, STATIC, FINAL)
                     .initializedFromInvocationOf("withZoneSameInstant")
@@ -276,6 +304,10 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         .withStringLiteral("swagger.json")
                         .on(cb.className() + ".class")
                         .as("InputStream");
+                bb.lineComment("If the input stream is null, then there is no swagger.json next")
+                        .lineComment("to this class on the classpath.  That could happen if swagger")
+                        .lineComment("generation was disabled, or the project was built unusually somehow;")
+                        .lineComment("(IDE issues) - do not treat that as catastrophic.");
                 bb.ifNull("in")
                         .assignField("bytes")
                         .ofThis()
@@ -290,6 +322,7 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 bb.declare("etagLocal").initializedWith("null")
                         .as("String");
                 bb.trying(try1 -> {
+                    try1.lineComment("Read the stream the old-fashioned way:");
                     try1.trying(try2 -> {
                         try2.declare("out")
                                 .initializedWithNew(nb -> nb.ofType("ByteArrayOutputStream"))
@@ -308,11 +341,7 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         try2.assign("bytesLocal")
                                 .toInvocation("toByteArray")
                                 .on("out");
-                        /*
-                    MessageDigest dig = MessageDigest.getInstance("MD5");
-                    byte[] hash = dig.digest(bytesLocal);
-                    etagLocal = Base64.getUrlEncoder().encodeToString(hash);
-                         */
+                        try2.lineComment("Compute a hash for the Etag header we'll serve:");
                         try2.declare("dig")
                                 .initializedByInvoking("getInstance")
                                 .withStringLiteral("SHA-1")
@@ -347,6 +376,11 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         .endIf();
             });
             cb.method("lastModified")
+                    .docComment("Get the effective last-modified date of the swagger data; "
+                            + "the only safe value to return is the server startup time, since "
+                            + "what we will serve cannot have changed since then."
+                            + "@return an optional which is empty if there was no swagger file, and "
+                            + "otherwise contains the server start time")
                     .returning("Optional<ZonedDateTime>")
                     .body(bb -> {
                         bb.ifNull("bytes")
@@ -358,6 +392,8 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .on("Optional");
                     });
             cb.method("etag")
+                    .docComment("Get a sha-1 hash of the content as an etag, if there is any content."
+                            + "\n@return an Optional populated if there is swagger json to serve")
                     .returning("Optional<String>")
                     .body(bb -> {
                         bb.returningInvocationOf("ofNullable")
@@ -365,6 +401,8 @@ public class ServeSwaggerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .on("Optional");
                     });
             cb.method("body")
+                    .docComment("Get the raw UTF-8 bytes of the content, if there is any."
+                            + "\n@return the swagger JSON, if present")
                     .returning("Optional<byte[]>")
                     .body(bb -> {
                         bb.returningInvocationOf("ofNullable")
