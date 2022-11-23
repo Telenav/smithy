@@ -87,7 +87,7 @@ public final class ClientConfig {
                 .executor(threadPool)
                 .build();
     }
-
+    
     static void debugLog(String what) {
         if (DEBUG_LOG) {
             System.err.println(what);

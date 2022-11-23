@@ -205,20 +205,20 @@ public abstract class BaseServiceClient<S> {
             JacksonBodyHandlerWrapper<T> handler = new JacksonBodyHandlerWrapper<>(mapper, responseBodyType);
             // Make our HTTP request
             CompletableFuture<HttpResponse<ServiceResult<T>>> result = config.request(urlBase, handler, bldr -> {
-                byte[] bytes;
-                if (input != null) {
-                    bytes = mapper.writeValueAsBytes(input);
-                } else {
+                            byte[] bytes;
+                            if (input != null) {
+                                bytes = mapper.writeValueAsBytes(input);
+                            } else {
                     // Null may be a perfectly valid response
-                    bytes = null;
-                }
-                if (c != null) {
-                    c.accept(bldr, bytes);
-                }
-                config.decorateRequest(urlBase, method, Optional.ofNullable(bytes),
-                        method.apply(bldr, bytes == null ? BodyPublishers.noBody()
-                                : BodyPublishers.ofByteArray(bytes))
-                );
+                                bytes = null;
+                            }
+                            if (c != null) {
+                                c.accept(bldr, bytes);
+                            }
+                            config.decorateRequest(urlBase, method, Optional.ofNullable(bytes),
+                                    method.apply(bldr, bytes == null ? BodyPublishers.noBody()
+                                                                        : BodyPublishers.ofByteArray(bytes))
+                            );
             });
             // And wrapper that as a future returning a service result
             CompletableFuture<ServiceResult<T>> res = result.handleAsync((resp, thrown) -> {
