@@ -1106,6 +1106,15 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
             this.name = name;
         }
 
+        public MemberInstantiation<?> find(MemberShape mem) {
+            for (MemberInstantiation<?> in : members) {
+                if (in.member.member().getId().equals(mem.getId())) {
+                    return in;
+                }
+            }
+            return null;
+        }
+
     }
 
     protected static class MemberInstantiation<S extends Shape> {

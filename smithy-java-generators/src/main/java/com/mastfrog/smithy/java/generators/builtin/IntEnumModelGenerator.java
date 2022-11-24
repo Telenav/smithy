@@ -453,24 +453,16 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
                     });
                 });
 
-        cb.overridePublic("toString").returning("String")
+        cb.overridePublic("toString")
+                .docComment("Implementation of toString() for " + cb.className() + ", "
+                        + "which is an int-enum type, must return the string value of its "
+                        + "int value in order for toString() to produce valid JSON."
+                        + "\n@return The string form of the integer value of this instance")
+                .returning("String")
                 .body(bb -> {
-                    bb.switchingOn("value", sw -> {
-                        shape.getEnumValues().forEach((name, value) -> {
-                            sw.inCase(value, cs -> {
-                                cs.returningStringLiteral(name + "(" + value
-                                        + ")").endBlock();
-                            });
-                        });
-                        sw.inDefaultCase(cs -> {
-                            cs.andThrow(nb -> {
-                                nb.withStringConcatentationArgument("Impossible value: ")
-                                        .appendExpression("this.value")
-                                        .endConcatenation()
-                                        .ofType("AssertionError");
-                            });
-                        });
-                    });
+                    bb.returningInvocationOf("toString")
+                            .withArgument("value")
+                            .on("Integer");
                 });
 
         cb.overridePublic("compareTo", mth -> {

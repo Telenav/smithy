@@ -385,7 +385,8 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
 
                         bb.whileLoop(wh -> {
                             boolean needQuotes = realMember.getType() == ShapeType.STRING
-                                    && "smithy.api".equals(realMember.getId().getNamespace());
+                                    || realMember.getType() == ShapeType.ENUM
+                                    || realMember.getType() == ShapeType.TIMESTAMP;
 
                             if (needQuotes) {
                                 wh.invoke("append")

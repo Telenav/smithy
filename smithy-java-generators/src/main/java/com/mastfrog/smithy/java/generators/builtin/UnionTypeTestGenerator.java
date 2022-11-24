@@ -159,17 +159,6 @@ final class UnionTypeTestGenerator extends AbstractJavaTestGenerator<UnionShape>
                     .withStringLiteral(parameterizedInstanceType + " does not equals() itself!")
                     .inScope();
 
-            bb.blankLine().lineComment("Test the toString() implementation is a pass-through");
-            bb.invoke("assertEquals")
-                    .withArgumentFromInvoking("toString")
-                    .on("instance")
-                    .withArgumentFromInvoking("toString")
-                    .on(inst.instanceVar)
-                    .withStringLiteral("toString() on union type " + parameterizedInstanceType
-                            + " should be a pass-through to toString() on the underlying "
-                            + " " + memberTypeName + ", but they do not match.")
-                    .inScope();
-
             bb.blankLine().lineComment("And test that JSON serialization works "
                     + "in both directions.");
             bb.declare("mapper")
