@@ -24,6 +24,7 @@
 package com.telenav.smithy.smithy.openapi.wrapper;
 
 import com.mastfrog.smithy.simple.extensions.GenericRestProtocolTrait;
+import com.mastfrog.smithy.simple.extensions.SamplesTrait;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -142,9 +143,9 @@ public class GenericRestProtocol implements OpenApiProtocol<GenericRestProtocolT
                     .name(name)
                     .in("path")
                     .schema(schema)
-                    //                    .examples(createExamplesForMembersWithHttpTraits(
-                    //                            operation, binding, MessageType.REQUEST, null
-                    //                    ))
+                    .examples(createExamplesForMembersWithHttpTraits(
+                            operation, binding, MessageType.REQUEST, null
+                    ))
                     .build());
         }
 
@@ -158,6 +159,11 @@ public class GenericRestProtocol implements OpenApiProtocol<GenericRestProtocolT
         member.getMemberTrait(context.getModel(), DocumentationTrait.class)
                 .map(DocumentationTrait::getValue)
                 .ifPresent(builder::description);
+        member.getMemberTrait(context.getModel(), SamplesTrait.class)
+                .ifPresent(samples -> {
+                    builder.example(samples.toNode());
+//                    samples.validSamples().forEach(builder::example);
+                });
         return builder;
     }
 

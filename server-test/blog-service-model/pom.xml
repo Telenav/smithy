@@ -103,12 +103,13 @@
                             <settings>
                                 <foo>bar</foo>
                             </settings>
-                            <targets>model,modeltest,server,server-spi,client</targets>
+                            <targets>model,modeltest,server,server-spi,client,docs</targets>
                             <!--<targets>model,server</targets>-->
                             <namespaces>com.telenav.blog,com.telenav.safety</namespaces>
                             
                             <destinations>
                                 <client>${basedir}/../blog-client-demo/src/main/java</client>
+                                <docs>${basedir}/../blog-server-generated-impl/src/main/resources</docs>
                                 <server>${basedir}/../blog-server-generated-impl/src/main/java</server>
                                 <server-spi>${basedir}/../blog-server-spi/src/main/java/</server-spi>
                             </destinations>
