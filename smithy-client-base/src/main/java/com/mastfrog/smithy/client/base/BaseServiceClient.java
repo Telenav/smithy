@@ -34,7 +34,6 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import com.mastfrog.smithy.client.result.ServiceResult;
-import static com.mastfrog.util.preconditions.Exceptions.chuck;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
@@ -55,8 +54,9 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
+ * Base class for smithy web service clients.
  *
- * @author timb
+ * @author Tim Boudreau
  */
 public abstract class BaseServiceClient<S> {
 
