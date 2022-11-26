@@ -395,8 +395,7 @@ interface InvocationBuilderTransform {
                 return inv.onInvocationOf("map").withLambdaArgument(lb -> {
                     lb.withArgument("item").body(lbb -> {
                         lbb.lineComment("mapToNewFromString " + name + " " + origin.name()
-                                + " as " + newWhat
-                        );
+                                + " as " + newWhat);
                         if ("String".equals(newWhat)) {
                             lbb.returningInvocationOf("toString").on("item");
                         } else {
@@ -413,6 +412,39 @@ interface InvocationBuilderTransform {
             @Override
             public String toString() {
                 return "mapToNewFromString(" + newWhat + ")";
+            }
+
+        };
+    }
+
+    static InvocationBuilderTransform mapToIntEnum(String enumType, ValidationExceptionProvider ve) {
+        return new InvocationBuilderTransform() {
+            @Override
+            public <B extends BlockBuilderBase<T, B, ?>, T, I extends InvocationBuilderBase<TypeAssignment<B>, I>> InvocationBuilder<TypeAssignment<B>>
+                    transform(OriginType origin, ClassBuilder<?> cb, String name, I inv) {
+                return inv.onInvocationOf("map").withLambdaArgument(lb -> {
+                    lb.withArgument("item").body(lbb -> {
+                        lbb.lineComment("mapToIntEnum " + name + " " + origin.name()
+                                + " as " + enumType);
+                        lbb.trying(tri -> {
+                            tri.declare("intValue")
+                                    .initializedByInvoking("parseInt")
+                                    .withArgument("item")
+                                    .on("Integer")
+                                    .as("int");
+                            tri.returningInvocationOf("valueOf")
+                                    .withArgument("intValue").on(enumType);
+                            tri.catching(cat -> {
+                                ve.createThrow(cb, cat, "Invalid int value for " + name, "item");
+                            }, "NumberFormatException");
+                        });
+                    });
+                });
+            }
+
+            @Override
+            public String toString() {
+                return "mapToNewFromString(" + enumType + ")";
             }
 
         };

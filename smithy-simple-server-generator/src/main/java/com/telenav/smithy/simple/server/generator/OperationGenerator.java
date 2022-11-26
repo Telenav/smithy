@@ -45,6 +45,7 @@ import com.mastfrog.util.strings.Escaper;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.mapToBigDecimal;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.mapToBigInteger;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.mapToBoolean;
+import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.mapToIntEnum;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.mapToNewFromString;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.mapToTimestamp;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.originMethod;
@@ -202,7 +203,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                         .withArgumentFromField(enumConstantName).of(enumConstantType)
                         .withArgument("request")
                         .withArgument(optional)
-//                        .withArgument("future")
+                        //                        .withArgument("future")
                         .withArgumentFromInvoking("create")
                         .withArgument("future")
                         .withArgument(optional)
@@ -247,7 +248,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
         ConstructorBuilder<ClassBuilder<String>> con = cb.constructor()
                 .annotatedWith("Inject").closeAnnotation();
-        
+
         ServiceShape service = graph.serviceForOperation(shape);
 
         service.getTrait(CorsTrait.class).ifPresent(cors -> {
@@ -261,7 +262,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                 ab.addArgument("origins", cors.getOrigin());
             });
         });
-        
+
         withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
             maybeImport(cb, pkg + "." + payloadType);
             if (optional) {
@@ -534,8 +535,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                             model.expectShape(m.getTarget()), m, names()));
                 } else if (m.getTrait(HttpQueryTrait.class).isPresent()) {
                     String name = m.getMemberName();
-                    RequestParameterOrigin uq = new RequestParameterOrigin(name, 
-                            OriginType.URI_QUERY, 
+                    RequestParameterOrigin uq = new RequestParameterOrigin(name,
+                            OriginType.URI_QUERY,
                             declarationFor(OriginType.URI_QUERY, memberTarget, m, model, cb));
                     // XXX check the trait that can provide an alternate name
                     st.add(new InputMemberObtentionStrategy(uq,
@@ -543,14 +544,14 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                 } else if (m.getTrait(HttpHeaderTrait.class).isPresent()) {
                     String name = m.getMemberName();
                     HttpHeaderTrait trait = m.getTrait(HttpHeaderTrait.class).get();
-                    
-                    RequestParameterOrigin uq = new RequestParameterOrigin(trait.getValue(), 
-                            OriginType.HTTP_HEADER, 
+
+                    RequestParameterOrigin uq = new RequestParameterOrigin(trait.getValue(),
+                            OriginType.HTTP_HEADER,
                             declarationFor(OriginType.HTTP_HEADER, memberTarget, m, model, cb));
                     // XXX check the trait that can provide an alternate name
                     st.add(new InputMemberObtentionStrategy(uq,
                             model.expectShape(m.getTarget()), m, names()));
-                    
+
                 }
             }
         } else {
@@ -711,6 +712,12 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                 break;
             case TIMESTAMP:
                 res = dec.with(mapToTimestamp(ValidationExceptionProvider.get()))
+                        .with(originMethod());
+                break;
+            case INT_ENUM:
+                String tp2 = tn.qualifiedNameOf(memberTarget, cb, false);
+                maybeImport(cb, tp2);
+                res = dec.with(mapToIntEnum(typeNameOf(memberTarget), ValidationExceptionProvider.get()))
                         .with(originMethod());
                 break;
             default:
