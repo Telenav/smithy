@@ -92,9 +92,10 @@ public class BlogStore {
                         CommentId cid = new CommentId(comment.getId(cmt));
                         if (comment.isViable()) {
                             list.add(new Comment(new Title(comment.title),
-                                    comment.comment, comment.date,
+                                    comment.comment,
                                     comment.author, comment.email,
                                     cid,
+                                    comment.date,
                                     published));
                         }
                     } catch (IOException ex) {

@@ -372,11 +372,6 @@ structure CommentContent {
     @length(min: 5, max: 16384)
     commentBody: String
 
-    /// The creation timestamp
-    @required
-    @identity
-    created: Timestamp
-
     /// The author of the comment
     @required
     @identity
@@ -400,6 +395,11 @@ structure Comment with [CommentContent]{
     /// A unique identifier for the comment
     @required
     commentId : CommentId
+
+    /// The creation timestamp
+    @required
+    @identity
+    created: Timestamp
 
     approved: Boolean = true
 }
