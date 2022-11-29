@@ -50,14 +50,12 @@ Thumbs.db
 # These files are generated on every build - do not
 # commit them
 /test/maven-plugin-test/src/test/
-/server-test/blog-service-model/src/test/
-/server-test/blog-client-demo/src/main/java/
-/server-test/blog-server-generated-impl/src/main/java/
-/server-test/blog-server-spi/src/main/java/
+/server-test/blog-service-model/src/test/*
+/server-test/blog-service-model/src/main/*
+/server-test/blog-client-demo/src/main/java/*
+/server-test/blog-server-generated-impl/src/main/java/*
+/server-test/blog-server-spi/src/main/java/*
 /smithy-simple-server-generator/nbproject/
-/safety-service-test/safety-service-model/src/main/java
-/safety-service-test/safety-service-server/src/main/java
-/safety-service-test/safety-service-server-spi/src/main/java
-/safety-service-test/safety-service-client/src/main/java
-/safety-service-test/safety-service-model/src/test/java
-/server-test/blog-server-generated-impl/src/
+/server-test/blog-server-generated-impl/src/main/java/*
+/server-test/blog-server-generated-impl/src/test/java/*
+/server-test/blog-server-generated-impl/src/main/resources/com
