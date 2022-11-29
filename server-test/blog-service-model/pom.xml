@@ -71,6 +71,11 @@
                     </dependency>
                     <dependency>
                         <groupId>${project.groupId}</groupId>
+                        <artifactId>smithy-vertx-server-generator</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
                         <artifactId>smithy-simple-server-generator</artifactId>
                         <version>${project.version}</version>
                     </dependency>
@@ -108,15 +113,16 @@
                             <settings>
                                 <foo>bar</foo>
                             </settings>
-                            <targets>model,modeltest,server,server-spi,client,docs</targets>
+                            <targets>model,modeltest,server,server-spi,client,docs,vertx-server</targets>
                             <!--<targets>model,server</targets>-->
-                            <namespaces>com.telenav.blog,com.telenav.safety</namespaces>
-                            
+                            <namespaces>com.telenav.blog</namespaces>
+
                             <destinations>
                                 <client>${basedir}/../blog-client-demo/src/main/java</client>
                                 <docs>${basedir}/../blog-server-generated-impl/src/main/resources</docs>
                                 <server>${basedir}/../blog-server-generated-impl/src/main/java</server>
                                 <server-spi>${basedir}/../blog-server-spi/src/main/java/</server-spi>
+                                <vertx-server>${basedir}/../blog-server-vertx/src/main/java/</vertx-server>
                             </destinations>
 
                         </configuration>

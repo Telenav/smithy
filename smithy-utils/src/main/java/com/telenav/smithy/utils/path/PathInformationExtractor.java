@@ -21,9 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.simple.server.generator;
+package com.telenav.smithy.utils.path;
 
 import com.mastfrog.java.vogon.ClassBuilder;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,17 +44,38 @@ import software.amazon.smithy.model.traits.PatternTrait;
  * PathRegex annotation depending on whether a pattern is associated with any
  * given member being used as a URI path element.
  */
-class PathAnnotationGenerator {
+public final class PathInformationExtractor {
 
     private final Model model;
     private final UriPattern pattern;
+    private boolean leadingSlash;
 
-    PathAnnotationGenerator(Model model, UriPattern pattern) {
+    public PathInformationExtractor(Model model, UriPattern pattern) {
         this.model = model;
         this.pattern = pattern;
     }
 
-    void assemblePathAnnotation(StructureShape input, ClassBuilder<String> cb) {
+    public PathInformationExtractor withLeadingSlashInRegex() {
+        leadingSlash = true;
+        return this;
+    }
+
+    public void assembleActeurPathAnnotation(StructureShape input, ClassBuilder<String> cb) {
+        PathInfo info = extractPathInfo(input);
+        if (info.isRegex) {
+            cb.importing("com.mastfrog.acteur.preconditions.PathRegex");
+            cb.annotatedWith("PathRegex").withValue(info.text);
+        } else {
+            cb.importing("com.mastfrog.acteur.preconditions.Path");
+            cb.annotatedWith("Path").withValue(info.text);
+        }
+    }
+
+    public PathInfo extractPathInfo() {
+        return extractPathInfo(null);
+    }
+
+    public PathInfo extractPathInfo(StructureShape input) {
         StringBuilder uriPath = new StringBuilder();
         // Get all the named URL labels - entries in the URL pattern
         // that look like /foo/{someId}/bar/{otherId}.  We will need to
@@ -80,8 +103,7 @@ class PathAnnotationGenerator {
                     uriPath.append(seg.toString());
                 }
             }
-            cb.importing("com.mastfrog.acteur.preconditions.Path");
-            cb.annotatedWith("Path").withValue(uriPath.toString());
+            return new PathInfo(false, uriPath.toString(), patternForIndex);
         } else {
             // Use regexen and @PathRegex
             //
@@ -93,6 +115,9 @@ class PathAnnotationGenerator {
             // generation
             boolean hasGreedy = false;
             uriPath.append('^');
+            if (leadingSlash) {
+                uriPath.append("\\/");
+            }
             for (int i = 0; i < segs.size(); i++) {
                 boolean isLast = i == segs.size() - 1;
                 if (i > 0) {
@@ -123,8 +148,7 @@ class PathAnnotationGenerator {
             if (!hasGreedy) {
                 uriPath.append('$');
             }
-            cb.importing("com.mastfrog.acteur.preconditions.PathRegex");
-            cb.annotatedWith("PathRegex").withValue(uriPath.toString());
+            return new PathInfo(true, uriPath.toString(), patternForIndex);
         }
     }
 
@@ -137,6 +161,9 @@ class PathAnnotationGenerator {
     }
 
     private Map<Integer, String> extractRegexPatternsForPathElements(int maxSize, StructureShape input, Map<String, SmithyPattern.Segment> labelForName, List<SmithyPattern.Segment> segs) {
+        if (input == null) {
+            return emptyMap();
+        }
         Map<Integer, String> patternForIndex = new HashMap<>(maxSize);
         // Iterate the path once for each member
         input.getAllMembers().forEach((memberName, memberShape) -> {

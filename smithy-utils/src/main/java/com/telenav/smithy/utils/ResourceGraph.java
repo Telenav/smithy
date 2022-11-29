@@ -104,7 +104,7 @@ public final class ResourceGraph {
         });
         return result;
     }
-    
+
     public <T> Set<T> transformedClosure(Shape shape, Function<Shape, T> xform) {
         Set<T> result = new HashSet<>();
         closure(shape).forEach(sh -> {
@@ -131,7 +131,7 @@ public final class ResourceGraph {
 //        shapes.addAll(filteredClosure(op, shp -> shp.isServiceShape()));
         if (shapes.isEmpty()) {
             throw new IllegalStateException(op + " is not in the reverse closure of any service: "
-                + reverseClosure(op));
+                    + reverseClosure(op));
         }
         return shapes.iterator().next().asServiceShape().get();
     }
@@ -278,34 +278,46 @@ public final class ResourceGraph {
             @Override
             public void accept(S t, RelationTag tag) {
                 addToGraph.accept(parent, t, tag);
-                if (t.getType() == ShapeType.RESOURCE) {
-                    ResourceShape rs = t.asResourceShape().get();
-                    ResourceConsumer<ResourceShape> sub
-                            = new ResourceConsumer<>(rs);
-                    rs.getIntroducedResources().forEach(iid -> {
-                        sub.accept(model.expectShape(iid, ResourceShape.class), RESOURCE_FOR_RESOURCE);
-                    });
-                    ResourceConsumer<OperationShape> opsSub
-                            = new ResourceConsumer<>(rs);
-
-                    rs.getAllOperations().forEach(opid -> {
-                        opsSub.accept(model.expectShape(opid, OperationShape.class), RelationTag.operationRelation(rs, opid));
-                    });
-                } else if (t.getType() == ShapeType.OPERATION) {
-                    OperationShape op = t.asOperationShape().get();
-                    ResourceConsumer<Shape> io = new ResourceConsumer<>(op);
-                    io.accept(model.expectShape(op.getInputShape()), INPUT_FOR_OPERATION);
-                    io.accept(model.expectShape(op.getOutputShape()), OUTPUT_FOR_OPERATION);
-                    op.getIntroducedErrors().forEach(shp -> {
-                        io.accept(model.expectShape(shp), ERROR_FOR_OPERATION);
-                    });
-                } else {
+                if (null == t.getType()) {
                     ResourceConsumer<Shape> members = new ResourceConsumer<Shape>(t);
                     t.getAllMembers().forEach((name, member) -> {
                         members.accept(member, MEMBER_OF_SHAPE);
                         Shape targ = model.expectShape(member.getTarget());
                         addToGraph.accept(member, targ, TARGET_OF_MEMBER);
                     });
+                } else {
+                    switch (t.getType()) {
+                        case RESOURCE:
+                            ResourceShape rs = t.asResourceShape().get();
+                            ResourceConsumer<ResourceShape> sub
+                                    = new ResourceConsumer<>(rs);
+                            rs.getIntroducedResources().forEach(iid -> {
+                                sub.accept(model.expectShape(iid, ResourceShape.class), RESOURCE_FOR_RESOURCE);
+                            });
+                            ResourceConsumer<OperationShape> opsSub
+                                    = new ResourceConsumer<>(rs);
+                            rs.getAllOperations().forEach(opid -> {
+                                opsSub.accept(model.expectShape(opid, OperationShape.class), RelationTag.operationRelation(rs, opid));
+                            });
+                            break;
+                        case OPERATION:
+                            OperationShape op = t.asOperationShape().get();
+                            ResourceConsumer<Shape> io = new ResourceConsumer<>(op);
+                            io.accept(model.expectShape(op.getInputShape()), INPUT_FOR_OPERATION);
+                            io.accept(model.expectShape(op.getOutputShape()), OUTPUT_FOR_OPERATION);
+                            op.getIntroducedErrors().forEach(shp -> {
+                                io.accept(model.expectShape(shp), ERROR_FOR_OPERATION);
+                            });
+                            break;
+                        default:
+                            ResourceConsumer<Shape> members = new ResourceConsumer<Shape>(t);
+                            t.getAllMembers().forEach((name, member) -> {
+                                members.accept(member, MEMBER_OF_SHAPE);
+                                Shape targ = model.expectShape(member.getTarget());
+                                addToGraph.accept(member, targ, TARGET_OF_MEMBER);
+                            });
+                            break;
+                    }
                 }
             }
         }

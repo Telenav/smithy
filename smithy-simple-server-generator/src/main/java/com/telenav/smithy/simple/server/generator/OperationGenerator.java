@@ -23,6 +23,7 @@
  */
 package com.telenav.smithy.simple.server.generator;
 
+import com.telenav.smithy.utils.path.PathInformationExtractor;
 import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.function.state.Obj;
@@ -476,8 +477,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
             HttpTrait http = httpOpt.get();
             UriPattern pattern = http.getUri();
 
-            new PathAnnotationGenerator(model, pattern)
-                    .assemblePathAnnotation(input, cb);
+            new PathInformationExtractor(model, pattern)
+                    .assembleActeurPathAnnotation(input, cb);
             cb.importing(
                     "com.mastfrog.acteur.headers.Method",
                     "com.mastfrog.acteur.preconditions.Methods",

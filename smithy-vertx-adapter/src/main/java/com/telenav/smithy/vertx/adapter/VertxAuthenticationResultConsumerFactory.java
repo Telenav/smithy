@@ -1,12 +1,3 @@
-
-import com.mastfrog.acteur.errors.ResponseException;
-import com.mastfrog.smithy.http.AuthenticationResultConsumer;
-import com.mastfrog.smithy.http.AuthenticationResultConsumerFactory;
-import com.mastfrog.util.service.ServiceProvider;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
-import java.util.concurrent.CompletableFuture;
-
 /*
  * The MIT License
  *
@@ -30,33 +21,55 @@ import java.util.concurrent.CompletableFuture;
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+package com.telenav.smithy.vertx.adapter;
+
+import com.mastfrog.smithy.http.AuthenticationResultConsumer;
+import com.mastfrog.smithy.http.AuthenticationResultConsumerFactory;
+import com.mastfrog.util.service.ServiceProvider;
+import java.util.concurrent.CompletableFuture;
+
 /**
  *
  * @author Tim Boudreau
  */
 @ServiceProvider(AuthenticationResultConsumerFactory.class)
-public final class SmithyActeurAuthenticationResultConsumerFactory extends AuthenticationResultConsumerFactory {
+public class VertxAuthenticationResultConsumerFactory extends AuthenticationResultConsumerFactory {
 
     @Override
     protected <T> AuthenticationResultConsumer<T> create(CompletableFuture<T> fut, boolean optional) {
-        return new ConsumerImpl<T>(fut, optional);
+        return new ARC<>(fut, optional);
     }
 
-    private static class ConsumerImpl<T> extends AbstractAuthenticationResultConsumer<T> {
+    static class ARC<T> implements AuthenticationResultConsumer<T> {
 
-        ConsumerImpl(CompletableFuture<T> fut, boolean optional) {
-            super(fut, optional);
+        private final CompletableFuture<T> fut;
+        private final boolean optional;
+
+        public ARC(CompletableFuture<T> fut, boolean optional) {
+            this.fut = fut;
+            this.optional = optional;
+        }
+
+        @Override
+        public void ok(T obj) {
+            fut.complete(obj);
         }
 
         @Override
         public void unauthorized() {
-            failed(new ResponseException(UNAUTHORIZED, "Unauthorized"));
+            throw new UnsupportedOperationException("Not supported yet.");
         }
 
         @Override
         public void forbidden() {
-            failed(new ResponseException(FORBIDDEN, "Unauthorized"));
+            throw new UnsupportedOperationException("Not supported yet.");
         }
+
+        @Override
+        public void failed(Throwable thrown) {
+            throw new UnsupportedOperationException("Not supported yet.");
+        }
+
     }
 
 }

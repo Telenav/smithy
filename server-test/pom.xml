@@ -23,6 +23,7 @@
         <module>blog-client-demo</module>
         <module>blog-server-generated-impl</module>
         <module>blog-server-spi</module>
+        <module>blog-server-vertx</module>
     </modules>
 
 </project>

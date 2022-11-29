@@ -108,7 +108,7 @@ public abstract class AuthenticationResultConsumerFactory {
         private void logMissingImpl() {
             logged = true;
             new Exception("No implementation of AuthenticationResultConsumerFactory in ServiceLoader - using the "
-                    + "failover implementation that does not know how any framework implements forbidden or unauthorized responses.");
+                    + "failover implementation that does not know how any framework implements forbidden or unauthorized responses.").printStackTrace();
         }
     }
 

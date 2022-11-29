@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.telenav.smithy</groupId>
+        <artifactId>server-test</artifactId>
+        <version>1.0.2</version>
+    </parent>
+
+    <artifactId>blog-server-vertx</artifactId>
+
+    <dependencies>
+
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>acteur</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.telenav</groupId>
+            <artifactId>vertx-guice</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>smithy-java-http-extensions</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>smithy-vertx-adapter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>blog-service-model</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>blog-server-spi</artifactId>
+        </dependency>
+
+    </dependencies>
+</project>

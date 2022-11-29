@@ -29,17 +29,17 @@
             <artifactId>vertx-web</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>http-test-harness</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>com.google.inject</groupId>
             <artifactId>guice</artifactId>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>util-net</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.mastfrog</groupId>
-            <artifactId>http-test-harness</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -78,19 +78,14 @@
                 <version>${vertx.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.englishtown.vertx</groupId>
-                <artifactId>vertx-guice</artifactId>
-                <version>${vertx.guice.version}</version>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>http-test-harness</artifactId>
+                <version>${http-test-harness.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.google.inject</groupId>
                 <artifactId>guice</artifactId>
                 <version>${guice.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>http-test-harness</artifactId>
-                <version>${http-test-harness.version}</version>
             </dependency>
 
         </dependencies>
