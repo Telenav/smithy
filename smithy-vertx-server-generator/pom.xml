@@ -6,7 +6,10 @@
         <artifactId>telenav-smithy-parent</artifactId>
         <version>1.0.2</version>
     </parent>
-    <artifactId>smithy-simple-server-generator</artifactId>
+    <artifactId>smithy-vertx-server-generator</artifactId>
+
+    <properties>
+    </properties>
     
     <dependencies>
         <dependency>
@@ -19,11 +22,11 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>smithy-utils</artifactId>
+            <artifactId>smithy-java-http-extensions</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>smithy-java-http-extensions</artifactId>
+            <artifactId>smithy-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>

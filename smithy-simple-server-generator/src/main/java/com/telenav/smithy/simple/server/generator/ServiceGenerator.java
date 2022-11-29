@@ -23,6 +23,7 @@
  */
 package com.telenav.smithy.simple.server.generator;
 
+import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
@@ -39,6 +40,7 @@ import com.mastfrog.smithy.java.generators.util.TypeNames;
 import static com.mastfrog.smithy.java.generators.util.TypeNames.typeNameOf;
 import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.ensureGraphs;
+import com.telenav.smithy.utils.ResourceGraphs;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -85,7 +87,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
         applyDocumentation(cb);
         Registry.applyGeneratedAnnotation(ServiceGenerator.class, cb);
 
-        ResourceGraph graph = ResourceGraph.create(shape, model);
+        ResourceGraph graph = ResourceGraphs.graph(model, shape);
         Set<OperationShape> operations = new LinkedHashSet<>();
         graph.closure(shape)
                 .forEach(shape -> shape.asOperationShape().ifPresent(operations::add));

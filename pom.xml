@@ -39,6 +39,8 @@
         <module>smithy-acteur-adapter</module>
         <module>smithy-openapi-wrapper</module>
         <module>vertx-guice</module>
+        <module>smithy-vertx-server-generator</module>
+        <module>smithy-utils</module>
     </modules>
 
     <properties>
@@ -100,6 +102,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>smithy-acteur-adapter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>smithy-utils</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

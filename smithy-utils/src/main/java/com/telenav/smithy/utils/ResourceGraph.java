@@ -21,18 +21,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.simple.server.generator;
+package com.telenav.smithy.utils;
 
 import com.mastfrog.function.TriConsumer;
 import com.mastfrog.graph.*;
-import static com.telenav.smithy.simple.server.generator.RelationTag.ERROR_FOR_OPERATION;
-import static com.telenav.smithy.simple.server.generator.RelationTag.INPUT_FOR_OPERATION;
-import static com.telenav.smithy.simple.server.generator.RelationTag.MEMBER_OF_SHAPE;
-import static com.telenav.smithy.simple.server.generator.RelationTag.OPERATION_FOR_RESOURCE;
-import static com.telenav.smithy.simple.server.generator.RelationTag.OUTPUT_FOR_OPERATION;
-import static com.telenav.smithy.simple.server.generator.RelationTag.RESOURCE_FOR_RESOURCE;
-import static com.telenav.smithy.simple.server.generator.RelationTag.RESOURCE_FOR_SERVICE;
-import static com.telenav.smithy.simple.server.generator.RelationTag.TARGET_OF_MEMBER;
+import static com.telenav.smithy.utils.RelationTag.ERROR_FOR_OPERATION;
+import static com.telenav.smithy.utils.RelationTag.INPUT_FOR_OPERATION;
+import static com.telenav.smithy.utils.RelationTag.MEMBER_OF_SHAPE;
+import static com.telenav.smithy.utils.RelationTag.OPERATION_FOR_RESOURCE;
+import static com.telenav.smithy.utils.RelationTag.OUTPUT_FOR_OPERATION;
+import static com.telenav.smithy.utils.RelationTag.RESOURCE_FOR_RESOURCE;
+import static com.telenav.smithy.utils.RelationTag.RESOURCE_FOR_SERVICE;
+import static com.telenav.smithy.utils.RelationTag.TARGET_OF_MEMBER;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -65,7 +65,7 @@ import software.amazon.smithy.model.shapes.ShapeType;
  *
  * @author Tim Boudreau
  */
-final class ResourceGraph {
+public final class ResourceGraph {
 
     private final List<ShapeId> allIds;
     private final Map<ShapeId, Shape> shapeForId;

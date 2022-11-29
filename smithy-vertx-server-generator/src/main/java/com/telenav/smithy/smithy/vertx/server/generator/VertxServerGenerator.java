@@ -21,31 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.simple.server.generator;
+package com.telenav.smithy.smithy.vertx.server.generator;
 
-import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
+import com.mastfrog.smithy.generators.SmithyGenerationLogger;
+import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.ResourceShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class ResourceGenerator extends AbstractJavaGenerator<ResourceShape> {
+public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
-    public ResourceGenerator(ResourceShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
+    public VertxServerGenerator(ServiceShape shape, Model model, Path destSourceRoot,
+            GenerationTarget target, LanguageWithVersion language,
+            SmithyGenerationSettings settings, SmithyGenerationLogger logger) {
         super(shape, model, destSourceRoot, target, language);
     }
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
-        ResourceGraph rg = SmithyServerGenerator.graph(shape);
+        
     }
 
 }

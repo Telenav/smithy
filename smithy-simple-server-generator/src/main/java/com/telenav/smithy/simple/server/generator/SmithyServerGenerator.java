@@ -23,6 +23,7 @@
  */
 package com.telenav.smithy.simple.server.generator;
 
+import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
@@ -32,6 +33,7 @@ import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
+import com.telenav.smithy.utils.ResourceGraphs;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -98,7 +100,7 @@ public final class SmithyServerGenerator implements SmithyGenerator {
     static ResourceGraph maybeBuildGraph(ServiceShape svc, Model mdl) {
         Map<ShapeId, ResourceGraph> map = SmithyGenerationContext.get().computeIfAbsent(GRAPHS_KEY, ()
                 -> new HashMap<>());
-        return map.putIfAbsent(svc.getId(), ResourceGraph.create(svc, mdl));
+        return map.putIfAbsent(svc.getId(), ResourceGraphs.graphContaining(mdl, svc));
     }
 
     static ResourceGraph graph(Shape forShape) {

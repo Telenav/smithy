@@ -23,6 +23,7 @@
  */
 package com.telenav.smithy.simple.server.generator;
 
+import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.function.state.Obj;
 import com.mastfrog.java.vogon.ClassBuilder;
