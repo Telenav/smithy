@@ -33,19 +33,27 @@ import com.mastfrog.http.harness.HttpTestHarness;
 import com.mastfrog.util.net.PortFinder;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.AllowForwardHeaders;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.inject.Inject;
 import org.junit.jupiter.api.AfterAll;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -92,11 +100,13 @@ public class VertxGuiceModuleTest {
         harn2.get("stuff?name=you").test(assertions -> {
             assertions
                     .assertOk()
+                    .assertHeaderEquals("ETag", "whatevs")
                     .assertBody("Whazzup, you");
         }).assertNoFailures();
     }
 
     @BeforeAll
+    @SuppressWarnings("ThrowableResultIgnored")
     public static void setUpClass() {
         onShutdown = ThrowingRunnable.oneShot(true);
         rndString = "Mr. " + Long.toString(ThreadLocalRandom.current().nextLong(), 36);
@@ -131,7 +141,33 @@ public class VertxGuiceModuleTest {
                 .withVerticle(CustomVerticle.class);
 
         VertxLauncher launcher = Guice.createInjector(mod).getInstance(VertxLauncher.class);
-        launcher.start();
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+        launcher.start(futures -> {
+            assertTrue(futures.size() > 1);
+            CountDownLatch latch = new CountDownLatch(futures.size());
+            for (Future<String> fut : futures) {
+                fut.andThen(result -> {
+                    try {
+                        if (result.cause() != null) {
+                            thrown.getAndUpdate(old -> {
+                                if (old != null) {
+                                    old.addSuppressed(result.cause());
+                                    return old;
+                                }
+                                return fut.cause();
+                            });
+                        }
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+            }
+            try {
+                latch.await(20, TimeUnit.SECONDS);
+            } catch (InterruptedException ex) {
+                Logger.getLogger(VertxGuiceModuleTest.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        });
         onShutdown.andAlways(launcher::shutdown);
 
         harn1 = HttpTestHarness.builder().withHttpVersion(HttpClient.Version.HTTP_1_1)
@@ -202,7 +238,10 @@ public class VertxGuiceModuleTest {
                 MultiMap queryParams = context.queryParams();
                 String name = queryParams.contains("name") ? queryParams.get("name") : who;
 
-                context.end("Whazzup, " + name);
+                HttpServerResponse resp = context.response();
+                resp.putHeader("ETag", "whatevs");
+                resp.send("Whazzup, " + name);
+//                context.end("Whazzup, " + name);
             });
 
             // Create the HTTP server
