@@ -9,7 +9,9 @@ So this is ours.
 
 While not offering Acteur-level decomposition and decoupling of ALL of the steps of processing
 a request, this at least makes it easy to configure routes and have the handling portion
-be injectable.
+be injectable.  We can break things down more if we need to (but that *will* involve inventing
+some abstractions) - but at present, while VertX doesn't make decoupled, reusable bits of
+request processing *easy*, it's not impossible either.
 
 Largely this library tries to get out of the way and just let you use your types, JDK types
 and Vertx types without introducing anything new to learn.  There is one type you might
@@ -83,11 +85,6 @@ general thoughts on pro's and con's of vertex:
 
  * While it doesn't have the *I'm the solution to all problems* identity crisis Spring has, IMHO,
    it still tries to do too much
-   * Classloader isolation of verticles that pass messages via JsonObjects is really taking saving the user
-     from themselves **way** to far.  In general if you're using Java and you're writing a message passing
-     mechanism, and you find yourself inventing a `Message` class, you're already on the wrong track - this
-     is Java, not Erlang, and you can simply get out of the way and let the user's own types *be* the
-     messages, and advise them that they should be immutable - because your framework is for grownups.
    * It's great that you can use a `vertx` to create HTTP servers *or* generic TCP servers *or* UDP
      servers - but these should be extensions, not stuff you get out of the box, like it or not
    * Similarly, clustering support is nice to have, but does not belong in the base framework - I get
@@ -97,5 +94,16 @@ general thoughts on pro's and con's of vertex:
    you should specialize the API for the protocol, not try to do a lowest-common-denominator API that
    will serve *all* protocols, or try to protect your users from knowing that they're writing an HTTP
    server when that is exactly what they are doing.
+ * Classloader isolation of verticles that pass messages via JsonObjects is really taking *saving the user
+   from themselves* **way** too far.  In general if you're using Java and you're writing a message passing
+   mechanism, and you find yourself inventing a `Message` class, you're already on the wrong track - this
+   is Java, not Erlang, and you can simply get out of the way and let the user's own types *be* the
+   messages, and advise them that they should be immutable - because your framework is for grownups.
 
-Compared with Spring, it is still far less of an atrocity, but it could use some further decomposing.
+Compared with Spring, it is still far less of an abomination, but it could use some further decomposing.
+
+#### Future Plans
+
+At some point, we may look at converting this all to use Dagger (compile-time injection via
+code-generation is, I think, the future of dependency injection); for now, this gets us up 
+and running with something solid.
