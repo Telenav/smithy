@@ -59,3 +59,4 @@ Thumbs.db
 /server-test/blog-server-generated-impl/src/main/java/*
 /server-test/blog-server-generated-impl/src/test/java/*
 /server-test/blog-server-generated-impl/src/main/resources/com
+/vertx-guice/nbproject/

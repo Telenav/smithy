@@ -38,6 +38,7 @@
         <module>smithy-simple-server-generator</module>
         <module>smithy-acteur-adapter</module>
         <module>smithy-openapi-wrapper</module>
+        <module>vertx-guice</module>
     </modules>
 
     <properties>
