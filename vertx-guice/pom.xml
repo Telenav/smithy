@@ -29,8 +29,8 @@
             <artifactId>vertx-web</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.mastfrog</groupId>
-            <artifactId>giulius</artifactId>
+            <groupId>com.google.inject</groupId>
+            <artifactId>guice</artifactId>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
