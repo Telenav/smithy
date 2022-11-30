@@ -48,11 +48,11 @@ abstract class Origin {
      * @param type The type of origin (such as headers, or uri path) the
      * parameter this class generates code to obtain obtains its input from
      */
-    Origin(OriginType type) {
+    public Origin(OriginType type) {
         this.type = type;
     }
 
-    OriginType type() {
+    public OriginType type() {
         return type;
     }
 
@@ -61,7 +61,7 @@ abstract class Origin {
      *
      * @return A string
      */
-    abstract String qualifier();
+    public abstract String qualifier();
 
     /**
      * Import any types the generated code will use.

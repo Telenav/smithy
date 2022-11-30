@@ -47,7 +47,7 @@ import software.amazon.smithy.model.traits.UniqueItemsTrait;
  *
  * @author Tim Boudreau
  */
-interface InvocationBuilderTransform {
+public interface InvocationBuilderTransform {
 
     <B extends BlockBuilderBase<T, B, ?>, T, I extends InvocationBuilderBase<TypeAssignment<B>, I>>
             InvocationBuilder<TypeAssignment<B>>

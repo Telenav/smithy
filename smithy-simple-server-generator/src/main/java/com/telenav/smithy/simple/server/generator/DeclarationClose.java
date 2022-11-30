@@ -35,7 +35,7 @@ import software.amazon.smithy.model.shapes.Shape;
  *
  * @author Tim Boudreau
  */
-interface DeclarationClose<B extends ClassBuilder.BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir extends InvocationBuilderBase<TypeAssignment<B>, Ir>> {
+public interface DeclarationClose<B extends ClassBuilder.BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir extends InvocationBuilderBase<TypeAssignment<B>, Ir>> {
 
     B closing(Ir ir, ClassBuilder<?> cb);
 

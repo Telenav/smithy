@@ -34,7 +34,7 @@ import com.mastfrog.util.strings.Escaper;
  *
  * @author Tim Boudreau
  */
-enum OriginType {
+public enum OriginType {
     /**
      * The input structure member is obtained from some element of the URI path
      * of the request.
@@ -82,7 +82,7 @@ enum OriginType {
         }
     }
 
-    String method() {
+    public String method() {
         switch (this) {
             case URI_PATH:
                 return "uriPathElement";

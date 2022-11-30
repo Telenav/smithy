@@ -25,10 +25,9 @@ package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.function.TriConsumer;
 import com.mastfrog.java.vogon.ClassBuilder;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
-import com.mastfrog.util.strings.Escaper;
+import static com.mastfrog.util.strings.Escaper.JAVA_IDENTIFIER_CAMEL_CASE;
 import com.mastfrog.util.strings.Strings;
 import com.telenav.smithy.utils.ShapeUtils;
 import java.util.Set;
@@ -40,14 +39,14 @@ import software.amazon.smithy.model.shapes.Shape;
  *
  * @author Tim Boudreau
  */
-final class InputMemberObtentionStrategy {
+public final class InputMemberObtentionStrategy {
 
     protected final Origin origin;
     protected final Shape memberTarget;
     protected final MemberShape member;
     protected final TypeNames names;
 
-    InputMemberObtentionStrategy(Origin type, Shape memberTarget, MemberShape member, TypeNames names) {
+    public InputMemberObtentionStrategy(Origin type, Shape memberTarget, MemberShape member, TypeNames names) {
         this.origin = type;
         this.memberTarget = memberTarget;
         this.member = member;
@@ -62,11 +61,11 @@ final class InputMemberObtentionStrategy {
         return origin.type() + " " + origin.qualifier() + " as " + typeNameOf(memberTarget);
     }
 
-    void visit(TriConsumer<Origin, Shape, MemberShape> c) {
+    public void visit(TriConsumer<Origin, Shape, MemberShape> c) {
         c.accept(origin, memberTarget, member);
     }
 
-    <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> void comment(B bb) {
+    public <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> void comment(B bb) {
         bb.lineComment("InputObtentionStrategy " + memberTarget.getId() + " for " + (member == null ? null : member.getId()));
         bb.lineComment("Origin " + origin.type + " " + origin.getClass().getSimpleName());
     }
@@ -92,8 +91,8 @@ final class InputMemberObtentionStrategy {
         origin.requiredArguments(typeNames);
     }
 
-    String memberVarName() {
-        return "_" + Escaper.JAVA_IDENTIFIER_CAMEL_CASE.escape(member.getMemberName());
+    public String memberVarName() {
+        return "_" + JAVA_IDENTIFIER_CAMEL_CASE.escape(member.getMemberName());
     }
 
     protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> String generateObtentionCode(ClassBuilder<?> cb, B into) {

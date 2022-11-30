@@ -24,7 +24,6 @@
 package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
-import com.mastfrog.util.strings.Escaper;
 import static com.mastfrog.util.strings.Escaper.JAVA_IDENTIFIER_CAMEL_CASE;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import java.util.function.Consumer;
@@ -47,7 +46,7 @@ class RequestParameterOrigin extends Origin {
     }
 
     @Override
-    String qualifier() {
+    public String qualifier() {
         return name;
     }
 

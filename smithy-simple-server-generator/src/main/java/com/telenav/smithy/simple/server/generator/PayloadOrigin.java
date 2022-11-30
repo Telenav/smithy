@@ -24,7 +24,6 @@
 package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.util.strings.Strings;
 import com.telenav.smithy.names.TypeNames;
 import java.util.Set;
@@ -40,13 +39,13 @@ class PayloadOrigin extends Origin {
 
     final String qualifiedType;
 
-    PayloadOrigin(String qualifiedType) {
+    public PayloadOrigin(String qualifiedType) {
         super(OriginType.HTTP_PAYLOAD);
         this.qualifiedType = qualifiedType;
     }
 
     @Override
-    String qualifier() {
+    public String qualifier() {
         return "deserialized to " + qualifiedType;
     }
 

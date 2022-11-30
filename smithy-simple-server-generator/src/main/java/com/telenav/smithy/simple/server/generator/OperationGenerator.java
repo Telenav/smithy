@@ -559,7 +559,6 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                     // XXX check the trait that can provide an alternate name
                     st.add(new InputMemberObtentionStrategy(uq,
                             model.expectShape(m.getTarget()), m, names()));
-
                 }
             }
         } else {
@@ -570,7 +569,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 //            InputMemberObtentionStrategy strat = new InputMemberObtentionStrategy(new PayloadOrigin(fqn), shape, null);
 //            st.add(strat);
 //        }
-        return new Input(input, st, this);
+        return new Input(input, st, shape, names());
     }
 
     private void addNumericQueryParametersAnnotation(StructureShape input, ClassBuilder<String> cb) {

@@ -29,7 +29,7 @@ import com.mastfrog.java.vogon.ClassBuilder;
  *
  * @author Tim Boudreau
  */
-interface CharSequenceTransform {
+public interface CharSequenceTransform {
 
     <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> String xform(String inputVar, B bb);
     static CharSequenceTransform TO_STRING = new CharSequenceTransform() {

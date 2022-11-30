@@ -45,6 +45,10 @@ public final class TypeNames {
     public TypeNames(Model model) {
         this.model = model;
     }
+    
+    public Model model() {
+        return model;
+    }
 
     public String packageOf(Shape shape) {
         String result = packageOf(shape.getId());

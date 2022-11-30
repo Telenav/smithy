@@ -32,7 +32,7 @@ import com.telenav.smithy.names.JavaSymbolProvider;
  *
  * @author Tim Boudreau
  */
-final class Declaration<B extends ClassBuilder.BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir extends ClassBuilder.InvocationBuilderBase<ClassBuilder.TypeAssignment<B>, Ir>> {
+public final class Declaration<B extends ClassBuilder.BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir extends ClassBuilder.InvocationBuilderBase<ClassBuilder.TypeAssignment<B>, Ir>> {
 
     private final Declarer<B, Tr, Rr, Ir> declarer;
     private final DeclarationClose<B, Tr, Rr, Ir> closer;

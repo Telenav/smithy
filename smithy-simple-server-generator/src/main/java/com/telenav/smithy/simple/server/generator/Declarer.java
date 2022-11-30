@@ -41,7 +41,7 @@ import software.amazon.smithy.model.traits.DefaultTrait;
  *
  * @author Tim Boudreau
  */
-interface Declarer<B extends BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir extends InvocationBuilderBase<TypeAssignment<B>, Ir>> {
+public interface Declarer<B extends BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir extends InvocationBuilderBase<TypeAssignment<B>, Ir>> {
 
     <I extends InvocationBuilderBase<TypeAssignment<B>, I>> Ir
             doInit(OriginType origin, String name, ClassBuilder<?> cb, B bb, DeclarationBuilder<B> decl);

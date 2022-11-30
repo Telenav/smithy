@@ -27,6 +27,7 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.ConstructorBuilder;
 import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import java.util.ArrayList;
 import static java.util.Collections.unmodifiableList;
 import java.util.HashSet;
@@ -38,20 +39,23 @@ import java.util.function.Consumer;
 
 import com.telenav.smithy.names.operation.OperationNames;
 import com.telenav.smithy.utils.ShapeUtils;
+import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 
 /**
  *
  * @author Tim Boudreau
  */
-class Input implements Iterable<InputMemberObtentionStrategy> {
+public class Input implements Iterable<InputMemberObtentionStrategy> {
 
     private final List<InputMemberObtentionStrategy> strategies = new ArrayList<>();
     private final StructureShape shape;
-    private final OperationGenerator generator;
+    private final OperationShape operation;
+    private final TypeNames names;
 
-    Input(StructureShape structure, List<InputMemberObtentionStrategy> strategies, final OperationGenerator generator) {
-        this.generator = generator;
+    Input(StructureShape structure, List<InputMemberObtentionStrategy> strategies, final OperationShape operation, TypeNames names) {
+        this.operation = operation;
+        this.names = names;
         this.shape = structure;
         this.strategies.addAll(strategies);
     }
@@ -62,12 +66,12 @@ class Input implements Iterable<InputMemberObtentionStrategy> {
     }
 
     public String fqn() {
-        return generator.names().packageOf(shape)
-                + "." + TypeNames.typeNameOf(shape);
+        return names.packageOf(shape)
+                + "." + typeName();
     }
 
     public String typeName() {
-        return TypeNames.typeNameOf(shape);
+        return typeNameOf(shape);
     }
 
     void collectBoundTypes(Consumer<String> con, Consumer<String> bind) {
@@ -75,13 +79,13 @@ class Input implements Iterable<InputMemberObtentionStrategy> {
     }
 
     TypeNames names() {
-        return generator.names();
+        return names;
     }
 
-    <T> Input apply(ClassBuilder<T> cb, ConstructorBuilder<ClassBuilder<T>> con, BlockBuilder<ClassBuilder<T>> body) {
+    public <T> Input apply(ClassBuilder<T> cb, ConstructorBuilder<ClassBuilder<T>> con, BlockBuilder<ClassBuilder<T>> body) {
         body.lineComment(shape.getId() + " with " + strategies);
-        String ifaceName = OperationNames.operationInterfaceName(generator.shape());
-        String ifaceFqn = OperationNames.operationInterfaceFqn(generator.model(), generator.shape());
+        String ifaceName = OperationNames.operationInterfaceName(operation);
+        String ifaceFqn = OperationNames.operationInterfaceFqn(names.model(), operation);
         Set<String> neededImports = new TreeSet<>();
         Set<String> neededBindings = new TreeSet<>();
         collectBoundTypes(neededImports::add, neededBindings::add);
@@ -133,7 +137,7 @@ class Input implements Iterable<InputMemberObtentionStrategy> {
         return this;
     }
 
-    boolean isEmpty() {
+    public boolean isEmpty() {
         // If this returns true, there were no strategies for obtaining
         // individual structure members - the http payload HAS to be the
         // entire request body
