@@ -23,6 +23,7 @@
  */
 package com.telenav.smithy.simple.server.generator;
 
+import com.telenav.smithy.names.operation.OperationNames;
 import com.telenav.smithy.utils.path.PathInformationExtractor;
 import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.function.state.Bool;
@@ -39,9 +40,9 @@ import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
-import static com.mastfrog.smithy.java.generators.util.TypeNames.packageOf;
-import static com.mastfrog.smithy.java.generators.util.TypeNames.typeNameOf;
+import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.packageOf;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
 import com.mastfrog.util.strings.Escaper;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.mapToBigDecimal;
@@ -348,8 +349,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
             conc.addClassArgument("value", cb.className());
         });
 
-        String ifaceName = OperationInterfaceGenerator.interfaceName(shape());
-        String ifaceFqn = OperationInterfaceGenerator.interfaceFqn(model(), shape());
+        String ifaceName = OperationNames.operationInterfaceName(shape());
+        String ifaceFqn = OperationNames.operationInterfaceFqn(model(), shape());
         cb.importing("com.mastfrog.acteur.preconditions.Description")
                 .annotatedWith("Description").withValue(docComment);
         cb.importing(ifaceFqn).extending("Acteur");

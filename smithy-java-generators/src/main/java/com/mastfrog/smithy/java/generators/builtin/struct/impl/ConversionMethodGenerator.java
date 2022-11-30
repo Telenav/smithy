@@ -29,7 +29,7 @@ import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureContributor;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
-import com.mastfrog.smithy.java.generators.util.NumberKind;
+import com.telenav.smithy.names.NumberKind;
 import com.mastfrog.smithy.simple.extensions.UnitsTrait;
 import java.text.NumberFormat;
 import java.util.ArrayList;
@@ -44,10 +44,6 @@ import software.amazon.smithy.model.shapes.EnumShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.NumberShape;
 import software.amazon.smithy.model.shapes.ShapeType;
-import static software.amazon.smithy.model.shapes.ShapeType.DOUBLE;
-import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
-import static software.amazon.smithy.model.shapes.ShapeType.INTEGER;
-import static software.amazon.smithy.model.shapes.ShapeType.LONG;
 
 /**
  *

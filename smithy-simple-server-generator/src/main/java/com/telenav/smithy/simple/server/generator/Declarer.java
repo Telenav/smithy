@@ -30,7 +30,7 @@ import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.NewBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
+import com.telenav.smithy.names.TypeNames;
 import com.mastfrog.util.strings.Escaper;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;

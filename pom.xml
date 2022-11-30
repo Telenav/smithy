@@ -42,6 +42,7 @@
         <module>smithy-vertx-server-generator</module>
         <module>smithy-utils</module>
         <module>smithy-vertx-adapter</module>
+        <module>smithy-server-generation-common</module>
     </modules>
 
     <properties>

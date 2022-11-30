@@ -29,7 +29,7 @@ import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
 import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
+import com.telenav.smithy.names.TypeNames;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;

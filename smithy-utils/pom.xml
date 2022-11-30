@@ -6,14 +6,23 @@
         <artifactId>telenav-smithy-parent</artifactId>
         <version>1.0.2</version>
     </parent>
+
     <artifactId>smithy-utils</artifactId>
-    <properties>
-    </properties>
-    
+
     <dependencies>
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>graph</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>util-strings</artifactId>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>character-functions</artifactId>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>

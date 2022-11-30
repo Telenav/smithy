@@ -26,7 +26,7 @@ package com.mastfrog.smithy.java.generators.builtin;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.java.generators.util.JavaTypes;
+import com.telenav.smithy.names.JavaTypes;
 import java.nio.file.Path;
 import java.util.AbstractList;
 import java.util.ArrayList;

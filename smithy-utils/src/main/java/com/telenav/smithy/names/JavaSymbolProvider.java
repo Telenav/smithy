@@ -21,13 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.smithy.java.generators.util;
+package com.telenav.smithy.names;
 
 import com.mastfrog.function.character.CharFilter;
 import com.mastfrog.function.character.CharPredicates;
 import com.mastfrog.util.strings.Escaper;
-import software.amazon.smithy.codegen.core.ReservedWordSymbolProvider;
-import software.amazon.smithy.codegen.core.SymbolProvider;
 import software.amazon.smithy.model.shapes.ShapeId;
 
 /**

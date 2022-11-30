@@ -13,8 +13,6 @@ import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.mastfrog.smithy.java.generators.util.JavaTypes;
-import com.mastfrog.smithy.java.generators.util.NumberKind;
 import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.util.function.Consumer;
@@ -23,6 +21,9 @@ import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
+
+import com.telenav.smithy.names.JavaTypes;
+import com.telenav.smithy.names.NumberKind;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;

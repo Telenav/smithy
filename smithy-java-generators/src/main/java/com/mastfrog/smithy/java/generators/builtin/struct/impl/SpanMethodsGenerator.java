@@ -32,7 +32,7 @@ import static com.mastfrog.smithy.java.generators.builtin.SpanUtils.withSpanArgu
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureContributor;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
-import com.mastfrog.smithy.java.generators.util.NumberKind;
+import com.telenav.smithy.names.NumberKind;
 import static javax.lang.model.element.Modifier.PUBLIC;
 
 /**

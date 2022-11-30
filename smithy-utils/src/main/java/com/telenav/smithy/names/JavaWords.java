@@ -21,16 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.smithy.java.generators.util;
+package com.telenav.smithy.names;
 
 import java.util.Arrays;
-import software.amazon.smithy.codegen.core.ReservedWords;
 
 /**
  *
  * @author Tim Boudreau
  */
-public final class JavaWords implements ReservedWords {
+public final class JavaWords /* implements ReservedWords */ {
 
     // This list MUST remain sorted
     private static final String[] JAVA_RESERVED = new String[]{
@@ -45,16 +44,14 @@ public final class JavaWords implements ReservedWords {
         "throws", "transient", "try", "void", "volatile", "while"
     };
 
-    @Override
-    public String escape(String word) {
+    public static String escape(String word) {
         if (isReserved(word)) {
             return '_' + word;
         }
         return word;
     }
 
-    @Override
-    public boolean isReserved(String word) {
+    public static boolean isReserved(String word) {
         return isJavaReservedWord(word);
     }
 

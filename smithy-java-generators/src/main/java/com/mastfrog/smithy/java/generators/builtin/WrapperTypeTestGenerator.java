@@ -33,7 +33,7 @@ import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaTestGenerator;
-import com.mastfrog.smithy.java.generators.util.NumberKind;
+import com.telenav.smithy.names.NumberKind;
 import com.mastfrog.smithy.simple.extensions.SamplesTrait;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
@@ -47,18 +47,10 @@ import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
-import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
-import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
-import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
-import static software.amazon.smithy.model.shapes.ShapeType.BYTE;
-import static software.amazon.smithy.model.shapes.ShapeType.DOUBLE;
-import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
-import static software.amazon.smithy.model.shapes.ShapeType.INTEGER;
-import static software.amazon.smithy.model.shapes.ShapeType.LONG;
+
 import static software.amazon.smithy.model.shapes.ShapeType.MEMBER;
-import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
 import static software.amazon.smithy.model.shapes.ShapeType.STRING;
-import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
+
 import software.amazon.smithy.model.traits.SensitiveTrait;
 
 /**

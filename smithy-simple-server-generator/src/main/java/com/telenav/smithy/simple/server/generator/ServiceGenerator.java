@@ -36,8 +36,8 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
-import static com.mastfrog.smithy.java.generators.util.TypeNames.typeNameOf;
+import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.ensureGraphs;
 import com.telenav.smithy.utils.ResourceGraphs;
@@ -58,6 +58,8 @@ import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 import static javax.lang.model.element.Modifier.VOLATILE;
+
+import com.telenav.smithy.names.operation.OperationNames;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -140,7 +142,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                             op.getTrait(DocumentationTrait.class).ifPresent(dox -> {
                                 sb.append(" - ").append(dox.getValue());
                             });
-                            String opName = OperationInterfaceGenerator.interfaceName(op);
+                            String opName = OperationNames.operationInterfaceName(op);
                             sb.append("<ul><li><code>").append(opName)
                                     .append("</code> - implement {@link ")
                                     .append(opName).append("} and call <code>with")
@@ -178,8 +180,8 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
     }
 
     private void addBindingFieldAndMethod(ClassBuilder<String> cb, OperationShape shape) {
-        String ifaceFqn = OperationInterfaceGenerator.interfaceFqn(model, shape);
-        String ifaceName = OperationInterfaceGenerator.interfaceName(shape);
+        String ifaceFqn = OperationNames.operationInterfaceFqn(model, shape);
+        String ifaceName = OperationNames.operationInterfaceName(shape);
         String fieldName = decapitalize(ifaceName) + "Type";
         maybeImport(cb, ifaceFqn);
         cb.field(fieldName, fld
@@ -259,7 +261,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                         bb.lineComment("Bind any types passed to setters to configure")
                                 .lineComment("SPI implementation bindings");
                         operations.forEach(op -> {
-                            String ifaceName = OperationInterfaceGenerator.interfaceName(op);
+                            String ifaceName = OperationNames.operationInterfaceName(op);
                             String fieldName = decapitalize(ifaceName) + "Type";
                             bb.ifNotNull(fieldName)
                                     .invoke("to")

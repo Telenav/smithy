@@ -24,10 +24,11 @@
 package com.mastfrog.smithy.java.generators.builtin.struct;
 
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.mastfrog.smithy.java.generators.util.JavaTypes;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
 import java.util.Map;
 import java.util.Optional;
+
+import com.telenav.smithy.names.JavaTypes;
+import com.telenav.smithy.names.TypeNames;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.ListShape;

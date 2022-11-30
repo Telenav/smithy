@@ -30,10 +30,11 @@ import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import static com.mastfrog.smithy.java.generators.util.JavaSymbolProvider.escape;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
-import static com.mastfrog.smithy.java.generators.util.TypeNames.packageOf;
-import static com.mastfrog.smithy.java.generators.util.TypeNames.typeNameOf;
+import static com.telenav.smithy.names.JavaSymbolProvider.escape;
+import static com.telenav.smithy.names.TypeNames.packageOf;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
+
+import com.telenav.smithy.names.operation.OperationNames;
 import com.telenav.smithy.utils.ResourceGraph;
 import com.telenav.smithy.utils.ResourceGraphs;
 import com.telenav.smithy.utils.path.PathInfo;
@@ -144,14 +145,14 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         "static com.telenav.smithy.vertx.adapter.VertxRequestAdapter.smithyRequest",
                         "static com.telenav.smithy.vertx.adapter.VertxResponseAdapter.smithyResponse",
                         "javax.inject.Inject",
-                        interfaceFqn(model, op)
+                        OperationNames.operationInterfaceFqn(model, op)
                 )
                 .implementing("Handler<RoutingContext>")
                 .withModifier(PUBLIC, FINAL);
 
         cb.field("spi")
                 .withModifier(FINAL, PRIVATE)
-                .ofType(interfaceName(op));
+                .ofType(OperationNames.operationInterfaceName(op));
 
         if (op.getOutput().isPresent()) {
             cb.importing("com.fasterxml.jackson.databind.ObjectMapper");
@@ -162,7 +163,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         cb.constructor(con -> {
             con.annotatedWith("Inject").closeAnnotation();
-            con.addArgument(interfaceName(op), "spi");
+            con.addArgument(OperationNames.operationInterfaceName(op), "spi");
             if (op.getOutput().isPresent()) {
                 con.addArgument("ObjectMapper", "mapper");
             }
@@ -237,17 +238,4 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             return sh.asStructureShape();
         }).orElse(null);
     }
-
-    // Below are copy/pasted from OperationInterfaceGenerator - should be unified
-    static String interfaceName(OperationShape shape) {
-        return TypeNames.typeNameOf(shape) + "Responder";
-    }
-
-    static String interfaceFqn(Model mdl, OperationShape shape) {
-        TypeNames tn = new TypeNames(mdl);
-        String pkg = tn.packageOf(shape);
-        String ifaceName = interfaceName(shape);
-        return pkg + "." + ifaceName;
-    }
-
 }

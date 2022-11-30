@@ -28,7 +28,7 @@ import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.java.generators.util.JavaSymbolProvider;
+import com.telenav.smithy.names.JavaSymbolProvider;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.smithy.simple.extensions.SamplesTrait;
 import static com.mastfrog.util.strings.Escaper.BASIC_HTML;

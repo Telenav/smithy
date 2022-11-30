@@ -26,7 +26,7 @@ package com.telenav.smithy.simple.server.generator;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
+import com.telenav.smithy.names.TypeNames;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 

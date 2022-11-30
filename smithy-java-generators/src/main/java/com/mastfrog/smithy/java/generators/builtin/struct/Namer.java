@@ -24,7 +24,7 @@
 package com.mastfrog.smithy.java.generators.builtin.struct;
 
 import static com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator.decapitalize;
-import com.mastfrog.smithy.java.generators.util.JavaSymbolProvider;
+import com.telenav.smithy.names.JavaSymbolProvider;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import java.util.Iterator;
 import java.util.Optional;

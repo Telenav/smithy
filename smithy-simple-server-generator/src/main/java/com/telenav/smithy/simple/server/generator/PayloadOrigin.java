@@ -25,7 +25,6 @@ package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import static com.telenav.smithy.simple.server.generator.OperationGenerator.simpleName;
 import java.util.Set;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.shapes.MemberShape;

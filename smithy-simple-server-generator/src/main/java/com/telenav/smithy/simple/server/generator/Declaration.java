@@ -26,7 +26,7 @@ package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.DeclarationBuilder;
-import com.mastfrog.smithy.java.generators.util.JavaSymbolProvider;
+import com.telenav.smithy.names.JavaSymbolProvider;
 
 /**
  *

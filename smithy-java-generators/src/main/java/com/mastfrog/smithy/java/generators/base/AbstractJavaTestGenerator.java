@@ -28,74 +28,51 @@ import com.mastfrog.function.ShortConsumer;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;
-import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
-import static com.mastfrog.java.vogon.ClassBuilder.number;
-import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
-import static com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator.decapitalize;
 import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
 import com.mastfrog.smithy.java.generators.builtin.struct.Namer;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
-import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
-import com.mastfrog.smithy.java.generators.util.JavaSymbolProvider;
-import static com.mastfrog.smithy.java.generators.util.JavaSymbolProvider.escape;
-import com.mastfrog.smithy.java.generators.util.JavaTypes;
-import static com.mastfrog.smithy.java.generators.util.JavaTypes.packageOf;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
-import static com.mastfrog.smithy.java.generators.util.TypeNames.typeNameOf;
 import com.mastfrog.smithy.simple.extensions.SamplesTrait;
 import com.mastfrog.smithy.simple.extensions.SpanTrait;
-import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.strings.RandomStrings;
 import com.mastfrog.util.strings.Strings;
-import static java.lang.Math.ceil;
+import com.telenav.smithy.names.JavaSymbolProvider;
+import com.telenav.smithy.names.JavaTypes;
+import com.telenav.smithy.names.TypeNames;
+import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.node.StringNode;
+import software.amazon.smithy.model.shapes.*;
+import software.amazon.smithy.model.traits.DeprecatedTrait;
+import software.amazon.smithy.model.traits.LengthTrait;
+import software.amazon.smithy.model.traits.RangeTrait;
+import software.amazon.smithy.model.traits.UniqueItemsTrait;
+
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
-import static javax.lang.model.element.Modifier.FINAL;
-import static javax.lang.model.element.Modifier.PRIVATE;
-import static javax.lang.model.element.Modifier.PUBLIC;
-import static javax.lang.model.element.Modifier.STATIC;
-import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.node.StringNode;
-import software.amazon.smithy.model.shapes.IntEnumShape;
-import software.amazon.smithy.model.shapes.ListShape;
-import software.amazon.smithy.model.shapes.MapShape;
-import software.amazon.smithy.model.shapes.MemberShape;
-import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.shapes.ShapeType;
-import static software.amazon.smithy.model.shapes.ShapeType.INT_ENUM;
-import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.shapes.UnionShape;
-import software.amazon.smithy.model.traits.DeprecatedTrait;
-import software.amazon.smithy.model.traits.LengthTrait;
-import software.amazon.smithy.model.traits.RangeTrait;
-import software.amazon.smithy.model.traits.UniqueItemsTrait;
+
+import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
+import static com.mastfrog.java.vogon.ClassBuilder.number;
+import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
+import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import static com.mastfrog.util.preconditions.Checks.notNull;
+import static com.telenav.smithy.names.JavaSymbolProvider.escape;
+import static com.telenav.smithy.names.TypeNames.packageOf;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import static java.lang.Math.ceil;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
+import static javax.lang.model.element.Modifier.*;
 
 /**
  *
@@ -121,7 +98,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
     protected final void generate(Consumer<ClassBuilder<String>> addTo) {
         onBeforeGenerate();
         ClassBuilder<String> cb = currentClassBuilder = testClassHead();
-        String typeName = currentTypeName = TypeNames.typeNameOf(shape.getId());
+        String typeName = currentTypeName = typeNameOf(shape.getId());
 
         generate(cb, typeName);
 
@@ -146,7 +123,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
 
     protected ClassBuilder<String> testClassHead() {
         ClassBuilder<String> result = ClassBuilder.forPackage(names().packageOf(shape))
-                .named(TypeNames.typeNameOf(shape) + "Test")
+                .named(typeNameOf(shape) + "Test")
                 .importing(
                         "com.fasterxml.jackson.databind.ObjectMapper",
                         "org.junit.jupiter.api.Test",
@@ -658,9 +635,9 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                 Collections.shuffle(entries, rnd);
                 Map.Entry<String, MemberShape> memberEntry = entries.get(rnd.nextInt(entries.size()));
                 bb.declare(vn)
-                        .initializedFromField(JavaSymbolProvider.escape(memberEntry.getKey()))
-                        .of(TypeNames.typeNameOf(shape))
-                        .as(TypeNames.typeNameOf(shape));
+                        .initializedFromField(escape(memberEntry.getKey()))
+                        .of(typeNameOf(shape))
+                        .as(typeNameOf(shape));
                 break;
             case INT_ENUM:
                 IntEnumShape ienum = shape.asIntEnumShape().get();
@@ -723,7 +700,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         MemberShape shapeMember = shape.getMember();
         Shape memberTarget = model.expectShape(shapeMember.getTarget());
         ensureImported(memberTarget);
-        String memberTypeName = TypeNames.typeNameOf(memberTarget.getId(), false);
+        String memberTypeName = typeNameOf(memberTarget.getId(), false);
 
         String inputCollection = newVarName(shape.getId().getName() + "_input");
         String collectionType = isSet ? "Set<" + memberTypeName + ">"
@@ -750,7 +727,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                     .withArgument(v)
                     .on(inputCollection);
         }
-        String destTypeName = TypeNames.typeNameOf(shape);
+        String destTypeName = typeNameOf(shape);
         bb.declare(vn)
                 .initializedWithNew(nb -> {
                     nb.withArgument(inputCollection)
@@ -773,8 +750,8 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
 
         int targetSize = targetSizeForCollection(shape, memberShape);
 
-        String keyTypeName = TypeNames.typeNameOf(rawKeyShape.getId(), false);
-        String valTypeName = TypeNames.typeNameOf(rawValShape.getId(), false);
+        String keyTypeName = typeNameOf(rawKeyShape.getId(), false);
+        String valTypeName = typeNameOf(rawValShape.getId(), false);
 
         currentClassBuilder.importing(Map.class, LinkedHashMap.class);
         String mapType = "Map<" + keyTypeName + ", " + valTypeName + ">";
@@ -794,7 +771,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                     .withArgument(k).withArgument(v)
                     .on(contents);
         }
-        String destTypeName = TypeNames.typeNameOf(shape);
+        String destTypeName = typeNameOf(shape);
         bb.declare(vn)
                 .initializedWithNew(nb -> {
                     nb.withArgument(contents)
@@ -844,7 +821,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         String result = jt == null ? null : jt
                 .primitiveTypeName();
         if (result == null) {
-            result = TypeNames.typeNameOf(shape.getId(), false);
+            result = typeNameOf(shape.getId(), false);
         }
         return result;
     }
@@ -1167,8 +1144,8 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                          */
 
                     }
-                    nb.ofType(TypeNames.typeNameOf(shape));
-                }).as(TypeNames.typeNameOf(shape));
+                    nb.ofType(typeNameOf(shape));
+                }).as(typeNameOf(shape));
 
         return result;
     }

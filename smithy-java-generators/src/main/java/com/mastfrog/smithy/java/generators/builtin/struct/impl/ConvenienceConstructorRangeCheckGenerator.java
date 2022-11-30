@@ -29,7 +29,7 @@ import com.mastfrog.smithy.java.generators.builtin.struct.ConstructorArgumentChe
 import com.mastfrog.smithy.java.generators.builtin.struct.ConstructorKind;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
-import com.mastfrog.smithy.java.generators.util.JavaTypes;
+import com.telenav.smithy.names.JavaTypes;
 import java.math.BigDecimal;
 import java.util.Optional;
 import software.amazon.smithy.model.shapes.Shape;

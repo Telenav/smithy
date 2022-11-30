@@ -29,13 +29,14 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
-import static com.mastfrog.smithy.java.generators.util.TypeNames.packageOf;
+import static com.telenav.smithy.names.TypeNames.packageOf;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.withAuthInfo;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
 import javax.lang.model.element.Modifier;
+
+import com.telenav.smithy.names.operation.OperationNames;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -51,21 +52,10 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
         super(shape, model, destSourceRoot, target, language);
     }
 
-    static String interfaceName(OperationShape shape) {
-        return TypeNames.typeNameOf(shape) + "Responder";
-    }
-
-    static String interfaceFqn(Model mdl, OperationShape shape) {
-        TypeNames tn = new TypeNames(mdl);
-        String pkg = tn.packageOf(shape);
-        String ifaceName = interfaceName(shape);
-        return pkg + "." + ifaceName;
-    }
-
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
-        String pkg = packageOf(interfaceFqn(model, shape));
-        String name = interfaceName(shape);
+        String pkg = packageOf(OperationNames.operationInterfaceFqn(model, shape));
+        String name = OperationNames.operationInterfaceName(shape);
 
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(name)
                 .annotatedWith("FunctionalInterface").closeAnnotation()

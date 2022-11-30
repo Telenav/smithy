@@ -32,7 +32,7 @@ import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
 import com.mastfrog.smithy.java.generators.builtin.struct.Namer;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
-import static com.mastfrog.smithy.java.generators.util.JavaTypes.packageOf;
+import static com.telenav.smithy.names.JavaTypes.packageOf;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;

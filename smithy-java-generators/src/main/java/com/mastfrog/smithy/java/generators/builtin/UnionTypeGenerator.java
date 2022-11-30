@@ -29,7 +29,7 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
+import com.telenav.smithy.names.TypeNames;
 import com.mastfrog.util.strings.Strings;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;

@@ -28,7 +28,7 @@ import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.mastfrog.smithy.java.generators.util.JavaSymbolProvider;
+import com.telenav.smithy.names.JavaSymbolProvider;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import java.nio.file.Path;
 import java.time.Duration;

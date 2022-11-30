@@ -28,7 +28,7 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.ConstructorBuilder;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator.maybeImport;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
+import com.telenav.smithy.names.TypeNames;
 import java.util.ArrayList;
 import static java.util.Collections.unmodifiableList;
 import java.util.HashSet;
@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+
+import com.telenav.smithy.names.operation.OperationNames;
 import software.amazon.smithy.model.shapes.StructureShape;
 
 /**
@@ -79,8 +81,8 @@ class Input implements Iterable<InputMemberObtentionStrategy> {
 
     <T> Input apply(ClassBuilder<T> cb, ConstructorBuilder<ClassBuilder<T>> con, BlockBuilder<ClassBuilder<T>> body) {
         body.lineComment(shape.getId() + " with " + strategies);
-        String ifaceName = OperationInterfaceGenerator.interfaceName(generator.shape());
-        String ifaceFqn = OperationInterfaceGenerator.interfaceFqn(generator.model(), generator.shape());
+        String ifaceName = OperationNames.operationInterfaceName(generator.shape());
+        String ifaceFqn = OperationNames.operationInterfaceFqn(generator.model(), generator.shape());
         Set<String> neededImports = new TreeSet<>();
         Set<String> neededBindings = new TreeSet<>();
         collectBoundTypes(neededImports::add, neededBindings::add);

@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.smithy.java.generators.util;
+package com.telenav.smithy.names;
 
 import static com.mastfrog.util.strings.Strings.capitalize;
 import java.math.BigDecimal;

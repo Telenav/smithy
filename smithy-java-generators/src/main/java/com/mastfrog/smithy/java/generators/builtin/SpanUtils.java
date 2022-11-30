@@ -27,7 +27,7 @@ import com.mastfrog.function.TriConsumer;
 import com.mastfrog.function.TriFunction;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
-import com.mastfrog.smithy.java.generators.util.NumberKind;
+import com.telenav.smithy.names.NumberKind;
 import com.mastfrog.smithy.simple.extensions.SpanTrait;
 import java.util.Optional;
 import java.util.function.BiConsumer;

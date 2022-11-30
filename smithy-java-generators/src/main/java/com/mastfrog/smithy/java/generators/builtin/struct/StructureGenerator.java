@@ -6,7 +6,7 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractStructureGenerator;
 import com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry;
-import com.mastfrog.smithy.java.generators.util.TypeNames;
+import com.telenav.smithy.names.TypeNames;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashSet;
