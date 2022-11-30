@@ -21,13 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.simple.server.generator;
+package com.mastfrog.smithy.server.common;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.ConstructorBuilder;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import com.telenav.smithy.names.operation.OperationNames;
+import com.telenav.smithy.utils.ShapeUtils;
 import java.util.ArrayList;
 import static java.util.Collections.unmodifiableList;
 import java.util.HashSet;
@@ -36,9 +38,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
-
-import com.telenav.smithy.names.operation.OperationNames;
-import com.telenav.smithy.utils.ShapeUtils;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 
@@ -53,7 +52,7 @@ public class Input implements Iterable<InputMemberObtentionStrategy> {
     private final OperationShape operation;
     private final TypeNames names;
 
-    Input(StructureShape structure, List<InputMemberObtentionStrategy> strategies, final OperationShape operation, TypeNames names) {
+    public Input(StructureShape structure, List<InputMemberObtentionStrategy> strategies, final OperationShape operation, TypeNames names) {
         this.operation = operation;
         this.names = names;
         this.shape = structure;

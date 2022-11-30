@@ -126,6 +126,11 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
+                <artifactId>smithy-server-generation-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
                 <artifactId>simple-smithy-extensions</artifactId>
                 <version>${project.version}</version>
             </dependency>

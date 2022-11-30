@@ -15,4 +15,5 @@
             <artifactId>smithy-utils</artifactId>
         </dependency>
     </dependencies>
+
 </project>

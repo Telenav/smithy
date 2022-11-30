@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.simple.server.generator;
+package com.mastfrog.smithy.server.common;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
@@ -29,7 +29,6 @@ import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
 import com.telenav.smithy.names.TypeNames;
-import com.telenav.validation.ValidationExceptionProvider;
 import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;

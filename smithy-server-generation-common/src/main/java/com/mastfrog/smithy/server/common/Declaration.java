@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package com.telenav.smithy.simple.server.generator;
+package com.mastfrog.smithy.server.common;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.DeclarationBuilder;

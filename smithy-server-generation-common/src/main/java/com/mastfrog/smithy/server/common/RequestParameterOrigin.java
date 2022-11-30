@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.simple.server.generator;
+package com.mastfrog.smithy.server.common;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import static com.mastfrog.util.strings.Escaper.JAVA_IDENTIFIER_CAMEL_CASE;
@@ -34,7 +34,7 @@ import software.amazon.smithy.model.shapes.Shape;
  *
  * @author Tim Boudreau
  */
-class RequestParameterOrigin extends Origin {
+public final class RequestParameterOrigin extends Origin {
 
     final Declaration<?, ?, ?, ?> definer;
     final String name;

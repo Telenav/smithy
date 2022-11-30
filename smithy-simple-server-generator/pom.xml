@@ -7,7 +7,7 @@
         <version>1.0.2</version>
     </parent>
     <artifactId>smithy-simple-server-generator</artifactId>
-    
+
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -16,6 +16,11 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>simple-smithy-extensions</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>smithy-server-generation-common</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -66,5 +71,5 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-    
+
 </project>
