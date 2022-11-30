@@ -18,6 +18,10 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>smithy-server-generation-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>simple-smithy-extensions</artifactId>
         </dependency>
         <dependency>

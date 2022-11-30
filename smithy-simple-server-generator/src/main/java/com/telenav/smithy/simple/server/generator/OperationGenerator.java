@@ -222,7 +222,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
         withAuthInfo(shape, model, names(), c);
     }
 
-    static void withAuthInfo(OperationShape shape, Model model, TypeNames names, AuthInfoConsumer c) {
+    public static void withAuthInfo(OperationShape shape, Model model, TypeNames names, AuthInfoConsumer c) {
         shape.getTrait(AuthenticatedTrait.class).ifPresent(auth -> {
             Shape payload = model.expectShape(auth.getPayload());
             String pkg = names.packageOf(payload);

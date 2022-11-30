@@ -26,7 +26,7 @@ package com.mastfrog.smithy.server.common;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.DeclarationBuilder;
-import com.telenav.smithy.names.JavaSymbolProvider;
+import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 
 /**
  *
@@ -48,7 +48,7 @@ public final class Declaration<B extends ClassBuilder.BlockBuilderBase<Tr, B, Rr
     }
 
     public String declare(OriginType origin, String name, ClassBuilder<?> cb, B bb) {
-        String varName = JavaSymbolProvider.escape(name);
+        String varName = escape(name);
         DeclarationBuilder<B> decl = bb.declare(varName);
         declare(origin, name, cb, bb, decl);
         return varName;

@@ -40,6 +40,9 @@
             <groupId>software.amazon.smithy</groupId>
             <artifactId>smithy-model</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>util-misc</artifactId>
+        </dependency>
     </dependencies>
 </project>

@@ -28,8 +28,9 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.ConstructorBuilder;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
-import com.telenav.smithy.names.operation.OperationNames;
-import com.telenav.smithy.utils.ShapeUtils;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import java.util.ArrayList;
 import static java.util.Collections.unmodifiableList;
 import java.util.HashSet;
@@ -59,6 +60,36 @@ public class Input implements Iterable<InputMemberObtentionStrategy> {
         this.strategies.addAll(strategies);
     }
 
+    public String httpPayloadType() {
+        for (InputMemberObtentionStrategy strat : strategies) {
+            switch (strat.origin.type()) {
+                case HTTP_PAYLOAD:
+                    return typeNameOf(strat.memberTarget);
+            }
+        }
+        return null;
+    }
+
+    public boolean entireInputIsHttpPayload() {
+        return isEmpty() || (strategies.size() == 1
+                && strategies.get(0).type() == OriginType.HTTP_PAYLOAD);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("Input(");
+        sb.append(typeNameOf(shape)).append(" via ").append(strategies.size())
+                .append(" strategies");
+        if (!isEmpty()) {
+            sb.append(':');
+        }
+        for (InputMemberObtentionStrategy ob : strategies) {
+            sb.append("\n * ").append(ob);
+        }
+        sb.append("\n entireInputIsHttpPayload? ").append(entireInputIsHttpPayload());
+        return sb.append(")").toString();
+    }
+
     @Override
     public Iterator<InputMemberObtentionStrategy> iterator() {
         return unmodifiableList(strategies).iterator();
@@ -81,17 +112,25 @@ public class Input implements Iterable<InputMemberObtentionStrategy> {
         return names;
     }
 
-    public <T> Input apply(ClassBuilder<T> cb, ConstructorBuilder<ClassBuilder<T>> con, BlockBuilder<ClassBuilder<T>> body) {
-        body.lineComment(shape.getId() + " with " + strategies);
-        String ifaceName = OperationNames.operationInterfaceName(operation);
-        String ifaceFqn = OperationNames.operationInterfaceFqn(names.model(), operation);
+    public <T> Set<String> applyImports(ClassBuilder<T> cb) {
+        String ifaceFqn = operationInterfaceFqn(names.model(), operation);
         Set<String> neededImports = new TreeSet<>();
         Set<String> neededBindings = new TreeSet<>();
         collectBoundTypes(neededImports::add, neededBindings::add);
         neededBindings.add(names().qualifiedNameOf(shape, cb, false));
-        neededImports.forEach(imp -> ShapeUtils.maybeImport(cb, imp));
-        ShapeUtils.maybeImport(cb, ifaceFqn);
+        neededImports.forEach(imp -> maybeImport(cb, imp));
         neededBindings.add(fqn());
+        neededBindings.forEach(imp -> maybeImport(cb, imp));
+        maybeImport(cb, ifaceFqn);
+        maybeImport(cb, names().packageOf(shape) + "." + typeNameOf(shape));
+        return neededBindings;
+    }
+
+    public <T> Input apply(ClassBuilder<T> cb, ConstructorBuilder<ClassBuilder<T>> con,
+            BlockBuilder<ClassBuilder<T>> body) {
+        body.lineComment(shape.getId() + " with " + strategies);
+        String ifaceName = operationInterfaceName(operation);
+        Set<String> neededBindings = applyImports(cb);
         cb.annotatedWith("HttpCall", ab -> {
             cb.importing("com.mastfrog.acteur.annotations.HttpCall");
             if (!neededBindings.isEmpty()) {
@@ -100,23 +139,21 @@ public class Input implements Iterable<InputMemberObtentionStrategy> {
                 } else {
                     ab.addArrayArgument("scopeTypes", arr -> {
                         neededBindings.forEach(fqn -> {
-                            ShapeUtils.maybeImport(cb, fqn);
+                            maybeImport(cb, fqn);
                             arr.expression(TypeNames.simpleNameOf(fqn) + ".class");
                         });
                     });
                 }
             }
         });
+        String nm = typeNameOf(shape);
+        maybeImport(cb, names().packageOf(shape) + "." + nm);
         if (strategies.isEmpty()) {
-            String fqn = names().packageOf(shape) + "." + TypeNames.typeNameOf(shape);
-            ShapeUtils.maybeImport(cb, fqn);
-            con.addArgument(TypeNames.typeNameOf(shape), "input");
+            con.addArgument(nm, "input");
             con.addArgument(ifaceName, "operationImplementation");
             return this;
         }
-        String pkg = names().packageOf(shape);
-        String nm = TypeNames.typeNameOf(shape);
-        ShapeUtils.maybeImport(cb, pkg + "." + nm);
+
         Set<String> added = new HashSet<>();
         List<String> inputVariables = new ArrayList<>();
         for (InputMemberObtentionStrategy strat : strategies) {
@@ -141,6 +178,10 @@ public class Input implements Iterable<InputMemberObtentionStrategy> {
         // individual structure members - the http payload HAS to be the
         // entire request body
         return strategies.isEmpty();
+    }
+
+    public int size() {
+        return strategies.size();
     }
 
 }

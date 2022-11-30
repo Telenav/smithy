@@ -31,6 +31,7 @@ import static com.mastfrog.util.preconditions.Exceptions.chuck;
 import com.mastfrog.util.strings.Strings;
 import io.netty.buffer.ByteBuf;
 import io.vertx.core.Future;
+import io.vertx.core.buffer.Buffer;
 import static io.vertx.core.buffer.Buffer.buffer;
 import io.vertx.core.http.HttpServerResponse;
 import java.util.Optional;
@@ -80,6 +81,8 @@ public final class VertxResponseAdapter<T> implements SmithyResponse<T> {
             future = response.send(responseObject.toString());
         } else if (responseObject instanceof byte[]) {
             future = response.send(buffer((byte[]) responseObject));
+        } else if (responseObject instanceof Buffer) {
+            future = response.send((Buffer) responseObject);
         } else {
             try {
                 future = response.send(buffer(mapper.writeValueAsBytes(responseObject)));

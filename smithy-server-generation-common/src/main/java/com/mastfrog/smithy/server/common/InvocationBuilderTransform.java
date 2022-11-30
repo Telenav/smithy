@@ -29,6 +29,8 @@ import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
 import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
@@ -188,7 +190,8 @@ public interface InvocationBuilderTransform {
             @Override
             public <B extends BlockBuilderBase<T, B, ?>, T, I extends InvocationBuilderBase<TypeAssignment<B>, I>> InvocationBuilder<TypeAssignment<B>>
                     transform(OriginType origin, ClassBuilder<?> cb, String name, I inv) {
-                String resultType = TypeNames.typeNameOf(shape);
+                String resultType = typeNameOf(shape);
+                maybeImport(cb, tn.packageOf(shape) + "." + resultType);
                 String memberType = tn.typeNameOf(cb, memberTarget, true);
                 String declaredType = isSet ? "Set<" + memberType + ">" : "List<" + memberType + ">";
                 if (isSet) {
@@ -243,6 +246,7 @@ public interface InvocationBuilderTransform {
     static InvocationBuilderTransform splitToCollection(boolean isSet) {
         return new InvocationBuilderTransform() {
 
+            @Override
             public String toString() {
                 return "splitToCollection(" + (isSet ? "set)" : "list)");
             }

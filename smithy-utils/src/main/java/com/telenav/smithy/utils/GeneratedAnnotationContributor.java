@@ -21,14 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.smithy.java.generators.builtin.struct.impl;
+package com.telenav.smithy.utils;
 
 import com.mastfrog.java.vogon.ClassBuilder;
-import com.mastfrog.smithy.java.generators.builtin.struct.StructureContributor;
-import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
-import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerator;
-import static com.mastfrog.smithy.java.generators.builtin.struct.impl.DefaultStructureGenerators.MAVEN_ARTIFACT_ID;
-import static com.mastfrog.smithy.java.generators.builtin.struct.impl.DefaultStructureGenerators.MAVEN_GROUP_ID;
 import com.mastfrog.util.libversion.VersionInfo;
 import javax.annotation.processing.Generated;
 
@@ -36,7 +31,10 @@ import javax.annotation.processing.Generated;
  *
  * @author Tim Boudreau
  */
-public final class GeneratedAnnotationContributor implements StructureContributor {
+final class GeneratedAnnotationContributor {
+
+    static final String MAVEN_ARTIFACT_ID = "smithy-utils";
+    static final String MAVEN_GROUP_ID = "com.telenav.smithy";
 
     private final Class<?> type;
 
@@ -44,14 +42,14 @@ public final class GeneratedAnnotationContributor implements StructureContributo
         this.type = type;
     }
 
-    GeneratedAnnotationContributor() {
-        this(StructureGenerator.class);
+    public static void applyGeneratedAnnotation(Class<?> generator, ClassBuilder<?> cb) {
+        new GeneratedAnnotationContributor(generator).generate(cb);
     }
 
-    @Override
-    public <T> void generate(StructureGenerationHelper helper, ClassBuilder<T> cb) {
+    public <T> void generate(ClassBuilder<T> cb) {
         cb.importing(Generated.class);
-        VersionInfo vi = VersionInfo.find(Registry.class, MAVEN_GROUP_ID, MAVEN_ARTIFACT_ID);
+        VersionInfo vi = VersionInfo.find(GeneratedAnnotationContributor.class,
+                MAVEN_GROUP_ID, MAVEN_ARTIFACT_ID);
         if (vi != null) {
             cb.annotatedWith("Generated", ab -> {
                 ab.addArrayArgument("value", arr -> {
