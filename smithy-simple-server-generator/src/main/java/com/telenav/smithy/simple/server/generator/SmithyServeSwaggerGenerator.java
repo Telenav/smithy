@@ -24,6 +24,7 @@
 package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.smithy.generators.GenerationTarget;
+import static com.mastfrog.smithy.generators.GenerationTarget.DOCS;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
@@ -32,6 +33,7 @@ import com.mastfrog.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
 import java.nio.file.Path;
 import java.util.Arrays;
+import static java.util.Arrays.asList;
 import java.util.Collection;
 import static java.util.Collections.emptyList;
 import software.amazon.smithy.model.Model;
@@ -46,7 +48,7 @@ public class SmithyServeSwaggerGenerator implements SmithyGenerator {
 
     @Override
     public boolean supportsGenerationTarget(GenerationTarget target) {
-        return target.equals(GenerationTarget.DOCS);
+        return target.equals(DOCS);
     }
 
     @Override
@@ -60,7 +62,7 @@ public class SmithyServeSwaggerGenerator implements SmithyGenerator {
             LanguageWithVersion language, SmithyGenerationSettings settings,
             SmithyGenerationLogger logger) {
         if (shape.isServiceShape()) {
-            return Arrays.asList(new ServeSwaggerGenerator(shape.asServiceShape().get(),
+            return asList(new ServeSwaggerGenerator(shape.asServiceShape().get(),
                     model, destSourceRoot, targets, language, settings));
         }
         return emptyList();

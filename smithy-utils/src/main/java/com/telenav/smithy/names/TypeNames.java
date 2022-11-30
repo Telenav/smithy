@@ -24,6 +24,8 @@
 package com.telenav.smithy.names;
 
 import com.mastfrog.java.vogon.ClassBuilder;
+import com.mastfrog.util.strings.Strings;
+import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -181,4 +183,8 @@ public final class TypeNames {
         return ix < 0 ? typeName : typeName.substring(ix + 1);
     }
 
+    public static String enumConstantName(String s) {
+        return escape(Strings.camelCaseToDelimited(s, '_').toUpperCase());
+    }
+    
 }

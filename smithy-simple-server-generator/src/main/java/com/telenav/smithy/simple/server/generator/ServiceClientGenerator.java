@@ -1,29 +1,5 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
 package com.telenav.smithy.simple.server.generator;
 
-import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.function.TriConsumer;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
@@ -35,13 +11,13 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry;
+import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import com.mastfrog.util.preconditions.ConfigurationError;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
-import com.mastfrog.util.preconditions.ConfigurationError;
-import com.mastfrog.util.strings.Strings;
-
+import com.telenav.smithy.utils.ResourceGraph;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -132,7 +108,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
             cb.generateDebugLogCode();
         }
 
-        Registry.applyGeneratedAnnotation(getClass(), cb);
+        applyGeneratedAnnotation(getClass(), cb);
 
         cb.extending("BaseServiceClient<" + cb.className() + ">");
         cb.constructor(con -> {
@@ -189,7 +165,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
         output.ifPresent(out -> {
             cb.importing(names().packageOf(out) + "." + typeNameOf(out));
         });
-        String methodName = Strings.decapitalize(escape(op.getId().getName()));
+        String methodName = decapitalize(escape(op.getId().getName()));
         cb.method(methodName, mth -> {
             op.getTrait(DocumentationTrait.class).ifPresent(dox -> {
                 mth.docComment(dox.getValue()
@@ -279,7 +255,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                 break;
             default:
                 payloadOpt.ifPresentOrElse(payload -> {
-                    String getter = escape(Strings.decapitalize(payload.getKey()));
+                    String getter = escape(decapitalize(payload.getKey()));
 
                     boolean hadHeaderProperties1 = withHeaderInputProperties(input, (headerMembers, headerForMemberName, requiredHeaderTraits) -> {
                         generateHeaderSettingHttpInvocation(bb, true, httpMethod, outputType, headerMembers, headerForMemberName, requiredHeaderTraits, cb,
@@ -363,7 +339,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                             String headerName = headerForMemberName.get(e.getKey());
                             Shape target = model.expectShape(e.getValue().getTarget());
                             boolean required = requiredHeaderTraits.contains(e.getKey());
-                            String methodName = escape(Strings.decapitalize(e.getKey()));
+                            String methodName = escape(decapitalize(e.getKey()));
                             boolean isRawType = "smithy.api".equals(target.getId().getNamespace());
                             Function<InvocationBuilder<?>, InvocationBuilder<?>> f = iv -> {
                                 switch (target.getType()) {
@@ -487,7 +463,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                     Optional<HttpLabelTrait> lbl = m.getValue().getTrait(HttpLabelTrait.class);
                     if (lbl.isPresent()) {
                         HttpLabelTrait l = lbl.get();
-                        String getterMethod = escape(Strings.decapitalize(m.getKey()));
+                        String getterMethod = escape(decapitalize(m.getKey()));
                         found = true;
                         return inv.onInvocationOf("add")
                                 .withMethodReference(getterMethod)
@@ -497,7 +473,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
             } else {
                 Optional<HttpQueryTrait> query = m.getValue().getTrait(HttpQueryTrait.class);
                 if ((query.isPresent() && query.get().getValue().equals(queryParam)) || m.getKey().equals(label)) {
-                    String getterMethod = escape(Strings.decapitalize(m.getKey()));
+                    String getterMethod = escape(decapitalize(m.getKey()));
 
                     found = true;
 

@@ -23,11 +23,12 @@
  */
 package com.telenav.smithy.simple.server.generator;
 
-import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.telenav.smithy.simple.server.generator.SmithyServerGenerator.graph;
+import com.telenav.smithy.utils.ResourceGraph;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
@@ -39,13 +40,13 @@ import software.amazon.smithy.model.shapes.ResourceShape;
  */
 final class ResourceGenerator extends AbstractJavaGenerator<ResourceShape> {
 
-    public ResourceGenerator(ResourceShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
+    ResourceGenerator(ResourceShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
         super(shape, model, destSourceRoot, target, language);
     }
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
-        ResourceGraph rg = SmithyServerGenerator.graph(shape);
+        ResourceGraph rg = graph(shape);
     }
 
 }

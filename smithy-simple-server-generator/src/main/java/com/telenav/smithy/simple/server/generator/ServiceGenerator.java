@@ -23,7 +23,6 @@
  */
 package com.telenav.smithy.simple.server.generator;
 
-import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
@@ -36,12 +35,23 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry;
+import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
-import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
-import com.mastfrog.util.strings.Strings;
+import com.telenav.smithy.names.operation.OperationNames;
+import static com.telenav.smithy.names.operation.OperationNames.authPackage;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.ensureGraphs;
+import com.telenav.smithy.utils.ResourceGraph;
 import com.telenav.smithy.utils.ResourceGraphs;
+import static com.telenav.smithy.utils.ResourceGraphs.graph;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
+import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
+import static java.lang.Character.isUpperCase;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,16 +69,13 @@ import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 import static javax.lang.model.element.Modifier.VOLATILE;
-
-import com.telenav.smithy.names.operation.OperationNames;
-import com.telenav.smithy.utils.ShapeUtils;
-import com.telenav.validation.ValidationExceptionProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
+import static software.amazon.smithy.model.shapes.ShapeType.OPERATION;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 
 /**
@@ -84,15 +91,15 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
-                .named(TypeNames.typeNameOf(shape))
+                .named(typeNameOf(shape))
                 .withModifier(FINAL, PUBLIC)
                 .implementing("Module")
                 .importing("com.google.inject.Module");
 
         applyDocumentation(cb);
-        Registry.applyGeneratedAnnotation(ServiceGenerator.class, cb);
+        applyGeneratedAnnotation(ServiceGenerator.class, cb);
 
-        ResourceGraph graph = ResourceGraphs.graph(model, shape);
+        ResourceGraph graph = graph(model, shape);
         Set<OperationShape> operations = new LinkedHashSet<>();
         graph.closure(shape)
                 .forEach(shape -> shape.asOperationShape().ifPresent(operations::add));
@@ -145,7 +152,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                             op.getTrait(DocumentationTrait.class).ifPresent(dox -> {
                                 sb.append(" - ").append(dox.getValue());
                             });
-                            String opName = OperationNames.operationInterfaceName(op);
+                            String opName = operationInterfaceName(op);
                             sb.append("<ul><li><code>").append(opName)
                                     .append("</code> - implement {@link ")
                                     .append(opName).append("} and call <code>with")
@@ -169,7 +176,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
         StringBuilder sb = new StringBuilder();
         boolean lastWasCaps = true;
         for (char c : s.toCharArray()) {
-            if (Character.isUpperCase(c)) {
+            if (isUpperCase(c)) {
                 if (!lastWasCaps) {
                     sb.append(' ');
                 }
@@ -183,11 +190,11 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
     }
 
     private void addBindingFieldAndMethod(ClassBuilder<String> cb, OperationShape shape) {
-        String ifaceFqn = OperationNames.operationInterfaceFqn(model, shape);
-        String ifaceName = OperationNames.operationInterfaceName(shape);
-        String fieldName = Strings.decapitalize(ifaceName) + "Type";
+        String ifaceFqn = operationInterfaceFqn(model, shape);
+        String ifaceName = operationInterfaceName(shape);
+        String fieldName = decapitalize(ifaceName) + "Type";
         String[] fqns = new String[]{ifaceFqn};
-        ShapeUtils.maybeImport(cb, fqns);
+        maybeImport(cb, fqns);
         cb.field(fieldName, fld
                 -> fld.withModifier(PRIVATE).ofType("Class<? extends " + ifaceName + ">"));
         cb.method("with" + ifaceName + "Type", mth -> {
@@ -265,8 +272,8 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                         bb.lineComment("Bind any types passed to setters to configure")
                                 .lineComment("SPI implementation bindings");
                         operations.forEach(op -> {
-                            String ifaceName = OperationNames.operationInterfaceName(op);
-                            String fieldName = Strings.decapitalize(ifaceName) + "Type";
+                            String ifaceName = operationInterfaceName(op);
+                            String fieldName = decapitalize(ifaceName) + "Type";
                             bb.ifNotNull(fieldName)
                                     .invoke("to")
                                     .withArgumentFromField(fieldName).ofThis()
@@ -279,7 +286,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                         bb.blankLine().lineComment("Set up a binding for any exception evaluators passed")
                                 .lineComment("to methods here.");
                         bb.invoke("toInstance")
-                                .withArgument(Strings.decapitalize(exceptionEvaluatorListTypeName()))
+                                .withArgument(decapitalize(exceptionEvaluatorListTypeName()))
                                 .onInvocationOf("bind")
                                 .withClassArgument(exceptionEvaluatorListTypeName())
                                 .on("binder");
@@ -321,7 +328,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                 "com.mastfrog.acteur.Acteur",
                 "com.mastfrog.acteur.Page",
                 "com.mastfrog.acteur.Event",
-                ValidationExceptionProvider.validationExceptions().fqn()
+                validationExceptions().fqn()
         ).innerClass("ExceptionEvaluatorImpl", ib -> {
             ib.withModifier(PRIVATE, STATIC, FINAL)
                     .extending("ExceptionEvaluator");
@@ -373,9 +380,8 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                                         loop.iff(invocationOf("isPresent").on("result"))
                                                 .returningInvocationOf("get").on("result")
                                                 .endIf();
-                                        ;
                                     });
-                            bb.iff(variable("thrown").isInstance(ValidationExceptionProvider.validationExceptions().name()))
+                            bb.iff(variable("thrown").isInstance(validationExceptions().name()))
                                     .returningInvocationOf("create")
                                     .withArgumentFromField("BAD_REQUEST").of("HttpResponseStatus")
                                     .withStringConcatentationArgument("Invalid input: ")
@@ -646,7 +652,7 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
     }
 
     private String exceptionEvaluatorListTypeName() {
-        return TypeNames.typeNameOf(shape) + "ExceptionEvaluators";
+        return typeNameOf(shape) + "ExceptionEvaluators";
     }
 
     private void createExceptionEvaluationExtensions(ClassBuilder<String> cb) {
@@ -667,7 +673,7 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                 });
             });
         });
-        cb.field(Strings.decapitalize(tn), fld -> {
+        cb.field(decapitalize(tn), fld -> {
             fld.initializedWithNew(nb -> nb.ofType(tn)).ofType(tn);
         });
         cb.method("mappingExceptionTo", mth -> {
@@ -689,7 +695,7 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                                 }).endIf();
                         bb.invoke("add")
                                 .withArgument("converter")
-                                .onField(Strings.decapitalize(tn)).ofThis();
+                                .onField(decapitalize(tn)).ofThis();
                         bb.returningThis();
                     });
         });
@@ -712,8 +718,8 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                     .addArgument("HttpResponseStatus", "status")
                     .returning(cb.className())
                     .body(bb -> {
-                        ValidationExceptionProvider.validationExceptions().createNullCheck("thrownType", cb, bb);
-                        ValidationExceptionProvider.validationExceptions().createNullCheck("status", cb, bb);
+                        validationExceptions().createNullCheck("thrownType", cb, bb);
+                        validationExceptions().createNullCheck("status", cb, bb);
 
                         /*
         this.mappingExceptionTo(thrown -> {
@@ -845,11 +851,11 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
     }
 
     void withAuthTypeInfo(ClassBuilder<?> cb, ShapeId authPayloadType, AuthTypeInfoConsumer c) {
-        String pkg = ServiceOperationAuthGenerator.authPackage(shape, names());
+        String pkg = authPackage(shape, names());
         String ifName = "AuthenticateWith" + typeNameOf(authPayloadType);
         String[] fqns = new String[]{pkg + "." + ifName};
-        ShapeUtils.maybeImport(cb, fqns);
-        String fieldName = Strings.decapitalize(ifName) + "Type";
+        maybeImport(cb, fqns);
+        String fieldName = decapitalize(ifName) + "Type";
         c.accept(pkg, ifName, fieldName);
     }
 
@@ -886,10 +892,9 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
     }
 
     private void withBindingInfo(Set<OperationShape> operations, AuthInfoConsumer c) {
-        Map<OperationShape, AuthenticatedTrait> authTraitForOperation = new HashMap<>();
 
         ResourceGraph rg = ensureGraphs(model, shape);
-        Set<Shape> allOps = rg.filteredClosure(shape, sh -> sh.getType() == ShapeType.OPERATION);
+        Set<Shape> allOps = rg.filteredClosure(shape, sh -> sh.getType() == OPERATION);
 
         Set<String> mechanisms = new TreeSet<>();
         Map<ShapeId, Set<OperationShape>> operationsForPayload = new HashMap<>();
@@ -903,7 +908,6 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                 if (authTrait.isOptional()) {
                     optionalTypes.add(authTrait.getPayload());
                 }
-                authTraitForOperation.put(op, authTrait);
                 allPayloadTypes.add(authTrait.getPayload());
                 operationsForPayload.computeIfAbsent(authTrait.getPayload(), p -> new HashSet<>()).add(op);
             });

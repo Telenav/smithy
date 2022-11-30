@@ -1,39 +1,19 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
 package com.telenav.smithy.simple.server.generator;
 
-import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.smithy.generators.GenerationTarget;
+import static com.mastfrog.smithy.generators.GenerationTarget.SERVER;
+import static com.mastfrog.smithy.generators.GenerationTarget.SERVER_SPI;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
 import com.mastfrog.smithy.generators.SettingsKey;
+import static com.mastfrog.smithy.generators.SettingsKey.key;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
-import com.telenav.smithy.utils.ResourceGraphs;
+import com.telenav.smithy.utils.ResourceGraph;
+import static com.telenav.smithy.utils.ResourceGraphs.graphContaining;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -58,12 +38,12 @@ import static software.amazon.smithy.model.shapes.ShapeType.SERVICE;
 public final class SmithyServerGenerator implements SmithyGenerator {
 
     static final SettingsKey<Map<ShapeId, ResourceGraph>> GRAPHS_KEY
-            = SettingsKey.key(Map.class);
+            = key(Map.class);
 
     @Override
     public boolean supportsGenerationTarget(GenerationTarget target) {
-        return target.equals(GenerationTarget.SERVER)
-                || target.equals(GenerationTarget.SERVER_SPI);
+        return target.equals(SERVER)
+                || target.equals(SERVER_SPI);
     }
 
     @Override
@@ -82,13 +62,13 @@ public final class SmithyServerGenerator implements SmithyGenerator {
         if (shape.getType() == SERVICE) {
             maybeBuildGraph(shape.asServiceShape().get(), model);
         }
-        if (target.equals(GenerationTarget.SERVER)) {
+        if (target.equals(SERVER)) {
             List<ModelElementGenerator> generators = new ArrayList<>();
             collectServerGeneratorsFor(shape, model, destSourceRoot, target, language, settings, logger,
                     generators::add);
             return generators;
 
-        } else if (GenerationTarget.SERVER_SPI.equals(target)) {
+        } else if (SERVER_SPI.equals(target)) {
             List<ModelElementGenerator> generators = new ArrayList<>();
             collectServerSpiGeneratorsFor(shape, model, destSourceRoot, target, language, settings, logger,
                     generators::add);
@@ -100,7 +80,7 @@ public final class SmithyServerGenerator implements SmithyGenerator {
     static ResourceGraph maybeBuildGraph(ServiceShape svc, Model mdl) {
         Map<ShapeId, ResourceGraph> map = SmithyGenerationContext.get().computeIfAbsent(GRAPHS_KEY, ()
                 -> new HashMap<>());
-        return map.putIfAbsent(svc.getId(), ResourceGraphs.graphContaining(mdl, svc));
+        return map.putIfAbsent(svc.getId(), graphContaining(mdl, svc));
     }
 
     static ResourceGraph graph(Shape forShape) {

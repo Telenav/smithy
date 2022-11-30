@@ -21,12 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 package com.telenav.smithy.names.operation;
 
 import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
+import software.amazon.smithy.model.shapes.ShapeId;
 
 /**
  *
@@ -42,10 +44,27 @@ public class OperationNames {
         return TypeNames.typeNameOf(shape) + "Responder";
     }
 
+    public static String authPackage(ServiceShape shape, TypeNames names) {
+        return names.packageOf(shape) + ".auth";
+    }
+
     public static String operationInterfaceFqn(Model mdl, OperationShape shape) {
         TypeNames tn = new TypeNames(mdl);
         String pkg = tn.packageOf(shape);
         String ifaceName = operationInterfaceName(shape);
         return pkg + "." + ifaceName;
     }
+
+    public static String authenticateWithInterfaceName(ShapeId sid) {
+        return "AuthenticateWith" + typeNameOf(sid);
+    }
+
+    public static String serviceAuthenticatedOperationsEnumName(ServiceShape shape) {
+        return typeNameOf(shape) + "AuthenticatedOperations";
+    }
+
+    public static String serviceAuthenticationMechanismTypeName(ServiceShape shape) {
+        return typeNameOf(shape) + "AuthenticatedMechanism";
+    }
+
 }

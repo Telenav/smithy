@@ -23,19 +23,21 @@
  */
 package com.telenav.smithy.simple.server.generator;
 
-import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.telenav.smithy.names.JavaSymbolProvider;
-import com.telenav.smithy.names.TypeNames;
-import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
-import com.mastfrog.util.strings.Strings;
+import static com.telenav.smithy.names.TypeNames.enumConstantName;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import com.telenav.smithy.names.operation.OperationNames;
+import static com.telenav.smithy.names.operation.OperationNames.authPackage;
+import static com.telenav.smithy.names.operation.OperationNames.serviceAuthenticatedOperationsEnumName;
+import static com.telenav.smithy.names.operation.OperationNames.serviceAuthenticationMechanismTypeName;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.ensureGraphs;
-import com.telenav.smithy.utils.ShapeUtils;
+import com.telenav.smithy.utils.ResourceGraph;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,7 +54,7 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.shapes.ShapeType;
+import static software.amazon.smithy.model.shapes.ShapeType.OPERATION;
 
 /**
  *
@@ -68,7 +70,7 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
         ResourceGraph rg = ensureGraphs(model, shape);
-        Set<Shape> allOps = rg.filteredClosure(shape, sh -> sh.getType() == ShapeType.OPERATION);
+        Set<Shape> allOps = rg.filteredClosure(shape, sh -> sh.getType() == OPERATION);
 
         Set<String> mechanisms = new TreeSet<>();
         Bool hasOptional = Bool.create();
@@ -103,17 +105,16 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
 
     private void generateAuthenticationInterfaceAndMockImplementation(Map<ShapeId, Set<OperationShape>> operationsForPayload, ShapeId sid, String pkg, Set<String> mechanisms, String serviceTypeName, Consumer<ClassBuilder<String>> addTo) {
         Set<OperationShape> ops = operationsForPayload.get(sid);
-        String tn = "AuthenticateWith" + TypeNames.typeNameOf(sid);
+        String tn = OperationNames.authenticateWithInterfaceName(sid);
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg)
                 .named(tn).withModifier(PUBLIC)
                 .annotatedWith("FunctionalInterface").closeAnnotation()
-                .docComment("Autheticate requests that expect a " + TypeNames.typeNameOf(sid) + " as the result")
+                .docComment("Autheticate requests that expect a " + typeNameOf(sid) + " as the result")
                 .toInterface();
 
         cb.importing("com.mastfrog.smithy.http.SmithyRequest",
                 "com.mastfrog.smithy.http.AuthenticationResultConsumer");
 
-//        cb.importing(CompletableFuture.class);
         String mockName = cb.className() + "Mock";
         cb.importing("com.google.inject.ImplementedBy")
                 .annotatedWith("ImplementedBy")
@@ -123,7 +124,7 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
         String name = names().typeNameOf(cb, payloadShape, true);
         String ppkg = names().packageOf(payloadShape);
         String[] fqns = new String[]{ppkg + "." + name};
-        ShapeUtils.maybeImport(cb, fqns);
+        maybeImport(cb, fqns);
         cb.method("authenticate", mb -> {
             mb.docComment("Authenticate a request - this method effectively translates the inbound "
                     + "SmithyRequest into an instance of <code>" + typeNameOf(payloadShape) + "</code>, "
@@ -138,9 +139,9 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
                     + "\n@param request The request"
                     + "\n@param optional Whether or not authentication is optional for this operation"
                     + "\n@param results A callback to populate with the result of authentication which <b><i>must</i></b> be called");
-            mb.addArgument(serviceTypeName + "AuthenticatedOperations", "target");
+            mb.addArgument(serviceAuthenticatedOperationsEnumName(shape), "target");
             if (mechanisms.size() > 1) {
-                mb.addArgument(serviceTypeName + "AuthenticationMechanism", "mechanism");
+                mb.addArgument(serviceAuthenticatedOperationsEnumName(shape), "mechanism");
             }
             mb.addArgument("SmithyRequest", "request");
             mb.addArgument("boolean", "optional");
@@ -156,11 +157,11 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
                         "com.mastfrog.smithy.http.AuthenticationResultConsumer")
                 .importing(CompletableFuture.class);
         String[] fqns1 = new String[]{ppkg + "." + name};
-        ShapeUtils.maybeImport(mock, fqns1);
+        maybeImport(mock, fqns1);
         mock.overridePublic("authenticate", mb -> {
-            mb.addArgument(serviceTypeName + "AuthenticatedOperations", "target");
+            mb.addArgument(serviceAuthenticatedOperationsEnumName(shape), "target");
             if (mechanisms.size() > 1) {
-                mb.addArgument(serviceTypeName + "AuthenticationMechanism", "mechanism");
+                mb.addArgument(serviceAuthenticationMechanismTypeName(shape), "mechanism");
             }
             mb.addArgument("SmithyRequest", "request");
             mb.addArgument("boolean", "optional");
@@ -191,7 +192,7 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
         opShapesSorted.addAll(authTraitForOperation.keySet());
         cb.enumConstants(ecb -> {
             for (OperationShape op : opShapesSorted) {
-                String converted = enumConstantFor(typeNameOf(op));
+                String converted = enumConstantName(typeNameOf(op));
                 String dox = "The operation " + typeNameOf(op) + " which uses <code>"
                         + authTraitForOperation.get(op).getMechanism()
                         + "</code> for authentication.";
@@ -201,7 +202,7 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
         Set<String> optional = new TreeSet<>();
         Set<String> nonOptional = new TreeSet<>();
         for (OperationShape op : opShapesSorted) {
-            String converted = enumConstantFor(typeNameOf(op));
+            String converted = enumConstantName(typeNameOf(op));
             if (authTraitForOperation.get(op).isOptional()) {
                 optional.add(converted);
             } else {
@@ -240,12 +241,12 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
                     .body(bb -> {
                         bb.switchingOn("this", sw -> {
                             for (OperationShape op : opShapesSorted) {
-                                String converted = enumConstantFor(typeNameOf(op));
+                                String converted = enumConstantName(typeNameOf(op));
                                 AuthenticatedTrait atr = authTraitForOperation.get(op);
                                 String tn = names().typeNameOf(cb, model.expectShape(atr.getPayload()), true);
                                 String ppkg = names().packageOf(model.expectShape(atr.getPayload()));
-                        String[] fqns = new String[]{ppkg + "." + tn};
-                                ShapeUtils.maybeImport(cb, fqns);
+                                String[] fqns = new String[]{ppkg + "." + tn};
+                                maybeImport(cb, fqns);
                                 sw.inCase(converted, cs -> {
                                     cs.returning(tn + ".class");
                                 });
@@ -264,7 +265,7 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
             String serviceTypeName, Map<OperationShape, AuthenticatedTrait> authTraitForOperation,
             Set<String> mechanisms) {
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg)
-                .named(serviceTypeName + "AuthenticationMechanism")
+                .named(serviceAuthenticationMechanismTypeName(shape))
                 .withModifier(PUBLIC)
                 .docComment("Authentication mechanisms used by operations in the " + serviceTypeName
                         + " service.")
@@ -273,14 +274,14 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
             Set<String> result = new TreeSet<>();
             authTraitForOperation.forEach((shape, auth) -> {
                 if (auth.getMechanism().toLowerCase().equals(mechanism)) {
-                    result.add(TypeNames.typeNameOf(shape));
+                    result.add(typeNameOf(shape));
                 }
             });
             return result;
         };
         cb.enumConstants(cnsts -> {
             for (String mech : mechanisms) {
-                String constName = enumConstantFor(mech);
+                String constName = enumConstantName(mech);
                 StringBuilder dox = new StringBuilder(
                         "Authentication mechanism used by operations:<ul>");
                 definedBy.apply(mech).forEach(name -> {
@@ -292,13 +293,4 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
         });
         return cb;
     }
-
-    static String authPackage(ServiceShape shape, TypeNames names) {
-        return names.packageOf(shape) + ".auth";
-    }
-
-    static String enumConstantFor(String s) {
-        return JavaSymbolProvider.escape(Strings.camelCaseToDelimited(s, '_').toUpperCase());
-    }
-
 }

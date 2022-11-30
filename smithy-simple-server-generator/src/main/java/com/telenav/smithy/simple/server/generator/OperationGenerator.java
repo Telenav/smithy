@@ -1,35 +1,6 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+
 package com.telenav.smithy.simple.server.generator;
 
-import com.mastfrog.smithy.server.common.Declaration;
-import com.mastfrog.smithy.server.common.RequestParameterOrigin;
-import com.mastfrog.smithy.server.common.InputMemberObtentionStrategy;
-import com.mastfrog.smithy.server.common.DeclarationClose;
-import com.mastfrog.smithy.server.common.Declarer;
-import com.mastfrog.smithy.server.common.Input;
-import com.mastfrog.smithy.server.common.PayloadOrigin;
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.function.state.Obj;
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -42,13 +13,12 @@ import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.telenav.validation.ValidationExceptionProvider;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
-import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
-import com.telenav.smithy.names.TypeNames;
-import static com.telenav.smithy.names.TypeNames.packageOf;
-import static com.telenav.smithy.names.TypeNames.typeNameOf;
-import com.telenav.smithy.names.operation.OperationNames;
+import com.mastfrog.smithy.server.common.Declaration;
+import com.mastfrog.smithy.server.common.DeclarationClose;
+import com.mastfrog.smithy.server.common.Declarer;
+import com.mastfrog.smithy.server.common.Input;
+import com.mastfrog.smithy.server.common.InputMemberObtentionStrategy;
 import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToBigDecimal;
 import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToBigInteger;
 import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToBoolean;
@@ -60,11 +30,25 @@ import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.origi
 import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.splitToMappedCollection;
 import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.splitToStringSet;
 import com.mastfrog.smithy.server.common.OriginType;
-import static com.telenav.smithy.simple.server.generator.ServiceOperationAuthGenerator.enumConstantFor;
+import static com.mastfrog.smithy.server.common.OriginType.HTTP_HEADER;
+import static com.mastfrog.smithy.server.common.OriginType.URI_PATH;
+import static com.mastfrog.smithy.server.common.OriginType.URI_QUERY;
+import com.mastfrog.smithy.server.common.PayloadOrigin;
+import com.mastfrog.smithy.server.common.RequestParameterOrigin;
+import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
+import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.enumConstantName;
+import static com.telenav.smithy.names.TypeNames.packageOf;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import static com.telenav.smithy.names.operation.OperationNames.authPackage;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
+import static com.telenav.smithy.simple.server.generator.SmithyServerGenerator.maybeBuildGraph;
 import com.telenav.smithy.utils.ResourceGraph;
-import com.telenav.smithy.utils.ShapeUtils;
 import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
+import static com.telenav.smithy.utils.ShapeUtils.requiredOrHasDefault;
 import com.telenav.smithy.utils.path.PathInformationExtractor;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -101,7 +85,7 @@ import software.amazon.smithy.model.traits.RequiredTrait;
 final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
     static boolean graphsBuilt;
-    private ResourceGraph graph;
+    private final ResourceGraph graph;
 
     OperationGenerator(OperationShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
         super(shape, model, destSourceRoot, target, language);
@@ -116,7 +100,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
         Obj<ResourceGraph> result = Obj.create();
         if (!graphsBuilt) {
             model.shapes().forEach(shape -> shape.asServiceShape().ifPresent(service -> {
-                ResourceGraph grp = SmithyServerGenerator.maybeBuildGraph(service, model);
+                ResourceGraph grp = maybeBuildGraph(service, model);
                 if (grp != null && grp.contains(shape)) {
                     result.set(grp);
                 }
@@ -164,7 +148,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                                 .append(origin.qualifier())
                                 .append("</code>");
                         sb.append("</b> converted to a <code>");
-                        sb.append(TypeNames.typeNameOf(shape));
+                        sb.append(typeNameOf(shape));
                         sb.append("</code> as specified by the member ");
                         sb.append("<code>").append(memberShape.getMemberName()).append("</code> ");
                         sb.append(" of ").append(inp.typeName()).append("</code>");
@@ -195,7 +179,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                 .extending("Acteur");
 
         ServiceShape service = graph.serviceForOperation(shape);
-        String authPkg = ServiceOperationAuthGenerator.authPackage(service, names());
+        String authPkg = authPackage(service, names());
         String authenticatorInterfaceName = "AuthenticateWith" + payloadType;
         cb.importing(authPkg + "." + authenticatorInterfaceName);
 
@@ -208,7 +192,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                         .initializedByInvoking("defer")
                         .inScope()
                         .as("EnhCompletableFuture<" + payloadType + ">");
-                String enumConstantName = enumConstantFor(shape.getId().getName());
+                String enumConstantName = enumConstantName(shape.getId().getName());
                 String enumConstantType = typeNameOf(service) + "AuthenticatedOperations";
                 cb.importing(authPkg + "." + enumConstantType);
                 bb.invoke("authenticate")
@@ -250,7 +234,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
         ClassBuilder<String> cb = ClassBuilder.forPackage(implPackage())
-                .named(TypeNames.typeNameOf(shape))
+                .named(typeNameOf(shape))
                 .withModifier(FINAL);
         cb.importing("javax.inject.Inject",
                 "com.mastfrog.acteur.Acteur")
@@ -359,8 +343,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
             conc.addClassArgument("value", cb.className());
         });
 
-        String ifaceName = OperationNames.operationInterfaceName(shape());
-        String ifaceFqn = OperationNames.operationInterfaceFqn(model(), shape());
+        String ifaceName = operationInterfaceName(shape());
+        String ifaceFqn = operationInterfaceFqn(model(), shape());
         cb.importing("com.mastfrog.acteur.preconditions.Description")
                 .annotatedWith("Description").withValue(docComment);
         cb.importing(ifaceFqn).extending("Acteur");
@@ -410,7 +394,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
             // ensure an import
             String fqn = names().qualifiedNameOf(outputShape, cb, true);
             cb.importing(fqn);
-            return TypeNames.typeNameOf(outputShape);
+            return typeNameOf(outputShape);
         }).orElse("Void");
 
 // EnhCompletableFuture<Object> fut = deferThenRespond(HttpResponseStatus.MULTI_STATUS);
@@ -519,12 +503,12 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
                     StructureShape payloadShape = model.expectShape(m.getTarget(), StructureShape.class);
                     String fqn = names().packageOf(payloadShape) + "."
-                            + TypeNames.typeNameOf(payloadShape);
+                            + typeNameOf(payloadShape);
                     String[] fqns = new String[]{fqn};
                     maybeImport(cb, fqns);
                     cb.importing("com.mastfrog.acteur.preconditions.InjectRequestBodyAs");
                     cb.annotatedWith("InjectRequestBodyAs", anno -> {
-                        anno.addClassArgument("value", TypeNames.typeNameOf(payloadShape));
+                        anno.addClassArgument("value", typeNameOf(payloadShape));
                     });
                     st.add(new InputMemberObtentionStrategy(new PayloadOrigin(fqn), payloadShape, m, names()));
                 } else if (m.getTrait(HttpLabelTrait.class).isPresent()) {
@@ -544,16 +528,14 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                         }
                     }
 
-                    RequestParameterOrigin uq = new RequestParameterOrigin(Integer.toString(ix),
-                            OriginType.URI_PATH, declarationFor(OriginType.URI_PATH, memberTarget, m, model, cb));
+                    RequestParameterOrigin uq = new RequestParameterOrigin(Integer.toString(ix), URI_PATH, declarationFor(URI_PATH, memberTarget, m, model, cb));
 
                     st.add(new InputMemberObtentionStrategy(uq,
                             model.expectShape(m.getTarget()), m, names()));
                 } else if (m.getTrait(HttpQueryTrait.class).isPresent()) {
                     String name = m.getMemberName();
-                    RequestParameterOrigin uq = new RequestParameterOrigin(name,
-                            OriginType.URI_QUERY,
-                            declarationFor(OriginType.URI_QUERY, memberTarget, m, model, cb));
+                    RequestParameterOrigin uq = new RequestParameterOrigin(name, URI_QUERY,
+                            declarationFor(URI_QUERY, memberTarget, m, model, cb));
                     // XXX check the trait that can provide an alternate name
                     st.add(new InputMemberObtentionStrategy(uq,
                             model.expectShape(m.getTarget()), m, names()));
@@ -561,9 +543,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                     String name = m.getMemberName();
                     HttpHeaderTrait trait = m.getTrait(HttpHeaderTrait.class).get();
 
-                    RequestParameterOrigin uq = new RequestParameterOrigin(trait.getValue(),
-                            OriginType.HTTP_HEADER,
-                            declarationFor(OriginType.HTTP_HEADER, memberTarget, m, model, cb));
+                    RequestParameterOrigin uq = new RequestParameterOrigin(trait.getValue(), HTTP_HEADER,
+                            declarationFor(HTTP_HEADER, memberTarget, m, model, cb));
                     // XXX check the trait that can provide an alternate name
                     st.add(new InputMemberObtentionStrategy(uq,
                             model.expectShape(m.getTarget()), m, names()));
@@ -664,9 +645,9 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
         if (def.isPresent()) {
             decl = Declarer.<B, Tr, Rr>withDefaultFor(def.get(), memberTarget, model);
         } else if (required) {
-            String[] fqns = new String[]{ValidationExceptionProvider.validationExceptions().fqn()};
+            String[] fqns = new String[]{validationExceptions().fqn()};
             maybeImport(cb, fqns);
-            decl = Declarer.<B, Tr, Rr>orThrow(ValidationExceptionProvider.validationExceptions().name());
+            decl = Declarer.<B, Tr, Rr>orThrow(validationExceptions().name());
         } else {
             decl = Declarer.<B, Tr, Rr>nullable();
         }
@@ -738,7 +719,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
             default:
                 throw new UnsupportedOperationException("Not implemented: " + memberTarget.getType() + " " + memberTarget);
         }
-        boolean requiredOrHasDefault = ShapeUtils.requiredOrHasDefault(member, memberTarget);
+        boolean requiredOrHasDefault = requiredOrHasDefault(member, memberTarget);
         return res.closedWith(DeclarationClose.onRequest(typeNameOf(memberTarget, requiredOrHasDefault)));
     }
 

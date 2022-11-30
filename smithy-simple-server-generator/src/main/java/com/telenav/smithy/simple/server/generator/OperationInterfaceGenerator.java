@@ -1,26 +1,4 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+
 package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -30,14 +8,15 @@ import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import static com.telenav.smithy.names.TypeNames.packageOf;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.withAuthInfo;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
-import javax.lang.model.element.Modifier;
-
-import com.telenav.smithy.names.operation.OperationNames;
-import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
+import static javax.lang.model.element.Modifier.FINAL;
+import static javax.lang.model.element.Modifier.PUBLIC;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -49,18 +28,18 @@ import software.amazon.smithy.model.traits.UnitTypeTrait;
  */
 final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationShape> {
 
-    public OperationInterfaceGenerator(OperationShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
+    OperationInterfaceGenerator(OperationShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
         super(shape, model, destSourceRoot, target, language);
     }
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
-        String pkg = packageOf(OperationNames.operationInterfaceFqn(model, shape));
-        String name = OperationNames.operationInterfaceName(shape);
+        String pkg = packageOf(operationInterfaceFqn(model, shape));
+        String name = operationInterfaceName(shape);
 
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(name)
                 .annotatedWith("FunctionalInterface").closeAnnotation()
-                .withModifier(Modifier.PUBLIC)
+                .withModifier(PUBLIC)
                 .toInterface()
                 .docComment("Operation interface for ", shape.getId().getName(),
                         ".  Implement it and bind it in the server launcher to "
@@ -106,7 +85,7 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
                         "found automatically by Guice if no implementation is bound, so the server ",
                         "is usable before all operations have been implemented.")
                 .implementing(cb.className())
-                .withModifier(Modifier.FINAL)
+                .withModifier(FINAL)
                 .importing("com.mastfrog.smithy.http.SmithyRequest",
                         "com.mastfrog.smithy.http.SmithyResponse");
         if (hasInput) {

@@ -24,6 +24,7 @@
 package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.smithy.generators.GenerationTarget;
+import static com.mastfrog.smithy.generators.GenerationTarget.CLIENT;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
@@ -46,7 +47,7 @@ public class SmithyClientGenerator implements SmithyGenerator {
 
     @Override
     public boolean supportsGenerationTarget(GenerationTarget target) {
-        return target.equals(GenerationTarget.CLIENT);
+        return target.equals(CLIENT);
     }
 
     @Override
