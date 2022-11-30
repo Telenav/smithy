@@ -28,6 +28,8 @@ import com.mastfrog.function.ShortConsumer;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;
+import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
+import static com.mastfrog.java.vogon.ClassBuilder.number;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
@@ -45,6 +47,7 @@ import static com.mastfrog.smithy.java.generators.util.JavaTypes.packageOf;
 import com.mastfrog.smithy.java.generators.util.TypeNames;
 import static com.mastfrog.smithy.java.generators.util.TypeNames.typeNameOf;
 import com.mastfrog.smithy.simple.extensions.SamplesTrait;
+import com.mastfrog.smithy.simple.extensions.SpanTrait;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.strings.RandomStrings;
 import com.mastfrog.util.strings.Strings;
@@ -65,6 +68,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -1014,6 +1018,49 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         });
     }
 
+    private void ensureGreaterLesserOfMethods() {
+        if (!currentClassBuilder.containsMethodNamed("lesserOf")) {
+            currentClassBuilder.method("lesserOf", mth -> {
+                mth.docComment("Used when instantiating random values for "
+                        + "members using SpanTrait, where one must be greater than "
+                        + "the other, to swap the values so that is actually the case.");
+                mth.withModifier(PRIVATE, STATIC, FINAL)
+                        .withTypeParam("T extends Comparable<T>")
+                        .addArgument("T", "a")
+                        .addArgument("T", "b")
+                        .returning("T");
+                mth.body(bb -> {
+                    currentClassBuilder.importing(Objects.class);
+                    bb.iff(invocationOf("equals").withArgument("a").withArgument("b").on("Objects"))
+                            .returning("a").endIf();
+                    bb.iff(invocationOf("compareTo").withArgument("b").on("a").isLessThan(number(0)))
+                            .returning("a")
+                            .orElse().returning("b")
+                            .endIf();
+                });
+            });
+            currentClassBuilder.method("greaterOf", mth -> {
+                mth.docComment("Used when instantiating random values for "
+                        + "members using SpanTrait, where one must be greater than "
+                        + "the other, to swap the values so that is actually the case.");
+                mth.withModifier(PRIVATE, STATIC, FINAL)
+                        .withTypeParam("T extends Comparable<T>")
+                        .addArgument("T", "a")
+                        .addArgument("T", "b")
+                        .returning("T");
+                mth.body(bb -> {
+                    currentClassBuilder.importing(Objects.class);
+                    bb.iff(invocationOf("equals").withArgument("a").withArgument("b").on("Objects"))
+                            .returning("a").endIf();
+                    bb.iff(invocationOf("compareTo").withArgument("b").on("a").isLessThan(number(0)))
+                            .returning("b")
+                            .orElse().returning("a")
+                            .endIf();
+                });
+            });
+        }
+    }
+
     protected <B extends BlockBuilderBase<T, B, ?>, T>
             StructureInstantiation instantiateStructure(String name,
                     StructureShape shape, B bb) {
@@ -1025,13 +1072,78 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         StructureInstantiation result
                 = new StructureInstantiation(name, shape, members);
 
+        // Handle the case where we're generating a test of a structure with the
+        // @span trait - we need to GUARANTEE that the member that must be greater
+        // really always is.  So in this case, we compare the two values (which
+        // must be of the same type) and swap which ones we use if the greater
+        // is lesser
+        SpanTrait span = shape.getTrait(SpanTrait.class).orElse(null);
+        String lesserMemberName;
+        String greaterMemberName;
+        MemberInstantiation<?> lesserMemberInstantiation;
+        MemberInstantiation<?> greaterMemberInstantiation;
+        if (span != null) {
+            lesserMemberName = span.lesser();
+            greaterMemberName = span.greater();
+            MemberShape lesserMember = shape.getAllMembers().get(lesserMemberName);
+            MemberShape greaterMember = shape.getAllMembers().get(greaterMemberName);
+            MemberInstantiation<?> origLesserMemberInstantiation = instantiateStructureMember(lesserMember,
+                    shape, bb);
+            MemberInstantiation<?> origGreaterMemberInstantiation = instantiateStructureMember(greaterMember,
+                    shape, bb);
+            ensureGreaterLesserOfMethods();
+            bb.blankLine().lineComment("We have a @span trait: " + span)
+                    .lineComment("If our random values for the lesser and greater members")
+                    .lineComment("are reversed, we swap them here so we do not accidentally")
+                    .lineComment("generate a test that will always fail.");
+            bb.blankLine().lineComment("PENDING: It *is* possible to generate tests with")
+                    .lineComment("spurious failures in the case that the two random values are exactly ")
+                    .lineComment("equal (rarely).  For the moment, the solution is simply to ")
+                    .lineComment("initialize the test generation harness with a different random ")
+                    .lineComment("seed.  If this proves a real issue, it is fixable, but with some pain.");
+            String lesserVar = newVarName(lesserMember.getMemberName() + "Lesser");
+            String greaterVar = newVarName(greaterMember.getMemberName() + "Greater");
+            bb.declare(lesserVar)
+                    .initializedByInvoking("lesserOf")
+                    .withArgument(origLesserMemberInstantiation.memberVar)
+                    .withArgument(origGreaterMemberInstantiation.memberVar)
+                    .inScope()
+                    .as(origLesserMemberInstantiation.member.typeName());
+            bb.declare(greaterVar)
+                    .initializedByInvoking("greaterOf")
+                    .withArgument(origLesserMemberInstantiation.memberVar)
+                    .withArgument(origGreaterMemberInstantiation.memberVar)
+                    .inScope()
+                    .as(origLesserMemberInstantiation.member.typeName());
+            lesserMemberInstantiation
+                    = MemberInstantiation.memberInstantiation(
+                            origLesserMemberInstantiation.member,
+                            origLesserMemberInstantiation.contentsVar, lesserVar);
+            greaterMemberInstantiation
+                    = MemberInstantiation.memberInstantiation(
+                            origGreaterMemberInstantiation.member,
+                            origGreaterMemberInstantiation.contentsVar, greaterVar);
+        } else {
+            lesserMemberInstantiation = null;
+            greaterMemberInstantiation = null;
+            lesserMemberName = null;
+            greaterMemberName = null;
+        }
+
         bb.lineComment("Instantiate a " + typeNameOf(shape));
         bb.declare(name)
                 .initializedWithNew(nb -> {
                     for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
 
-                        MemberInstantiation<?> m = instantiateStructureMember(e.getValue(),
-                                shape, bb);
+                        MemberInstantiation<?> m;
+                        if (e.getKey().equals(lesserMemberName)) {
+                            m = lesserMemberInstantiation;
+                        } else if (e.getKey().equals(greaterMemberName)) {
+                            m = greaterMemberInstantiation;
+                        } else {
+                            m = instantiateStructureMember(e.getValue(),
+                                    shape, bb);
+                        }
 
                         bb.lineComment("XX-Member " + typeNameOf(shape) + ": " + e.getKey() + " " + e.getValue().getId()
                                 + " memberVar " + m.memberVar);
@@ -1127,6 +1239,10 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
             this.member = member;
             this.contentsVar = contentsVar;
             this.memberVar = memberVar;
+        }
+
+        public static <S extends Shape> MemberInstantiation<S> memberInstantiation(StructureMember<S> member, String contentsVar, String memberVar) {
+            return new MemberInstantiation<>(member, contentsVar, memberVar);
         }
 
     }

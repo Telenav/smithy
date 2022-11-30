@@ -58,6 +58,19 @@ structure samples {
     invalid : Documents
 }
 
+/// Allows two memberssharing a type of a structure to be marked as indicating a
+/// "span" the distance between which must be non-negative
+@trait(selector : "structure")
+structure span {
+    @required
+    @length(min:1)
+    lesser : String,
+    @required
+    @length(min:1)
+    greater: String,
+    emptyAllowed : Boolean = true
+}
+
 /// Mark an operation as authenticated, without making assumptions about the
 /// mechanism of authentication
 @trait(

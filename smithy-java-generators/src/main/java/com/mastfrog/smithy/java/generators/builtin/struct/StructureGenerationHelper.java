@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.StructureShape;
@@ -134,8 +135,8 @@ public interface StructureGenerationHelper extends Iterable<StructureMember<?>> 
      */
     <T, R> String generateInitialEqualsTest(ClassBuilder<R> cb, BlockBuilder<T> bb);
 
-
     boolean isOmitted(MemberShape shape);
+
     /**
      * Add imports to a class builder, only if they are not in the
      * <code>java.lang</code> package and not in the same package as the
@@ -196,6 +197,15 @@ public interface StructureGenerationHelper extends Iterable<StructureMember<?>> 
      */
     default boolean isDebug() {
         return settings().is(DEBUG);
+    }
+
+    default Optional<StructureMember<?>> findMember(String memberName) {
+        for (StructureMember<?> mem : this) {
+            if (memberName.equals(mem.member().getMemberName())) {
+                return Optional.of(mem);
+            }
+        }
+        return Optional.empty();
     }
 
 }

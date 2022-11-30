@@ -32,6 +32,8 @@ import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
 import com.mastfrog.java.vogon.ClassBuilder.Value;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
+import static com.mastfrog.java.vogon.ClassBuilder.variable;
+import static com.mastfrog.smithy.java.generators.builtin.SpanUtils.withSpanTargets;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import java.math.BigDecimal;
@@ -61,6 +63,42 @@ public interface ConstructorArgumentCheckGenerator<S extends Shape> {
                     ClassBuilder<?> addTo, B bb,
                     ConstructorKind kind
             );
+
+    final ConstructorArgumentCheckGenerator<Shape> SPAN_CHECK
+            = new ConstructorArgumentCheckGenerator<>() {
+        @Override
+        public <T, B extends BlockBuilderBase<T, B, ?>> void generateConstructorArgumentChecks(
+                StructureMember<? extends Shape> member, StructureGenerationHelper structureOwner,
+                ClassBuilder<?> addTo, B bb, ConstructorKind kind) {
+
+            bb.blankLine().lineComment("Span check: ");
+            // XXX move withSpanTargets to a common class
+            withSpanTargets(structureOwner, (lesser, greater, emptyOk) -> {
+                boolean isWrapper = lesser.isModelDefinedType();
+                if (!emptyOk) {
+                    IfBuilder<B> test;
+                    if (isWrapper) {
+                        test = bb.iff(
+                                invocationOf("equals").withArgument(variable(lesser.arg()))
+                                        .on(greater.arg()));
+                    } else {
+                        test = bb.iff(variable(lesser.arg()).isGreaterThan(variable(greater.arg())));
+                    }
+                    structureOwner.validation().createThrow(addTo, test, "Cannot have an empty span in a " + addTo.className(), null);
+                    test.endIf();
+                }
+                IfBuilder<B> test;
+                if (isWrapper) {
+                    test = bb.iff(invocationOf("compareTo").withArgument(greater.arg())
+                            .on(lesser.arg()).isGreaterThan(number(0)));
+                } else {
+                    test = bb.iff(variable(lesser.arg()).isGreaterThan(variable(greater.arg())));
+                }
+                structureOwner.validation().createThrow(addTo, test, "Creating a negative length span of " + addTo.className(), null);
+                test.endIf();
+            });
+        }
+    };
 
     final ConstructorArgumentCheckGenerator<Shape> STRING_PATTERN
             = new ConstructorArgumentCheckGenerator<>() {
@@ -360,8 +398,20 @@ public interface ConstructorArgumentCheckGenerator<S extends Shape> {
                 BigDecimal max, B bb, ClassBuilder<?> addTo) {
 
             boolean isWrapper = member.isModelDefinedType();
+            bb.blankLine().lineComment("isWrapper? " + isWrapper);
             ComparisonBuilder<IfBuilder<B>> cond;
             if (isWrapper) {
+                // If the range trait comes from the model-defined number wrapper
+                // type, then it is already validated (not to mention we are generating
+                // code before the null check here) or the instance would not exist,
+                // so just skip generating another check here.
+                boolean isTakenCareOfByWrapperConstructor
+                        = !member.member().getTrait(RangeTrait.class).isPresent();
+                bb.blankLine().lineComment("isTakenCareOfByWrapperConstructor? " + isTakenCareOfByWrapperConstructor)
+                        .lineComment("RangeTrait " + member.member().getTrait(RangeTrait.class));
+                if (isTakenCareOfByWrapperConstructor) {
+                    return;
+                }
                 String mth;
                 switch (member.target().getType()) {
                     case BYTE:

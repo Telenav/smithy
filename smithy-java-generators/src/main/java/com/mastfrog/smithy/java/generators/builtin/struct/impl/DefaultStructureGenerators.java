@@ -43,6 +43,7 @@ import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHel
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
 import com.mastfrog.smithy.java.generators.builtin.struct.ToStringContributor;
 import com.mastfrog.smithy.java.generators.builtin.struct.spi.StructureExtensions;
+import com.mastfrog.smithy.simple.extensions.SpanTrait;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -366,6 +367,12 @@ final class DefaultStructureGenerators implements StructureExtensions {
         if (ConversionMethodGenerator.canGenerateConversionMethods(helper)) {
             into.accept(ConversionMethodGenerator.INSTANCE);
         }
+        if (SpanMethodsGenerator.isApplicable(helper)) {
+            System.out.println("HAVE A SPAN: " + helper.structure().getId().getName());
+            into.accept(SpanMethodsGenerator.INSTANCE);
+        } else if (helper.structure().getId().getName().toLowerCase().contains("hours")) {
+            System.out.println("NOT A SPAN: " + helper.structure().getId());
+        }
     }
 
     @Override
@@ -479,7 +486,8 @@ final class DefaultStructureGenerators implements StructureExtensions {
     }
 
     @Override
-    public <S extends Shape> void collectConstructorArgumentCheckGenerators(ConstructorKind kind, StructureMember<S> member, StructureGenerationHelper helper, Consumer<? super ConstructorArgumentCheckGenerator<? super S>> into) {
+    public <S extends Shape> void collectConstructorArgumentCheckGenerators(
+            ConstructorKind kind, StructureMember<S> member, StructureGenerationHelper helper, Consumer<? super ConstructorArgumentCheckGenerator<? super S>> into) {
         if (member.isModelDefinedType() || !member.isPrimitive()) {
             if (member.isRequired() && !member.hasDefault()) {
                 into.accept(new ConstructorArgumentNullCheckGenerator<>());
@@ -488,8 +496,16 @@ final class DefaultStructureGenerators implements StructureExtensions {
         if (kind == ConstructorKind.SECONDARY_WITH_CONVENIENCE_INTS_OR_DOUBLES && member.isPrimitiveNumber()) {
             into.accept(new ConvenienceConstructorRangeCheckGenerator<S>());
         }
-        if (member.target().isStringShape() && member.member().getTrait(PatternTrait.class).isPresent()) {
+        if (member.target().isStructureShape() && member.member().getTrait(PatternTrait.class).isPresent()) {
             into.accept(ConstructorArgumentCheckGenerator.STRING_PATTERN);
+        }
+        if (helper.structure().getTrait(SpanTrait.class).isPresent()) {
+            SpanTrait st = helper.structure().getTrait(SpanTrait.class).get();
+            System.out.println("COMPARE " + st.greater() + " and " + member.member().getMemberName());
+            if (st.greater().equals(member.member().getMemberName())) {
+                System.out.println("GENERATE SPAN CHECK FOR " + member.member().getId());
+                into.accept(ConstructorArgumentCheckGenerator.SPAN_CHECK);
+            }
         }
         switch (member.target().getType()) {
             case MAP:
