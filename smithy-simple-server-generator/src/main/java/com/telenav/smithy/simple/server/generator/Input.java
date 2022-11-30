@@ -26,8 +26,6 @@ package com.telenav.smithy.simple.server.generator;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.ConstructorBuilder;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import static com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator.maybeImport;
 import com.telenav.smithy.names.TypeNames;
 import java.util.ArrayList;
 import static java.util.Collections.unmodifiableList;
@@ -39,6 +37,7 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import com.telenav.smithy.names.operation.OperationNames;
+import com.telenav.smithy.utils.ShapeUtils;
 import software.amazon.smithy.model.shapes.StructureShape;
 
 /**
@@ -87,8 +86,8 @@ class Input implements Iterable<InputMemberObtentionStrategy> {
         Set<String> neededBindings = new TreeSet<>();
         collectBoundTypes(neededImports::add, neededBindings::add);
         neededBindings.add(names().qualifiedNameOf(shape, cb, false));
-        neededImports.forEach(imp -> maybeImport(cb, imp));
-        maybeImport(cb, ifaceFqn);
+        neededImports.forEach(imp -> ShapeUtils.maybeImport(cb, imp));
+        ShapeUtils.maybeImport(cb, ifaceFqn);
         neededBindings.add(fqn());
         cb.annotatedWith("HttpCall", ab -> {
             cb.importing("com.mastfrog.acteur.annotations.HttpCall");
@@ -98,7 +97,7 @@ class Input implements Iterable<InputMemberObtentionStrategy> {
                 } else {
                     ab.addArrayArgument("scopeTypes", arr -> {
                         neededBindings.forEach(fqn -> {
-                            maybeImport(cb, fqn);
+                            ShapeUtils.maybeImport(cb, fqn);
                             arr.expression(TypeNames.simpleNameOf(fqn) + ".class");
                         });
                     });
@@ -107,19 +106,18 @@ class Input implements Iterable<InputMemberObtentionStrategy> {
         });
         if (strategies.isEmpty()) {
             String fqn = names().packageOf(shape) + "." + TypeNames.typeNameOf(shape);
-            AbstractJavaGenerator.maybeImport(cb, fqn);
+            ShapeUtils.maybeImport(cb, fqn);
             con.addArgument(TypeNames.typeNameOf(shape), "input");
             con.addArgument(ifaceName, "operationImplementation");
             return this;
         }
         String pkg = names().packageOf(shape);
         String nm = TypeNames.typeNameOf(shape);
-        AbstractJavaGenerator.maybeImport(cb, pkg + "." + nm);
+        ShapeUtils.maybeImport(cb, pkg + "." + nm);
         Set<String> added = new HashSet<>();
         List<String> inputVariables = new ArrayList<>();
         for (InputMemberObtentionStrategy strat : strategies) {
             strat.decorateClass(cb);
-            ;
             strat.decorateConstructor(con, added);
             strat.comment(body);
             String v = strat.generateObtentionCode(cb, body);

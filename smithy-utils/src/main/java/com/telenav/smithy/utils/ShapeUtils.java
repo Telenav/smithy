@@ -23,6 +23,7 @@
  */
 package com.telenav.smithy.utils;
 
+import com.mastfrog.java.vogon.ClassBuilder;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.DefaultTrait;
@@ -44,4 +45,43 @@ public final class ShapeUtils {
                 || mem.getTrait(RequiredTrait.class).or(() -> target.getTrait(RequiredTrait.class))
                         .isPresent();
     }
+    
+    /**
+     * Import some classes, checking if it is either in the same package, or in
+     * the java.lang package and ignoring it if so.
+     *
+     * @param cb A class builder
+     * @param fqns Fully qualified class names
+     */
+    public static void maybeImport(ClassBuilder<?> cb, String... fqns) {
+        for (String f : fqns) {
+            if (f.indexOf('.') < 0 || f.startsWith("null.")) {
+                continue;
+            }
+            importOne(cb, f);
+        }
+    }
+
+    /**
+     * Import a class, checking if it is either in the same package, or in the
+     * java.lang package and ignoring it if so.
+     *
+     * @param cb A class builder
+     * @param fqn A fully qualified class name
+     */
+    private static void importOne(ClassBuilder<?> cb, String fqn) {
+        if (fqn.startsWith("java.lang.") && fqn.lastIndexOf('.') == "java.lang.".length()-1) {
+            return;
+        }
+        int ix = fqn.lastIndexOf('.');
+        if (ix < 0) {
+            return;
+        }
+        String sub = fqn.substring(0, ix);
+        if (cb.packageName().equals(sub)) {
+            return;
+        }
+        cb.importing(fqn);
+    }
+    
 }

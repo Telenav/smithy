@@ -31,6 +31,7 @@ import com.mastfrog.smithy.java.generators.base.AbstractJavaTestGenerator;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.mastfrog.smithy.simple.extensions.UnitsTrait;
+import com.telenav.smithy.utils.ShapeUtils;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
@@ -75,7 +76,8 @@ final class StructureTestGenerator extends AbstractJavaTestGenerator<StructureSh
                 String numberMemberName, MemberShape numberMember, NumberShape numberShape,
                 boolean enumFirst) -> {
             testMethod("Amount", currentClassBuilder, bb -> {
-                maybeImport(currentClassBuilder, names().packageOf(enu) + "." + typeNameOf(enu));
+                String[] fqns = new String[]{names().packageOf(enu) + "." + typeNameOf(enu)};
+                ShapeUtils.maybeImport(currentClassBuilder, fqns);
 
                 String minVal = instantiateMinimalValue(numberMember, numberShape, bb);
                 if (minVal == null) {

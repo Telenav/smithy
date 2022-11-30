@@ -23,6 +23,7 @@
  */
 package com.mastfrog.smithy.java.generators.builtin;
 
+import com.telenav.validation.ValidationExceptionProvider;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
@@ -98,7 +99,7 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
 
         applyDocumentation(cb);
 
-        ValidationExceptionProvider prov = validationExceptions();
+        ValidationExceptionProvider prov = ValidationExceptionProvider.validationExceptions();
 
         cb.field("value").withModifier(PRIVATE, FINAL)
                 .ofType("int");
@@ -229,7 +230,7 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
                     .addArgument("boolean", "forwardBias")
                     .returning(cb.className())
                     .body(bb -> {
-                        generateNullCheck("number", bb, cb);
+                        ValidationExceptionProvider.generateNullCheck("number", bb, cb);
                         List<Map.Entry<String, Integer>> items = new ArrayList<>(shape.getEnumValues().entrySet());
                         if (items.size() == 1) {
                             bb.returning(JavaSymbolProvider.escape(items.get(0).getKey()));

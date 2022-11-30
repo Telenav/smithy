@@ -60,6 +60,8 @@ import static javax.lang.model.element.Modifier.STATIC;
 import static javax.lang.model.element.Modifier.VOLATILE;
 
 import com.telenav.smithy.names.operation.OperationNames;
+import com.telenav.smithy.utils.ShapeUtils;
+import com.telenav.validation.ValidationExceptionProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -183,7 +185,8 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
         String ifaceFqn = OperationNames.operationInterfaceFqn(model, shape);
         String ifaceName = OperationNames.operationInterfaceName(shape);
         String fieldName = decapitalize(ifaceName) + "Type";
-        maybeImport(cb, ifaceFqn);
+        String[] fqns = new String[]{ifaceFqn};
+        ShapeUtils.maybeImport(cb, fqns);
         cb.field(fieldName, fld
                 -> fld.withModifier(PRIVATE).ofType("Class<? extends " + ifaceName + ">"));
         cb.method("with" + ifaceName + "Type", mth -> {
@@ -309,8 +312,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
     }
 
     private void createExceptionEvaluatorImplementations(ClassBuilder<String> cb) {
-        cb.importing(
-                "com.mastfrog.acteur.errors.ErrorResponse",
+        cb.importing("com.mastfrog.acteur.errors.ErrorResponse",
                 "com.mastfrog.acteur.errors.ExceptionEvaluator",
                 "com.mastfrog.acteur.errors.ExceptionEvaluatorRegistry",
                 "io.netty.handler.codec.http.HttpResponseStatus",
@@ -318,7 +320,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                 "com.mastfrog.acteur.Acteur",
                 "com.mastfrog.acteur.Page",
                 "com.mastfrog.acteur.Event",
-                validationExceptions().fqn()
+                ValidationExceptionProvider.validationExceptions().fqn()
         ).innerClass("ExceptionEvaluatorImpl", ib -> {
             ib.withModifier(PRIVATE, STATIC, FINAL)
                     .extending("ExceptionEvaluator");
@@ -372,7 +374,7 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                                                 .endIf();
                                         ;
                                     });
-                            bb.iff(variable("thrown").isInstance(validationExceptions().name()))
+                            bb.iff(variable("thrown").isInstance(ValidationExceptionProvider.validationExceptions().name()))
                                     .returningInvocationOf("create")
                                     .withArgumentFromField("BAD_REQUEST").of("HttpResponseStatus")
                                     .withStringConcatentationArgument("Invalid input: ")
@@ -709,8 +711,8 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                     .addArgument("HttpResponseStatus", "status")
                     .returning(cb.className())
                     .body(bb -> {
-                        validationExceptions().createNullCheck("thrownType", cb, bb);
-                        validationExceptions().createNullCheck("status", cb, bb);
+                        ValidationExceptionProvider.validationExceptions().createNullCheck("thrownType", cb, bb);
+                        ValidationExceptionProvider.validationExceptions().createNullCheck("status", cb, bb);
 
                         /*
         this.mappingExceptionTo(thrown -> {
@@ -844,7 +846,8 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
     void withAuthTypeInfo(ClassBuilder<?> cb, ShapeId authPayloadType, AuthTypeInfoConsumer c) {
         String pkg = ServiceOperationAuthGenerator.authPackage(shape, names());
         String ifName = "AuthenticateWith" + typeNameOf(authPayloadType);
-        maybeImport(cb, pkg + "." + ifName);
+        String[] fqns = new String[]{pkg + "." + ifName};
+        ShapeUtils.maybeImport(cb, fqns);
         String fieldName = decapitalize(ifName) + "Type";
         c.accept(pkg, ifName, fieldName);
     }

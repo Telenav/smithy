@@ -31,7 +31,7 @@ import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.generators.SmithyGenerator;
-import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
+import com.telenav.validation.ValidationExceptionProvider;
 import com.mastfrog.util.service.ServiceProvider;
 import java.nio.file.Path;
 import java.util.Collection;

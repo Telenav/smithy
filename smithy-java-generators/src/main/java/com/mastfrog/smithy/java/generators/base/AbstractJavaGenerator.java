@@ -39,7 +39,6 @@ import com.mastfrog.smithy.generators.ModelElementGenerator;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import static com.mastfrog.smithy.java.generators.builtin.SmithyJavaGenerators.TYPE_NAMES;
-import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -60,6 +59,8 @@ import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 
 import com.telenav.smithy.names.TypeNames;
+import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -124,10 +125,6 @@ public abstract class AbstractJavaGenerator<S extends Shape>
 
     public Model model() {
         return model;
-    }
-
-    public ValidationExceptionProvider validationExceptions() {
-        return ValidationExceptionProvider.validationExceptions();
     }
 
     protected static int primeCount() {
@@ -351,50 +348,6 @@ public abstract class AbstractJavaGenerator<S extends Shape>
 
     protected void applyModifiers(ClassBuilder<String> cb) {
         cb.withModifier(PUBLIC, FINAL);
-    }
-
-    /**
-     * Import some classes, checking if it is either in the same package, or in
-     * the java.lang package and ignoring it if so.
-     *
-     * @param cb A class builder
-     * @param fqns Fully qualified class names
-     */
-    public static void maybeImport(ClassBuilder<?> cb, String... fqns) {
-        for (String f : fqns) {
-            if (f.indexOf('.') < 0 || f.startsWith("null.")) {
-                continue;
-            }
-            importOne(cb, f);
-        }
-    }
-
-    /**
-     * Import a class, checking if it is either in the same package, or in the
-     * java.lang package and ignoring it if so.
-     *
-     * @param cb A class builder
-     * @param fqn A fully qualified class name
-     */
-    private static void importOne(ClassBuilder<?> cb, String fqn) {
-        if (fqn.startsWith("java.lang.")) {
-            return;
-        }
-        int ix = fqn.lastIndexOf('.');
-        if (ix < 0) {
-            return;
-        }
-        String sub = fqn.substring(0, ix);
-        if (cb.packageName().equals(sub)) {
-            return;
-        }
-        cb.importing(fqn);
-    }
-
-    protected <T, R> void generateNullCheck(String variable, BlockBuilderBase<?, ?, ?> bb, ClassBuilder<T> on) {
-        IfBuilder<?> test = bb.ifNull(variable);
-        validationExceptions().createThrow(on, test, variable + " may not be null - it is required.", null);
-        test.endIf();
     }
 
     /**

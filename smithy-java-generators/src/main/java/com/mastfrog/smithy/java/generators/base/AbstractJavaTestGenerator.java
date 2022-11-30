@@ -31,7 +31,7 @@ import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
-import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
+import com.telenav.validation.ValidationExceptionProvider;
 import com.mastfrog.smithy.java.generators.builtin.struct.Namer;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
@@ -69,6 +69,7 @@ import static com.mastfrog.util.preconditions.Checks.notNull;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import static com.telenav.smithy.names.TypeNames.packageOf;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import com.telenav.smithy.utils.ShapeUtils;
 import static java.lang.Math.ceil;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
@@ -1256,7 +1257,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
 
         @Override
         public <T> void generateNullCheck(String variable, BlockBuilderBase<?, ?, ?> bb, ClassBuilder<T> on) {
-            AbstractJavaTestGenerator.this.generateNullCheck(variable, bb, on);
+            ValidationExceptionProvider.generateNullCheck(variable, bb, on);
         }
 
         @Override
@@ -1286,7 +1287,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
 
         @Override
         public ValidationExceptionProvider validation() {
-            return AbstractJavaTestGenerator.this.validationExceptions();
+            return ValidationExceptionProvider.validationExceptions();
         }
 
         @Override
@@ -1308,7 +1309,8 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
             if (fq.isEmpty()) {
                 return;
             }
-            AbstractJavaGenerator.maybeImport(cb, fq.toArray(String[]::new));
+            String[] fqns1 = fq.toArray(String[]::new);
+            ShapeUtils.maybeImport(cb, fqns1);
         }
     }
 

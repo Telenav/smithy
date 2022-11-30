@@ -35,7 +35,7 @@ import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
+import com.telenav.validation.ValidationExceptionProvider;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
 import com.telenav.smithy.names.TypeNames;
@@ -55,6 +55,7 @@ import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransf
 import static com.telenav.smithy.simple.server.generator.ServiceOperationAuthGenerator.enumConstantFor;
 import com.telenav.smithy.utils.ResourceGraph;
 import com.telenav.smithy.utils.ShapeUtils;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import com.telenav.smithy.utils.path.PathInformationExtractor;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -267,7 +268,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
         });
 
         withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
-            maybeImport(cb, pkg + "." + payloadType);
+            String[] fqns = new String[]{pkg + "." + payloadType};
+            maybeImport(cb, fqns);
             if (optional) {
                 cb.importing("javax.inject.Provider");
                 con.addArgument("Provider<" + payloadType + ">", "authInfo");
@@ -365,7 +367,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
         );
 
         withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
-            maybeImport(cb, pkg + "." + payloadType);
+            String[] fqns = new String[]{pkg + "." + payloadType};
+            maybeImport(cb, fqns);
             if (optional) {
                 cb.importing("javax.inject.Provider");
                 con.addArgument("Provider<" + payloadType + ">", "authInfo");
@@ -376,7 +379,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
         con.addArgument("SmithyRequest", "request");
         if (in != null) {
-            maybeImport(cb, in.fqn());
+            String[] fqns = new String[]{in.fqn()};
+            maybeImport(cb, fqns);
             con.addArgument(in.typeName(), "input");
         }
         con.addArgument(ifaceName, "operationImplementation");
@@ -508,7 +512,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                     StructureShape payloadShape = model.expectShape(m.getTarget(), StructureShape.class);
                     String fqn = names().packageOf(payloadShape) + "."
                             + TypeNames.typeNameOf(payloadShape);
-                    maybeImport(cb, fqn);
+                    String[] fqns = new String[]{fqn};
+                    maybeImport(cb, fqns);
                     cb.importing("com.mastfrog.acteur.preconditions.InjectRequestBodyAs");
                     cb.annotatedWith("InjectRequestBodyAs", anno -> {
                         anno.addClassArgument("value", TypeNames.typeNameOf(payloadShape));
@@ -652,8 +657,9 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
         if (def.isPresent()) {
             decl = Declarer.<B, Tr, Rr>withDefaultFor(def.get(), memberTarget, model);
         } else if (required) {
-            maybeImport(cb, validationExceptions().fqn());
-            decl = Declarer.<B, Tr, Rr>orThrow(validationExceptions().name());
+            String[] fqns = new String[]{ValidationExceptionProvider.validationExceptions().fqn()};
+            maybeImport(cb, fqns);
+            decl = Declarer.<B, Tr, Rr>orThrow(ValidationExceptionProvider.validationExceptions().name());
         } else {
             decl = Declarer.<B, Tr, Rr>nullable();
         }
@@ -714,13 +720,12 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                         .with(originMethod());
                 break;
             case TIMESTAMP:
-                res = dec.with(mapToTimestamp(ValidationExceptionProvider.validationExceptions()))
+                res = dec.with(mapToTimestamp())
                         .with(originMethod());
                 break;
             case INT_ENUM:
-                String tp2 = tn.qualifiedNameOf(memberTarget, cb, false);
-                maybeImport(cb, tp2);
-                res = dec.with(mapToIntEnum(typeNameOf(memberTarget), ValidationExceptionProvider.validationExceptions()))
+                maybeImport(cb, tn.qualifiedNameOf(memberTarget, cb, false));
+                res = dec.with(mapToIntEnum(typeNameOf(memberTarget)))
                         .with(originMethod());
                 break;
             default:

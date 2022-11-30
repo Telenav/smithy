@@ -30,6 +30,7 @@ import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.telenav.smithy.names.JavaSymbolProvider;
 import static com.mastfrog.util.strings.Strings.capitalize;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -346,7 +347,7 @@ final class TimestampModelGenerator extends AbstractJavaGenerator<TimestampShape
                     .body(bb -> {
                         bb.lineComment("Null check for date constructor.");
                         IfBuilder<?> ib = bb.ifNull("t");
-                        validationExceptions().createThrow(cb, ib, "May not be null: ", "message");
+                        ValidationExceptionProvider.validationExceptions().createThrow(cb, ib, "May not be null: ", "message");
                         ib.endIf();
                         bb.returning("t");
                     });
@@ -378,7 +379,7 @@ final class TimestampModelGenerator extends AbstractJavaGenerator<TimestampShape
                     .addArgument("Instant", "instant")
                     .setModifier(PUBLIC)
                     .body(bb -> {
-                        validationExceptions().createNullCheck("instant", cb, bb);
+                        ValidationExceptionProvider.validationExceptions().createNullCheck("instant", cb, bb);
                         bb.assign("this.value").toExpression("instant");
                     });
         });

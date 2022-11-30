@@ -31,6 +31,8 @@ import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import com.telenav.smithy.names.TypeNames;
 import com.mastfrog.util.strings.Strings;
+import com.telenav.smithy.utils.ShapeUtils;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -104,7 +106,8 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
             cb.generateDebugLogCode();
         }
         applyDocumentation(cb);
-        maybeImport(cb, allTypes.toArray(String[]::new));
+        String[] fqns = allTypes.toArray(String[]::new);
+        ShapeUtils.maybeImport(cb, fqns);
         cb.importing(Supplier.class, Optional.class)
                 .importing(
                         "java.io.Serializable",
@@ -113,31 +116,30 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
                         "com.fasterxml.jackson.annotation.JsonProperty",
                         "com.fasterxml.jackson.annotation.JsonSubTypes")
                 .annotatedWith("JsonSubTypes",
-                        anno -> anno.addArrayArgument("value", arr -> shape.members().forEach(
-                        mem -> arr.annotation(
-                                "JsonSubTypes.Type", sub -> {
-                                    String tn = TypeNames.typeNameOf(mem.getTarget(), false);
-                                    String name = mem.getMemberName();
-                                    String subtypeName = cb.className() + "With" + tn;
-                                    maybeImport(cb, tn);
-                                    cb.importing(cb.fqn() + "." + subtypeName);
-                                    sub.addArgument("name", name)
-                                            .addClassArgument("value", subtypeName);
+                        anno -> anno.addArrayArgument("value", arr -> shape.members().forEach(mem -> arr.annotation("JsonSubTypes.Type", sub -> {
+                    String tn = TypeNames.typeNameOf(mem.getTarget(), false);
+                    String name = mem.getMemberName();
+                    String subtypeName = cb.className() + "With" + tn;
+                    String[] fqns1 = new String[]{tn};
+                    ShapeUtils.maybeImport(cb, fqns1);
+                    cb.importing(cb.fqn() + "." + subtypeName);
+                    sub.addArgument("name", name)
+                            .addClassArgument("value", subtypeName);
 
-                                    cb.method("new" + cb.className(), mth -> mth.withModifier(PUBLIC, STATIC)
-                                    .addArgument(tn, "value")
-                                    .docComment("Create a new " + cb.className() + "&lt;" + tn + "&gt;."
-                                            + "\n@param value a " + tn
-                                            + "\n@return a " + subtypeName
-                                            + "\n@throws " + validationExceptions().name()
-                                            + " if the passed object is null or invalid"
-                                    )
-                                    .returning(cb.className() + "<" + tn + ">")
-                                    .body(
-                                            bb -> bb.returningNew(nb -> nb.withArgument("value")
-                                            .ofType(subtypeName)
-                                            )));
-                                }))))
+                    cb.method("new" + cb.className(), mth -> mth.withModifier(PUBLIC, STATIC)
+                            .addArgument(tn, "value")
+                            .docComment("Create a new " + cb.className() + "&lt;" + tn + "&gt;."
+                                    + "\n@param value a " + tn
+                                    + "\n@return a " + subtypeName
+                                    + "\n@throws " + ValidationExceptionProvider.validationExceptions().name()
+                                    + " if the passed object is null or invalid"
+                            )
+                            .returning(cb.className() + "<" + tn + ">")
+                            .body(
+                                    bb -> bb.returningNew(nb -> nb.withArgument("value")
+                                    .ofType(subtypeName)
+                                    )));
+                }))))
                 .implementing("Supplier<T>", "Serializable")
                 .withTypeParameters("T")
                 .annotatedWith("JsonTypeInfo", ab -> {
@@ -201,7 +203,7 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
                                         .ofType(tn)
                                         .named("value"));
                         con.body(bb -> {
-                            generateNullCheck("value", bb, cb);
+                            ValidationExceptionProvider.generateNullCheck("value", bb, cb);
                             bb.assign(name).toExpression("value");
                         });
                     });

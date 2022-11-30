@@ -28,6 +28,7 @@ import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import static com.mastfrog.smithy.java.generators.builtin.AbstractNumberGenerator.VALUE_FIELD;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.nio.file.Path;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
@@ -63,7 +64,7 @@ final class ShortModelGenerator extends AbstractNumberGenerator<ShortShape> {
                     bb.lineComment("in the convenience constructor.");
                     IfBuilder<?> ifb = bb.iff().booleanExpression("intValue < Short.MIN_VALUE"
                             + " || intValue > Short.MAX_VALUE");
-                    validationExceptions().createThrow(cb, ifb, "Value outside the bounds of Short: ", "intValue");
+                    ValidationExceptionProvider.validationExceptions().createThrow(cb, ifb, "Value outside the bounds of Short: ", "intValue");
                     ifb.endIf();
                     bb.returning("(short) intValue");
                 });
@@ -73,7 +74,7 @@ final class ShortModelGenerator extends AbstractNumberGenerator<ShortShape> {
                     .addArgument("int", "intValue")
                     .docComment("Convenience constructor which takes an int."
                             + "\n@param intValue an integer value, which must fit within the range this class accepts\n"
-                            + "@throws " + validationExceptions().name() + " if the value is out of range")
+                            + "@throws " + ValidationExceptionProvider.validationExceptions().name() + " if the value is out of range")
                     .body(bb -> {
                         bb.invoke("this")
                                 .withArgumentFromInvoking("__checkIntValue")

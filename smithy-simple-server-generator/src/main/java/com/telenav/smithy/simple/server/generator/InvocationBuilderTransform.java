@@ -28,8 +28,9 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
-import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
 import com.telenav.smithy.names.TypeNames;
+import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -324,14 +325,14 @@ interface InvocationBuilderTransform {
         };
     }
 
-    static InvocationBuilderTransform mapToTimestamp(ValidationExceptionProvider ve) {
+    static InvocationBuilderTransform mapToTimestamp() {
         return new InvocationBuilderTransform() {
             @Override
             public <B extends BlockBuilderBase<T, B, ?>, T, I extends InvocationBuilderBase<TypeAssignment<B>, I>> InvocationBuilder<TypeAssignment<B>>
                     transform(OriginType origin, ClassBuilder<?> cb, String name, I inv) {
                 return inv.onInvocationOf("map").withLambdaArgument(lb -> {
                     cb.importing(Instant.class, DateTimeParseException.class);
-                    cb.importing(ve.fqn());
+                    cb.importing(validationExceptions().fqn());
                     lb.withArgument("item").body(lbb -> {
                         if (origin == OriginType.HTTP_HEADER) {
                             lbb.lineComment("Use the logic in HeaderTypes to parse an ISO 2822 http date header");
@@ -354,7 +355,7 @@ interface InvocationBuilderTransform {
                                             .append(name)
                                             .endConcatenation();
                                     nb.withArgument("thrown")
-                                            .ofType(ve.name());
+                                            .ofType(validationExceptions().name());
                                 });
                             }, "DateTimeParseException", "IllegalArgumentException");
 
@@ -372,7 +373,7 @@ interface InvocationBuilderTransform {
                                             .append(name)
                                             .endConcatenation();
                                     nb.withArgument("thrown")
-                                            .ofType(ve.name());
+                                            .ofType(validationExceptions().name());
                                 });
                             }, "DateTimeParseException");
                         }
@@ -417,7 +418,7 @@ interface InvocationBuilderTransform {
         };
     }
 
-    static InvocationBuilderTransform mapToIntEnum(String enumType, ValidationExceptionProvider ve) {
+    static InvocationBuilderTransform mapToIntEnum(String enumType) {
         return new InvocationBuilderTransform() {
             @Override
             public <B extends BlockBuilderBase<T, B, ?>, T, I extends InvocationBuilderBase<TypeAssignment<B>, I>> InvocationBuilder<TypeAssignment<B>>
@@ -435,7 +436,7 @@ interface InvocationBuilderTransform {
                             tri.returningInvocationOf("valueOf")
                                     .withArgument("intValue").on(enumType);
                             tri.catching(cat -> {
-                                ve.createThrow(cb, cat, "Invalid int value for " + name, "item");
+                                validationExceptions().createThrow(cb, cat, "Invalid int value for " + name, "item");
                             }, "NumberFormatException");
                         });
                     });

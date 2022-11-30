@@ -28,6 +28,7 @@ import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -103,21 +104,21 @@ final class BigDecimalModelGenerator extends AbstractJavaGenerator<BigDecimalSha
                             + "\n@param value The BigDecimal valus")
                     .body(bb -> {
                         IfBuilder<?> iff = bb.ifNull("value");
-                        validationExceptions().createThrow(cb, iff, "BigDecimal value may not be null - it is required.", null);
+                        ValidationExceptionProvider.validationExceptions().createThrow(cb, iff, "BigDecimal value may not be null - it is required.", null);
                         iff.endIf();
                         shape.getTrait(RangeTrait.class)
                                 .ifPresent(range -> {
                                     range.getMin().ifPresent(min -> {
                                         IfBuilder<?> test = bb.iff()
                                                 .booleanExpression("value.compareTo(MIN_VALUE) < 0");
-                                        validationExceptions().createThrow(cb, test, "Value must be greater than or "
+                                        ValidationExceptionProvider.validationExceptions().createThrow(cb, test, "Value must be greater than or "
                                                 + "equal to " + min.toString() + ", but got ", "value");
                                         test.endIf();
                                     });
                                     range.getMax().ifPresent(max -> {
                                         IfBuilder<?> test = bb.iff()
                                                 .booleanExpression("value.compareTo(MAX_VALUE) > 0");
-                                        validationExceptions().createThrow(cb, test, "Value must be less than or "
+                                        ValidationExceptionProvider.validationExceptions().createThrow(cb, test, "Value must be less than or "
                                                 + "equal to " + max.toString() + ", but got ", "value");
                                         test.endIf();
                                     });

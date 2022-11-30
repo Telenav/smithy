@@ -28,6 +28,7 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.nio.file.Path;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
@@ -70,24 +71,24 @@ final class FloatModelGenerator extends AbstractNumberGenerator<FloatShape> {
 
     @Override
     protected void generateAlternateConstructors( ClassBuilder<String> cb ) {
-        cb.method( "__checkDoubleValue", mth -> {
+        cb.method("__checkDoubleValue", mth -> {
             mth.withModifier( PRIVATE, STATIC )
                     .addArgument( "double", "doubleValue" )
                     .returning( "float" )
-                    .body( bb -> {
+                    .body(bb -> {
                         IfBuilder<?> test = bb.iff().booleanExpression(
                                 "doubleValue < -Float.MAX_VALUE || doubleValue > Float.MAX_VALUE" );
-                        validationExceptions().createThrow( cb, test,
+                        ValidationExceptionProvider.validationExceptions().createThrow( cb, test,
                                 "Value must be within the bounds of Float but is", "doubleValue" );
                         test.endIf();
                         bb.returningValue().castTo( "float" ).expression( "doubleValue" );
                     } );
         } );
 
-        cb.constructor( con -> {
-            con.docComment( "Convenience constructor which takes a <code>double</code>."
+        cb.constructor(con -> {
+            con.docComment("Convenience constructor which takes a <code>double</code>."
                     + "\n@param doubleValue A double, which must be within the bounds that that class requires and those of <code>float</code>."
-                    + "\n@throws " + validationExceptions().name() + " if the value is out of the range Float.MIN_VALUE to Float.MAX_VALUE" )
+                    + "\n@throws " + ValidationExceptionProvider.validationExceptions().name() + " if the value is out of the range Float.MIN_VALUE to Float.MAX_VALUE" )
                     .addArgument( "double", "doubleValue" )
                     .setModifier( PUBLIC )
                     .body( bb -> {

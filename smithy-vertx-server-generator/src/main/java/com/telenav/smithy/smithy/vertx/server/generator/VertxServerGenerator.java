@@ -37,6 +37,7 @@ import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.telenav.smithy.names.operation.OperationNames;
 import com.telenav.smithy.utils.ResourceGraph;
 import com.telenav.smithy.utils.ResourceGraphs;
+import com.telenav.smithy.utils.ShapeUtils;
 import com.telenav.smithy.utils.path.PathInfo;
 import com.telenav.smithy.utils.path.PathInformationExtractor;
 import java.nio.file.Path;
@@ -189,7 +190,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         op.getInput().ifPresentOrElse((ShapeId in) -> {
                             Shape inputShape = model.expectShape(in);
                             String tn = typeNameOf(inputShape);
-                            maybeImport(cb, names().packageOf(inputShape) + "." + tn);
+                    String[] fqns = new String[]{names().packageOf(inputShape) + "." + tn};
+                            ShapeUtils.maybeImport(cb, fqns);
                             bb.declare("input")
                                     .initializedWith("null")
                                     .as(tn);

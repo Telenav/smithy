@@ -35,6 +35,7 @@ import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
 import com.mastfrog.util.strings.Strings;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.ensureGraphs;
+import com.telenav.smithy.utils.ShapeUtils;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -121,7 +122,8 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
         Shape payloadShape = model.expectShape(sid);
         String name = names().typeNameOf(cb, payloadShape, true);
         String ppkg = names().packageOf(payloadShape);
-        maybeImport(cb, ppkg + "." + name);
+        String[] fqns = new String[]{ppkg + "." + name};
+        ShapeUtils.maybeImport(cb, fqns);
         cb.method("authenticate", mb -> {
             mb.docComment("Authenticate a request - this method effectively translates the inbound "
                     + "SmithyRequest into an instance of <code>" + typeNameOf(payloadShape) + "</code>, "
@@ -153,7 +155,8 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
                         "com.mastfrog.smithy.http.SmithyRequest",
                         "com.mastfrog.smithy.http.AuthenticationResultConsumer")
                 .importing(CompletableFuture.class);
-        maybeImport(mock, ppkg + "." + name);
+        String[] fqns1 = new String[]{ppkg + "." + name};
+        ShapeUtils.maybeImport(mock, fqns1);
         mock.overridePublic("authenticate", mb -> {
             mb.addArgument(serviceTypeName + "AuthenticatedOperations", "target");
             if (mechanisms.size() > 1) {
@@ -241,7 +244,8 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
                                 AuthenticatedTrait atr = authTraitForOperation.get(op);
                                 String tn = names().typeNameOf(cb, model.expectShape(atr.getPayload()), true);
                                 String ppkg = names().packageOf(model.expectShape(atr.getPayload()));
-                                maybeImport(cb, ppkg + "." + tn);
+                        String[] fqns = new String[]{ppkg + "." + tn};
+                                ShapeUtils.maybeImport(cb, fqns);
                                 sw.inCase(converted, cs -> {
                                     cs.returning(tn + ".class");
                                 });

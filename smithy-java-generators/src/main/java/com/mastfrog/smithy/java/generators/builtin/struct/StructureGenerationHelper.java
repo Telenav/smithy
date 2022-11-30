@@ -29,7 +29,7 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
-import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;

@@ -33,6 +33,7 @@ import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.smithy.simple.extensions.SamplesTrait;
 import static com.mastfrog.util.strings.Escaper.BASIC_HTML;
 import static com.mastfrog.util.strings.Strings.capitalize;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -152,7 +153,7 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
                     .closeAnnotation();
             con.body(bb -> {
                 ClassBuilder.IfBuilder<?> ib = bb.ifNull("value");
-                validationExceptions()
+                ValidationExceptionProvider.validationExceptions()
                         .createThrow(cb, ib, shape.getId().getName()
                                 + " value may not be null - it is required.", null);
                 ib.endIf();
@@ -161,7 +162,7 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
                         ClassBuilder.IfBuilder<?> th = bb.iff().invocationOf("length")
                                 .on("value")
                                 .isLessThan(min.intValue());
-                        validationExceptions().createThrow(cb, th, "Length must be >= " + min + "; passed string is ",
+                        ValidationExceptionProvider.validationExceptions().createThrow(cb, th, "Length must be >= " + min + "; passed string is ",
                                 "value.length()");
                         th.endIf();
                     });
@@ -169,7 +170,7 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
                         ClassBuilder.IfBuilder<?> th = bb.iff().invocationOf("length")
                                 .on("value")
                                 .isGreaterThan(max.intValue());
-                        validationExceptions().createThrow(cb, th, "Length must be <= " + max + "; passed string is ",
+                        ValidationExceptionProvider.validationExceptions().createThrow(cb, th, "Length must be <= " + max + "; passed string is ",
                                 "value.length()");
                         th.endIf();
                     });
@@ -193,7 +194,7 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
                                         .append(": '").appendExpression("value")
                                         .append('\'')
                                         .endConcatenation()
-                                        .ofType(validationExceptions().name());
+                                        .ofType(ValidationExceptionProvider.validationExceptions().name());
                             }
                             ).endIf();
                 }

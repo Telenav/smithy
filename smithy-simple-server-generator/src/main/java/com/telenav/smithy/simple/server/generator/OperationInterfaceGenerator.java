@@ -37,6 +37,7 @@ import java.util.function.Consumer;
 import javax.lang.model.element.Modifier;
 
 import com.telenav.smithy.names.operation.OperationNames;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -73,9 +74,11 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
         boolean hasInput = !out.getTrait(UnitTypeTrait.class).isPresent();
 
         if (hasInput) {
-            maybeImport(cb, names().qualifiedNameOf(in, cb, true));
+            String[] fqns = new String[]{names().qualifiedNameOf(in, cb, true)};
+            maybeImport(cb, fqns);
         }
-        maybeImport(cb, names().qualifiedNameOf(out, cb, true));
+        String[] fqns = new String[]{names().qualifiedNameOf(out, cb, true)};
+        maybeImport(cb, fqns);
 
         cb.importing("com.mastfrog.smithy.http.SmithyRequest",
                 "com.mastfrog.smithy.http.SmithyResponse");
@@ -107,7 +110,8 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
                 .importing("com.mastfrog.smithy.http.SmithyRequest",
                         "com.mastfrog.smithy.http.SmithyResponse");
         if (hasInput) {
-            maybeImport(mock, names().qualifiedNameOf(in, mock, true));
+            String[] fqns1 = new String[]{names().qualifiedNameOf(in, mock, true)};
+            maybeImport(mock, fqns1);
         }
         maybeImport(mock, names().qualifiedNameOf(out, mock, true));
         applyGeneratedAnnotation(OperationInterfaceGenerator.class, mock);
@@ -140,7 +144,8 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
             } else {
                 argType = payloadType;
             }
-            maybeImport(cb, pkg + "." + payloadType);
+            String[] fqns = new String[]{pkg + "." + payloadType};
+            maybeImport(cb, fqns);
             mth.addArgument(argType, "authInfo");
         });
 

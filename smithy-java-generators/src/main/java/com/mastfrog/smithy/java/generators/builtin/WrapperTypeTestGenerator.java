@@ -38,6 +38,7 @@ import com.mastfrog.smithy.simple.extensions.SamplesTrait;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.capitalize;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
@@ -101,7 +102,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                                 nb.withStringLiteral(sample)
                                         .ofType(currentTypeName);
                             }).as(currentTypeName);
-                    currentClassBuilder.importing(validationExceptions().fqn());
+                    currentClassBuilder.importing(ValidationExceptionProvider.validationExceptions().fqn());
                     tri.catching(cat -> {
                         cat.andThrow(nb -> {
                             nb.withStringConcatentationArgument("The string '")
@@ -115,7 +116,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                                     .withArgument("thrown")
                                     .ofType("AssertionError");
                         });
-                    }, validationExceptions().name());
+                    }, ValidationExceptionProvider.validationExceptions().name());
                 });
 
             });
@@ -266,7 +267,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                             c.accept(nb);
                             nb.ofType(currentTypeName);
                         }).as(currentTypeName);
-                currentClassBuilder.importing(validationExceptions().fqn());
+                currentClassBuilder.importing(ValidationExceptionProvider.validationExceptions().fqn());
                 tri.invoke("fail")
                         .withStringLiteral(num + " is an out-of-range value for "
                                 + shape.getId() + " - an exception should have been thrown "
@@ -274,7 +275,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                         .inScope();
                 tri.catching(cat -> {
                     cat.lineComment("Exception is expected");
-                }, validationExceptions().name());
+                }, ValidationExceptionProvider.validationExceptions().name());
             });
         });
     }
@@ -301,10 +302,10 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                         .append("', which is an invalid "
                                 + "value according to the @samples trait in its schema")
                         .endConcatenation().inScope();
-                currentClassBuilder.importing(validationExceptions().fqn());
+                currentClassBuilder.importing(ValidationExceptionProvider.validationExceptions().fqn());
                 tri.catching(cat -> {
                     cat.lineComment("Exception is expected - do nothing.");
-                }, validationExceptions().name());
+                }, ValidationExceptionProvider.validationExceptions().name());
             });
         });
     }

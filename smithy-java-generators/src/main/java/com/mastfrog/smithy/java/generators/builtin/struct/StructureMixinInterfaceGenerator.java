@@ -6,6 +6,7 @@ import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractStructureGenerator;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import com.telenav.smithy.utils.ShapeUtils;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -60,7 +61,8 @@ final class StructureMixinInterfaceGenerator extends AbstractStructureGenerator 
         for (ShapeId mixinId : shape.getMixins()) {
             Shape mixin = model.expectShape(mixinId);
             String mixinPackage = names().packageOf(mixin);
-            maybeImport(cb, mixinPackage + "." + typeNameOf(mixin));
+            String[] fqns = new String[]{mixinPackage + "." + typeNameOf(mixin)};
+            ShapeUtils.maybeImport(cb, fqns);
             cb.extending(typeNameOf(mixin));
         }
 

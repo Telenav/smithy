@@ -31,6 +31,7 @@ import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.util.strings.Escaper;
 import static com.mastfrog.util.strings.Strings.capitalize;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
@@ -379,7 +380,7 @@ final class DocumentGenerator extends AbstractJavaGenerator<DocumentShape> {
             con.addArgument(inputType, "value")
                     .body(bb -> {
                         if (inputType.equals(outputType)) {
-                            generateNullCheck("value", bb, cb);
+                            ValidationExceptionProvider.generateNullCheck("value", bb, cb);
                         }
                         bb.assignField("value").ofThis()
                                 .toExpression("value");

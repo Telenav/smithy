@@ -36,6 +36,7 @@ import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.mastfrog.smithy.simple.extensions.FuzzyNameMatchingTrait;
 import com.mastfrog.smithy.simple.extensions.UnitsTrait;
 import static com.mastfrog.util.strings.Strings.capitalize;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -422,7 +423,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
                         .addArgument(cb.className(), "to")
                         .returning("double");
                 mth.body(bb -> {
-                    generateNullCheck("to", bb, cb);
+                    ValidationExceptionProvider.generateNullCheck("to", bb, cb);
                     bb.iff(variable("to").isEqualTo("this"))
                             .returning("value")
                             .endIf();

@@ -7,6 +7,7 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.names.JavaTypes;
 import com.telenav.smithy.names.NumberKind;
+import com.telenav.validation.ValidationExceptionProvider;
 import java.nio.file.Path;
 import java.util.AbstractSet;
 import java.util.ArrayList;
@@ -120,7 +121,7 @@ final class SetModelGenerator<S extends ListShape> extends AbstractListAndSetGen
 
     protected void generateIterator( ClassBuilder<String> cb ) {
         String iterClassName = cb.className() + memberType() + "Iterator";
-        cb.innerClass( iterClassName, iter -> {
+        cb.innerClass(iterClassName, iter -> {
             iter.withModifier( PRIVATE, FINAL )
                     .docComment( "Iterator whose remove() method ensures we cannot go below"
                             + " the minimum size constraint on this class." )
@@ -148,12 +149,12 @@ final class SetModelGenerator<S extends ListShape> extends AbstractListAndSetGen
                             bb.returningInvocationOf( "next" ).on( "delegate" );
                         } );
                     } )
-                    .overridePublic( "remove", remove -> {
-                        remove.body( bb -> {
+                    .overridePublic("remove", remove -> {
+                        remove.body(bb -> {
                             bb.lineComment( "We need to ensure we do not go below the size constraint," );
                             bb.lineComment( "which is the reason this class exists at all." );
                             IfBuilder<?> test = bb.iff().booleanExpression( "size() == MIN_SIZE" );
-                            validationExceptions().createThrow( iter, test,
+                            ValidationExceptionProvider.validationExceptions().createThrow( iter, test,
                                     "Removing an element would cause the iterated " + cb.className()
                                     + "to be below the minimum size in its schema of ", "MIN_SIZE" );
                             test.endIf();

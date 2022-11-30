@@ -28,11 +28,12 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.Problems;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
-import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
+import com.telenav.validation.ValidationExceptionProvider;
 import com.mastfrog.smithy.java.generators.builtin.struct.Namer;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
 import static com.telenav.smithy.names.JavaTypes.packageOf;
+import com.telenav.smithy.utils.ShapeUtils;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -98,7 +99,7 @@ public abstract class AbstractStructureGenerator extends AbstractJavaGenerator<S
 
         @Override
         public <T> void generateNullCheck(String variable, ClassBuilder.BlockBuilderBase<?, ?, ?> bb, ClassBuilder<T> on) {
-            AbstractStructureGenerator.this.generateNullCheck(variable, bb, on);
+            ValidationExceptionProvider.generateNullCheck(variable, bb, on);
         }
 
         @Override
@@ -128,7 +129,7 @@ public abstract class AbstractStructureGenerator extends AbstractJavaGenerator<S
 
         @Override
         public ValidationExceptionProvider validation() {
-            return AbstractStructureGenerator.this.validationExceptions();
+            return ValidationExceptionProvider.validationExceptions();
         }
 
         @Override
@@ -150,7 +151,8 @@ public abstract class AbstractStructureGenerator extends AbstractJavaGenerator<S
             if (fq.isEmpty()) {
                 return;
             }
-            AbstractJavaGenerator.maybeImport(cb, fq.toArray(String[]::new));
+            String[] fqns1 = fq.toArray(String[]::new);
+            ShapeUtils.maybeImport(cb, fqns1);
         }
     }
 

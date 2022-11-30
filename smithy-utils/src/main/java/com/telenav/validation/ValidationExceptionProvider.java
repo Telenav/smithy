@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.smithy.java.generators.builtin;
+package com.telenav.validation;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
@@ -51,6 +51,12 @@ public class ValidationExceptionProvider {
         this.validationExceptionFqn = validationExceptionFqn;
     }
 
+    public static <T, R> void generateNullCheck(String variable, BlockBuilderBase<?, ?, ?> bb, ClassBuilder<T> on) {
+        ClassBuilder.IfBuilder<?> test = bb.ifNull(variable);
+        validationExceptions().createThrow(on, test, variable + " may not be null - it is required.", null);
+        test.endIf();
+    }
+    
     public static ValidationExceptionProvider validationExceptions() {
         SmithyGenerationContext ctx = SmithyGenerationContext.get();
         return ctx.get(KEY).orElseGet(() -> {

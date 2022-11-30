@@ -7,6 +7,7 @@ import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractStructureGenerator;
 import com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry;
 import com.telenav.smithy.names.TypeNames;
+import com.telenav.smithy.utils.ShapeUtils;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashSet;
@@ -99,7 +100,8 @@ public final class StructureGenerator extends AbstractStructureGenerator {
             // namespace, import the classes that will be generated for it
             String ns = mem.target().getId().getNamespace();
             if (!"smithy.api".equals(ns) && !shape.getId().getNamespace().equals(ns)) {
-                maybeImport(cb, mem.qualifiedTypeName());
+                String[] fqns = new String[]{mem.qualifiedTypeName()};
+                ShapeUtils.maybeImport(cb, fqns);
             }
         }
     }

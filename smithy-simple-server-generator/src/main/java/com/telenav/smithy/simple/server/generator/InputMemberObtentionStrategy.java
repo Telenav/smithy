@@ -29,6 +29,7 @@ import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.mastfrog.util.strings.Escaper;
+import com.telenav.smithy.utils.ShapeUtils;
 import java.util.Set;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -71,7 +72,7 @@ final class InputMemberObtentionStrategy {
 
     protected void decorateClass(ClassBuilder<?> cb) {
         requiredArguments(type -> {
-            AbstractJavaGenerator.maybeImport(cb, type);
+            ShapeUtils.maybeImport(cb, type);
         });
         origin.decorateClass(cb, memberTarget);
     }
