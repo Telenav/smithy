@@ -172,4 +172,9 @@ public final class TypeNames {
         return result;
     }
 
+    public static String simpleNameOf(String typeName) {
+        int ix = typeName.lastIndexOf('.');
+        return ix < 0 ? typeName : typeName.substring(ix + 1);
+    }
+
 }

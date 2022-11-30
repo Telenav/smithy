@@ -99,7 +99,7 @@ class Input implements Iterable<InputMemberObtentionStrategy> {
                     ab.addArrayArgument("scopeTypes", arr -> {
                         neededBindings.forEach(fqn -> {
                             maybeImport(cb, fqn);
-                            arr.expression(OperationGenerator.simpleName(fqn) + ".class");
+                            arr.expression(TypeNames.simpleNameOf(fqn) + ".class");
                         });
                     });
                 }

@@ -51,7 +51,7 @@ public class ValidationExceptionProvider {
         this.validationExceptionFqn = validationExceptionFqn;
     }
 
-    public static ValidationExceptionProvider get() {
+    public static ValidationExceptionProvider validationExceptions() {
         SmithyGenerationContext ctx = SmithyGenerationContext.get();
         return ctx.get(KEY).orElseGet(() -> {
             String result = ctx.settings().getString(EXCEPTION_FQN_KEY)

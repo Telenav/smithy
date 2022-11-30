@@ -25,6 +25,7 @@ package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import com.telenav.smithy.names.TypeNames;
 import java.util.Set;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -73,13 +74,13 @@ class PayloadOrigin extends Origin {
     }
 
     private String varName() {
-        return "_" + AbstractJavaGenerator.decapitalize(OperationGenerator.simpleName(qualifiedType));
+        return "_" + AbstractJavaGenerator.decapitalize(TypeNames.simpleNameOf(qualifiedType));
     }
 
     @Override
     protected void decorateConstructor(ClassBuilder.ConstructorBuilder<?> con, Set<String> typesAdded) {
         if (!typesAdded.add(qualifiedType)) {
-            con.addArgument(OperationGenerator.simpleName(qualifiedType), varName());
+            con.addArgument(TypeNames.simpleNameOf(qualifiedType), varName());
         }
     }
 

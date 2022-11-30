@@ -127,7 +127,7 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     }
 
     public ValidationExceptionProvider validationExceptions() {
-        return ValidationExceptionProvider.get();
+        return ValidationExceptionProvider.validationExceptions();
     }
 
     protected static int primeCount() {

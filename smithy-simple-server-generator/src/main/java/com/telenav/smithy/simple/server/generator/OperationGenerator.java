@@ -23,9 +23,6 @@
  */
 package com.telenav.smithy.simple.server.generator;
 
-import com.telenav.smithy.names.operation.OperationNames;
-import com.telenav.smithy.utils.path.PathInformationExtractor;
-import com.telenav.smithy.utils.ResourceGraph;
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.function.state.Obj;
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -40,11 +37,11 @@ import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.smithy.java.generators.builtin.ValidationExceptionProvider;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.packageOf;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
-import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
-import com.mastfrog.util.strings.Escaper;
+import com.telenav.smithy.names.operation.OperationNames;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.mapToBigDecimal;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.mapToBigInteger;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.mapToBoolean;
@@ -56,6 +53,9 @@ import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransf
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.splitToMappedCollection;
 import static com.telenav.smithy.simple.server.generator.InvocationBuilderTransform.splitToStringSet;
 import static com.telenav.smithy.simple.server.generator.ServiceOperationAuthGenerator.enumConstantFor;
+import com.telenav.smithy.utils.ResourceGraph;
+import com.telenav.smithy.utils.ShapeUtils;
+import com.telenav.smithy.utils.path.PathInformationExtractor;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -714,63 +714,20 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                         .with(originMethod());
                 break;
             case TIMESTAMP:
-                res = dec.with(mapToTimestamp(ValidationExceptionProvider.get()))
+                res = dec.with(mapToTimestamp(ValidationExceptionProvider.validationExceptions()))
                         .with(originMethod());
                 break;
             case INT_ENUM:
                 String tp2 = tn.qualifiedNameOf(memberTarget, cb, false);
                 maybeImport(cb, tp2);
-                res = dec.with(mapToIntEnum(typeNameOf(memberTarget), ValidationExceptionProvider.get()))
+                res = dec.with(mapToIntEnum(typeNameOf(memberTarget), ValidationExceptionProvider.validationExceptions()))
                         .with(originMethod());
                 break;
             default:
                 throw new UnsupportedOperationException("Not implemented: " + memberTarget.getType() + " " + memberTarget);
         }
-        boolean requiredOrHasDefault = requiredOrHasDefault(member, memberTarget);
-        return res.closedWith(DeclarationClose.onRequest(TypeNames.typeNameOf(memberTarget, requiredOrHasDefault)));
-    }
-
-    static boolean requiredOrHasDefault(MemberShape mem, Shape target) {
-        return mem.getTrait(DefaultTrait.class).or(() -> target.getTrait(DefaultTrait.class))
-                .isPresent()
-                || mem.getTrait(RequiredTrait.class).or(() -> target.getTrait(RequiredTrait.class))
-                        .isPresent();
-    }
-
-    static class HeaderOrigin extends Origin {
-
-        final String headerName;
-
-        HeaderOrigin(String headerName) {
-            super(OriginType.HTTP_HEADER);
-            this.headerName = headerName;
-        }
-
-        @Override
-        String qualifier() {
-            return headerName;
-        }
-
-        @Override
-        protected void requiredArguments(Consumer<String> typeNames) {
-            typeNames.accept("com.mastfrog.smithy.http.SmithyRequest");
-        }
-
-        @Override
-        protected <B extends BlockBuilderBase<T, B, ?>, T> String collectRawValue(ClassBuilder<?> cb, B bb, Shape forShape, MemberShape member) {
-            String result = Escaper.JAVA_IDENTIFIER_CAMEL_CASE.escape(headerName);
-
-            bb.declare(result)
-                    .initializedByInvoking("header")
-                    .withStringLiteral(headerName)
-                    .on("smithyRequest");
-            return result;
-        }
-    }
-
-    static String simpleName(String typeName) {
-        int ix = typeName.lastIndexOf('.');
-        return typeName.substring(ix + 1);
+        boolean requiredOrHasDefault = ShapeUtils.requiredOrHasDefault(member, memberTarget);
+        return res.closedWith(DeclarationClose.onRequest(typeNameOf(memberTarget, requiredOrHasDefault)));
     }
 
 }

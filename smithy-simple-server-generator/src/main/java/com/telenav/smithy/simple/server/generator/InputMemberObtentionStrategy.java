@@ -79,7 +79,7 @@ final class InputMemberObtentionStrategy {
     protected void decorateConstructor(ClassBuilder.ConstructorBuilder<?> con, Set<String> typesAdded) {
         requiredArguments(type -> {
             if (typesAdded.add(type)) {
-                String sn = OperationGenerator.simpleName(type);
+                String sn = TypeNames.simpleNameOf(type);
                 con.addArgument(sn, AbstractJavaGenerator.decapitalize(sn));
             }
         });
