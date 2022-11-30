@@ -39,6 +39,7 @@ import com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
+import com.mastfrog.util.strings.Strings;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.ensureGraphs;
 import com.telenav.smithy.utils.ResourceGraphs;
 import java.nio.file.Path;
@@ -184,7 +185,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
     private void addBindingFieldAndMethod(ClassBuilder<String> cb, OperationShape shape) {
         String ifaceFqn = OperationNames.operationInterfaceFqn(model, shape);
         String ifaceName = OperationNames.operationInterfaceName(shape);
-        String fieldName = decapitalize(ifaceName) + "Type";
+        String fieldName = Strings.decapitalize(ifaceName) + "Type";
         String[] fqns = new String[]{ifaceFqn};
         ShapeUtils.maybeImport(cb, fqns);
         cb.field(fieldName, fld
@@ -265,7 +266,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .lineComment("SPI implementation bindings");
                         operations.forEach(op -> {
                             String ifaceName = OperationNames.operationInterfaceName(op);
-                            String fieldName = decapitalize(ifaceName) + "Type";
+                            String fieldName = Strings.decapitalize(ifaceName) + "Type";
                             bb.ifNotNull(fieldName)
                                     .invoke("to")
                                     .withArgumentFromField(fieldName).ofThis()
@@ -278,7 +279,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                         bb.blankLine().lineComment("Set up a binding for any exception evaluators passed")
                                 .lineComment("to methods here.");
                         bb.invoke("toInstance")
-                                .withArgument(decapitalize(exceptionEvaluatorListTypeName()))
+                                .withArgument(Strings.decapitalize(exceptionEvaluatorListTypeName()))
                                 .onInvocationOf("bind")
                                 .withClassArgument(exceptionEvaluatorListTypeName())
                                 .on("binder");
@@ -666,7 +667,7 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                 });
             });
         });
-        cb.field(decapitalize(tn), fld -> {
+        cb.field(Strings.decapitalize(tn), fld -> {
             fld.initializedWithNew(nb -> nb.ofType(tn)).ofType(tn);
         });
         cb.method("mappingExceptionTo", mth -> {
@@ -688,7 +689,7 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                                 }).endIf();
                         bb.invoke("add")
                                 .withArgument("converter")
-                                .onField(decapitalize(tn)).ofThis();
+                                .onField(Strings.decapitalize(tn)).ofThis();
                         bb.returningThis();
                     });
         });
@@ -848,7 +849,7 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
         String ifName = "AuthenticateWith" + typeNameOf(authPayloadType);
         String[] fqns = new String[]{pkg + "." + ifName};
         ShapeUtils.maybeImport(cb, fqns);
-        String fieldName = decapitalize(ifName) + "Type";
+        String fieldName = Strings.decapitalize(ifName) + "Type";
         c.accept(pkg, ifName, fieldName);
     }
 

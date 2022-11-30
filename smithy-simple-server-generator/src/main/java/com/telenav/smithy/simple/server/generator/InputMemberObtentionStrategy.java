@@ -29,6 +29,7 @@ import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.mastfrog.util.strings.Escaper;
+import com.mastfrog.util.strings.Strings;
 import com.telenav.smithy.utils.ShapeUtils;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -81,7 +82,7 @@ final class InputMemberObtentionStrategy {
         requiredArguments(type -> {
             if (typesAdded.add(type)) {
                 String sn = TypeNames.simpleNameOf(type);
-                con.addArgument(sn, AbstractJavaGenerator.decapitalize(sn));
+                con.addArgument(sn, Strings.decapitalize(sn));
             }
         });
         origin.decorateConstructor(con, typesAdded);

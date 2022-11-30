@@ -13,6 +13,7 @@ import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.util.function.Consumer;

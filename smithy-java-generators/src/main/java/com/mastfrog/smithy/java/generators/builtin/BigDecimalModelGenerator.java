@@ -28,6 +28,7 @@ import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import com.telenav.validation.ValidationExceptionProvider;
 import java.nio.file.Path;
 import java.util.function.Consumer;

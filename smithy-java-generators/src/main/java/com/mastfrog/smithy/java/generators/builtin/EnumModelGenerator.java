@@ -36,6 +36,7 @@ import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.mastfrog.smithy.simple.extensions.FuzzyNameMatchingTrait;
 import com.mastfrog.smithy.simple.extensions.UnitsTrait;
 import static com.mastfrog.util.strings.Strings.capitalize;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import com.telenav.validation.ValidationExceptionProvider;
 import java.nio.file.Path;
 import java.util.ArrayList;

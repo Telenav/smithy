@@ -25,6 +25,7 @@ package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import com.mastfrog.util.strings.Strings;
 import com.telenav.smithy.names.TypeNames;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -74,7 +75,7 @@ class PayloadOrigin extends Origin {
     }
 
     private String varName() {
-        return "_" + AbstractJavaGenerator.decapitalize(TypeNames.simpleNameOf(qualifiedType));
+        return "_" + Strings.decapitalize(TypeNames.simpleNameOf(qualifiedType));
     }
 
     @Override

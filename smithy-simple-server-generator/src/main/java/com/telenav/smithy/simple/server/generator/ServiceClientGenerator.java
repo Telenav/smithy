@@ -40,6 +40,7 @@ import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.mastfrog.util.preconditions.ConfigurationError;
+import com.mastfrog.util.strings.Strings;
 
 import java.net.URI;
 import java.nio.file.Path;
@@ -188,7 +189,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
         output.ifPresent(out -> {
             cb.importing(names().packageOf(out) + "." + typeNameOf(out));
         });
-        String methodName = decapitalize(escape(op.getId().getName()));
+        String methodName = Strings.decapitalize(escape(op.getId().getName()));
         cb.method(methodName, mth -> {
             op.getTrait(DocumentationTrait.class).ifPresent(dox -> {
                 mth.docComment(dox.getValue()
@@ -278,7 +279,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                 break;
             default:
                 payloadOpt.ifPresentOrElse(payload -> {
-                    String getter = escape(decapitalize(payload.getKey()));
+                    String getter = escape(Strings.decapitalize(payload.getKey()));
 
                     boolean hadHeaderProperties1 = withHeaderInputProperties(input, (headerMembers, headerForMemberName, requiredHeaderTraits) -> {
                         generateHeaderSettingHttpInvocation(bb, true, httpMethod, outputType, headerMembers, headerForMemberName, requiredHeaderTraits, cb,
@@ -362,7 +363,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                             String headerName = headerForMemberName.get(e.getKey());
                             Shape target = model.expectShape(e.getValue().getTarget());
                             boolean required = requiredHeaderTraits.contains(e.getKey());
-                            String methodName = escape(decapitalize(e.getKey()));
+                            String methodName = escape(Strings.decapitalize(e.getKey()));
                             boolean isRawType = "smithy.api".equals(target.getId().getNamespace());
                             Function<InvocationBuilder<?>, InvocationBuilder<?>> f = iv -> {
                                 switch (target.getType()) {
@@ -486,7 +487,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                     Optional<HttpLabelTrait> lbl = m.getValue().getTrait(HttpLabelTrait.class);
                     if (lbl.isPresent()) {
                         HttpLabelTrait l = lbl.get();
-                        String getterMethod = escape(decapitalize(m.getKey()));
+                        String getterMethod = escape(Strings.decapitalize(m.getKey()));
                         found = true;
                         return inv.onInvocationOf("add")
                                 .withMethodReference(getterMethod)
@@ -496,7 +497,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
             } else {
                 Optional<HttpQueryTrait> query = m.getValue().getTrait(HttpQueryTrait.class);
                 if ((query.isPresent() && query.get().getValue().equals(queryParam)) || m.getKey().equals(label)) {
-                    String getterMethod = escape(decapitalize(m.getKey()));
+                    String getterMethod = escape(Strings.decapitalize(m.getKey()));
 
                     found = true;
 

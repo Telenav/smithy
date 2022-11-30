@@ -38,6 +38,7 @@ import com.mastfrog.smithy.simple.extensions.SamplesTrait;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.capitalize;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import com.telenav.validation.ValidationExceptionProvider;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

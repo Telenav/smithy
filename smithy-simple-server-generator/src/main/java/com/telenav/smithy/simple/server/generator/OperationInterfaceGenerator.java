@@ -110,8 +110,7 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
                 .importing("com.mastfrog.smithy.http.SmithyRequest",
                         "com.mastfrog.smithy.http.SmithyResponse");
         if (hasInput) {
-            String[] fqns1 = new String[]{names().qualifiedNameOf(in, mock, true)};
-            maybeImport(mock, fqns1);
+            maybeImport(mock, names().qualifiedNameOf(in, mock, true));
         }
         maybeImport(mock, names().qualifiedNameOf(out, mock, true));
         applyGeneratedAnnotation(OperationInterfaceGenerator.class, mock);

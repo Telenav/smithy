@@ -167,9 +167,9 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
             return old + 1;
         });
         if (suffix == 0) {
-            return escape(decapitalize(prefix));
+            return escape(Strings.decapitalize(prefix));
         }
-        return escape(decapitalize(prefix) + Strings.capitalize(Integer.toHexString(suffix)));
+        return escape(Strings.decapitalize(prefix) + Strings.capitalize(Integer.toHexString(suffix)));
     }
 
     protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> void assertEquals(String exp, String got, String msg, B bb) {
@@ -251,7 +251,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                 if (!vals.isEmpty()) { // possible?
                     int value = vals.get(rnd.nextInt(vals.size()));
                     bb.declare(val)
-                            .initializedByInvoking(decapitalize(typeNameOf(shape)))
+                            .initializedByInvoking(Strings.decapitalize(typeNameOf(shape)))
                             .withArgument(value)
                             .on(typeNameOf(shape))
                             .as(typeNameOf(shape));

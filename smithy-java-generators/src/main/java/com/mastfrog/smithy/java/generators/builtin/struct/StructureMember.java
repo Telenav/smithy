@@ -24,6 +24,7 @@
 package com.mastfrog.smithy.java.generators.builtin.struct;
 
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import com.mastfrog.util.strings.Strings;
 import java.util.Map;
 import java.util.Optional;
 
@@ -292,7 +293,7 @@ public final class StructureMember<S extends Shape> implements Comparable<Struct
     }
 
     public String getterName() {
-        return AbstractJavaGenerator.decapitalize(field());
+        return Strings.decapitalize(field());
     }
 
     public String quotedJsonName() {

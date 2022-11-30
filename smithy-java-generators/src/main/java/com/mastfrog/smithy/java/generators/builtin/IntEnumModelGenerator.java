@@ -38,6 +38,7 @@ import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.telenav.smithy.names.JavaSymbolProvider;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.mastfrog.util.strings.Strings;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -27,6 +27,7 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import java.util.function.Supplier;

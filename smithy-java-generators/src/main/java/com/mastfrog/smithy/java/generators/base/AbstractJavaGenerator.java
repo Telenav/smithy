@@ -27,7 +27,6 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.FieldBuilder;
-import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.Value;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
@@ -40,6 +39,7 @@ import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import static com.mastfrog.smithy.java.generators.builtin.SmithyJavaGenerators.TYPE_NAMES;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import com.mastfrog.util.strings.Strings;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Path;
@@ -59,8 +59,6 @@ import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 
 import com.telenav.smithy.names.TypeNames;
-import com.telenav.validation.ValidationExceptionProvider;
-import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -147,12 +145,6 @@ public abstract class AbstractJavaGenerator<S extends Shape>
      */
     public static long prime(Object what) {
         return PRIMES[Math.abs(Objects.toString(what).hashCode()) % PRIMES.length];
-    }
-
-    public static String decapitalize(String s) {
-        char[] c = s.toCharArray();
-        c[0] = Character.toLowerCase(c[0]);
-        return new String(c);
     }
 
     public final SmithyGenerationContext ctx() {
