@@ -21,13 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 package com.mastfrog.smithy.java.generators.builtin.struct.impl;
 
 import com.mastfrog.smithy.java.generators.builtin.struct.ConstructorKind;
 import com.mastfrog.smithy.java.generators.builtin.struct.DocumentationContributor;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
+import com.mastfrog.smithy.simple.extensions.SpanTrait;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.DefaultTrait;
@@ -52,12 +52,23 @@ final class OneConstructorArgumentDocumentationContributor<S extends Shape> impl
         docTail.append("\n@param ").append(member.arg()).append(' ');
         if (kind == ConstructorKind.JSON_DESERIALIZATON) {
             member.member().getTrait(DefaultTrait.class).ifPresentOrElse(def -> {
-                docTail.append(" - <i>defaulted to ").append(def.toNode().toNode().toString().replaceAll("\n", "\\n")).append(" if null</i>");
+                docTail.append(" - <i>defaulted to ").append(def.toNode().toNode().toString().replaceAll("\n", "\\n")).append(" if null</i>. ");
             }, () -> {
                 if (member.isRequired()) {
                     docTail.append(" - <i>required</i> - ");
                 } else {
                     docTail.append(" - <i>may be null</i> - ");
+                }
+            });
+            target.structure().getTrait(SpanTrait.class).ifPresent(span -> {
+                if (member.member().getMemberName().equals(span.lesser())) {
+                    String cmp = span.emptyAllowed() ? "&lt;=" : "&lt;";
+                    docTail.append(" Must be <code>").append(cmp).append(span.greater())
+                            .append("</code>. ");
+                } else if (member.member().getMemberName().equals(span.greater())) {
+                    String cmp = span.emptyAllowed() ? "&gt;=" : "&gt;";
+                    docTail.append(" Must be <code>").append(cmp).append(span.lesser())
+                            .append("</code>. ");
                 }
             });
         }

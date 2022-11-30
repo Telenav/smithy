@@ -380,6 +380,9 @@ final class DefaultStructureGenerators implements StructureExtensions {
         all.accept(new ClassDocs());
         all.accept(new ConstraintDocs());
         all.accept(new NullableAndDefaultDocs());
+        helper.structure().getTrait(SpanTrait.class).ifPresent(sp -> {
+            all.accept(SpanTraitDocContributor.INSTANCE);
+        });
         all.accept(new GeneratedFromClassDocs());
     }
 

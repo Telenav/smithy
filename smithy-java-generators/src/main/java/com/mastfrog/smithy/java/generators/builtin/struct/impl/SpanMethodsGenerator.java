@@ -88,6 +88,9 @@ public final class SpanMethodsGenerator implements StructureContributor {
             return;
         }
         cb.method("size", mth -> {
+            mth.docComment("Returns the value of <code>" + greater.member().getMemberName()
+                    + " - " + lesser.member().getMemberName() + "</code>."
+                    + "\n@return The span size of this " + cb.className());
             mth.withModifier(PUBLIC);
             NumberKind retKind;
             NumberKind nk = NumberKind.forShape(lesser.target());

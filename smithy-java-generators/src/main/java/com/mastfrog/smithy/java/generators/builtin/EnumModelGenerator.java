@@ -143,7 +143,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
                             + "the name or <code>toString()</code> value of this <code>" + cb.className() + "</code>,"
                             + "with or without `<code>_</code>` characters transposed to `<code>-</code>` characters."
                             + "Leading and trailing whitespace in the input argument is ignored."
-                            + "\n@param a Character sequence or null"
+                            + "\n@param what a Character sequence or null"
                             + "\n@return true if the string matches this enum constant according to those criteria")
                     .addArgument("CharSequence", "what")
                     .returning("boolean")
