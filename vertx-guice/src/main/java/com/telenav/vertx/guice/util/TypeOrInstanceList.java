@@ -11,6 +11,7 @@ import java.util.function.Function;
 /**
  * Collector for indirect and direct instantiation strategies for a type, which
  * can resolve them all into a list of Provider instances given a binder.
+ * Non-API.
  *
  * @author Tim Boudreau
  * @param <T> The type
