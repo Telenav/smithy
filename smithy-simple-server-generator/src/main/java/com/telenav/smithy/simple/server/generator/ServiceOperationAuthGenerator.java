@@ -70,7 +70,7 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
         ResourceGraph rg = ensureGraphs(model, shape);
-        Set<Shape> allOps = rg.filteredClosure(shape, sh -> sh.getType() == OPERATION);
+        Set<Shape> ops = rg.filteredClosure(shape, sh -> sh.getType() == OPERATION);
 
         Set<String> mechanisms = new TreeSet<>();
         Bool hasOptional = Bool.create();
@@ -78,7 +78,7 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
         Map<ShapeId, Set<OperationShape>> operationsForPayload = new HashMap<>();
         Set<ShapeId> allPayloadTypes = new HashSet<>();
 
-        for (Shape opId : allOps) {
+        for (Shape opId : ops) {
             OperationShape op = opId.asOperationShape().get();
             op.getTrait(AuthenticatedTrait.class).ifPresent(authTrait -> {
                 mechanisms.add(authTrait.getMechanism().toLowerCase());

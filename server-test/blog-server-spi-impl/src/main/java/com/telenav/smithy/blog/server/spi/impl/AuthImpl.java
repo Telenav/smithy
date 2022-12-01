@@ -21,11 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.blog.demo;
+package com.telenav.smithy.blog.server.spi.impl;
 
 import com.google.inject.Inject;
 import com.mastfrog.acteur.header.entities.BasicCredentials;
-import com.mastfrog.settings.Settings;
 import com.mastfrog.smithy.http.AuthenticationResultConsumer;
 import static com.mastfrog.smithy.http.HeaderTypes.headerTypes;
 import com.mastfrog.smithy.http.SmithyRequest;
@@ -38,15 +37,15 @@ import java.util.Optional;
  *
  * @author Tim Boudreau
  */
-final class AuthImpl implements AuthenticateWithAuthUser {
+public final class AuthImpl implements AuthenticateWithAuthUser {
 
     private final String userName;
     private final String password;
 
     @Inject
-    AuthImpl(Settings settings) {
-        userName = settings.getString("userName", System.getProperty("user.name", "admin"));
-        password = settings.getString("password", System.getProperty("password", "password"));
+    AuthImpl() {
+        userName = "admin";
+        password = "password";
     }
 
     @Override

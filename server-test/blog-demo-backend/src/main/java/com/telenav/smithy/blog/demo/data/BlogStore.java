@@ -37,7 +37,6 @@ import com.telenav.blog.model.CommentsList;
 import com.telenav.blog.model.ListCommentsOutput;
 import com.telenav.blog.model.ReadBlogOutput;
 import com.telenav.blog.model.Title;
-import com.telenav.smithy.blog.demo.BlogDemo;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -188,7 +187,7 @@ public class BlogStore {
             try {
                 return mapper.readValue(fl.toFile(), RawBlog.class);
             } catch (IOException ex) {
-                Logger.getLogger(BlogDemo.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(BlogStore.class.getName()).log(Level.SEVERE, null, ex);
                 return new RawBlog();
             }
         });

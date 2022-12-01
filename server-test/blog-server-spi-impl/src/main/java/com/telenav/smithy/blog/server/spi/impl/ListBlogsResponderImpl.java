@@ -21,14 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.blog.demo;
+package com.telenav.smithy.blog.server.spi.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.telenav.smithy.blog.demo.data.BlogStore;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.mastfrog.acteur.header.entities.CacheControl;
-import com.mastfrog.acteur.server.ServerModule;
 import static com.mastfrog.smithy.http.HeaderTypes.headerTypes;
 import com.mastfrog.smithy.http.SmithyRequest;
 import com.mastfrog.smithy.http.SmithyResponse;
@@ -46,14 +45,14 @@ import java.util.concurrent.ExecutorService;
  *
  * @author Tim Boudreau
  */
-final class ListBlogsResponderImpl implements ListBlogsResponder {
+public final class ListBlogsResponderImpl implements ListBlogsResponder {
 
     private final BlogStore blogs;
     private final ObjectMapper mapper;
 
     @Inject
     ListBlogsResponderImpl(BlogStore blogs,
-            @Named(ServerModule.BACKGROUND_THREAD_POOL_NAME) ExecutorService svc,
+            @Named("background") ExecutorService svc,
             ObjectMapper mapper) {
         this.blogs = blogs;
         this.mapper = mapper;

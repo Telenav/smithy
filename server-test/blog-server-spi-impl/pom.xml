@@ -6,32 +6,26 @@
         <artifactId>server-test</artifactId>
         <version>1.0.2</version>
     </parent>
-
-    <artifactId>blog-server-vertx</artifactId>
-
+    
+    <artifactId>blog-server-spi-impl</artifactId>
+    
     <dependencies>
-
         <dependency>
-            <groupId>com.mastfrog</groupId>
-            <artifactId>jackson</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.telenav</groupId>
-            <artifactId>vertx-guice</artifactId>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>blog-service-model</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>smithy-java-http-extensions</artifactId>
+            <artifactId>blog-server-spi</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>smithy-vertx-adapter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>blog-server-spi-impl</artifactId>
+            <artifactId>blog-demo-backend</artifactId>
             <version>${project.version}</version>
         </dependency>
-
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-web</artifactId>
+        </dependency>
     </dependencies>
 </project>

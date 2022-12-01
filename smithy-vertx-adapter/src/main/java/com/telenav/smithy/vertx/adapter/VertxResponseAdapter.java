@@ -26,6 +26,7 @@ package com.telenav.smithy.vertx.adapter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mastfrog.smithy.http.HeaderSpec;
+import com.mastfrog.smithy.http.HeaderTypes;
 import com.mastfrog.smithy.http.SmithyResponse;
 import static com.mastfrog.util.preconditions.Exceptions.chuck;
 import com.mastfrog.util.strings.Strings;
@@ -34,6 +35,7 @@ import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import static io.vertx.core.buffer.Buffer.buffer;
 import io.vertx.core.http.HttpServerResponse;
+import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -49,6 +51,9 @@ public final class VertxResponseAdapter<T> implements SmithyResponse<T> {
     public VertxResponseAdapter(HttpServerResponse response, ObjectMapper mapper) {
         this.response = response;
         this.mapper = mapper;
+        // Vertx does not include a Date: header by default, and it is
+        // required by the HTTP spec, so...
+        add(HeaderTypes.headerTypes().dateHeader("date"), Instant.now());
     }
 
     public static <T> SmithyResponse<T> smithyResponse(HttpServerResponse response, ObjectMapper mapper) {

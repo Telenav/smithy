@@ -21,53 +21,49 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.blog.demo;
+package com.telenav.smithy.blog.server.spi.impl;
 
 import com.telenav.smithy.blog.demo.data.BlogStore;
 import com.google.inject.Inject;
-import com.mastfrog.acteur.errors.ResponseException;
+import static com.mastfrog.smithy.http.HeaderTypes.headerTypes;
+import com.mastfrog.smithy.http.ResponseException;
 import com.mastfrog.smithy.http.SmithyRequest;
 import com.mastfrog.smithy.http.SmithyResponse;
-import com.telenav.blog.model.AuthUser;
-import com.telenav.blog.model.ListCommentsInput;
-import com.telenav.blog.model.ListCommentsOutput;
-import com.telenav.blog.spi.ListCommentsResponder;
-import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.GONE;
+import com.telenav.blog.model.ReadBlogInput;
+import com.telenav.blog.model.ReadBlogOutput;
+import com.telenav.blog.spi.ReadBlogResponder;
 import java.util.Optional;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class ListCommentsResponderImpl implements ListCommentsResponder {
+public final class ReadBlogResponderImpl implements ReadBlogResponder {
 
     private final BlogStore store;
 
     @Inject
-    ListCommentsResponderImpl(BlogStore store) {
+    ReadBlogResponderImpl(BlogStore store) {
         this.store = store;
     }
 
     @Override
-    public void respond(SmithyRequest request, Optional<AuthUser> authInfo,
-            ListCommentsInput input, SmithyResponse<ListCommentsOutput> output)
-            throws Exception {
-
-        if (!input.approved() && !authInfo.isPresent()) {
-            output.completeExceptionally(new ResponseException(FORBIDDEN,
-                    "Only admins can view unpublished comments"));
+    public void respond(SmithyRequest request, ReadBlogInput input, SmithyResponse<ReadBlogOutput> output) throws Exception {
+        Optional<ReadBlogOutput> opt = store.blog(input.id());
+        if (!opt.isPresent()) {
+            output.completeExceptionally(new ResponseException(410, input.id().toString()));
+            return;
         }
-        store.comments(input.id(), input.approved())
-                .ifPresentOrElse(comments -> {
-                    if (request.isMethod("HEAD")) {
-                        output.complete(null);
-                    } else {
-                        output.complete(comments);
-                    }
-                }, () -> {
-                    output.completeExceptionally(new ResponseException(GONE, "No such blog"));
-                });
+        ReadBlogOutput blog = opt.get();
+        blog.metadata().lastModified().ifPresent(lm -> {
+            output.add(headerTypes().lastModified(), lm);
+        });
+        output.add(headerTypes().etag(), store.blogHash(input.id()));
+        if (request.isMethod("HEAD")) {
+            output.complete(null);
+        } else {
+            output.complete(blog);
+        }
     }
 
 }

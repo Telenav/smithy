@@ -24,6 +24,9 @@
         <module>blog-server-generated-impl</module>
         <module>blog-server-spi</module>
         <module>blog-server-vertx</module>
+        <module>blog-demo-backend</module>
+        <module>blog-demo-vertx</module>
+        <module>blog-server-spi-impl</module>
     </modules>
 
 </project>

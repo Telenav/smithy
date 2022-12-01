@@ -35,6 +35,10 @@ import static com.mastfrog.jackson.configuration.TimeSerializationMode.TIME_AS_I
 import static com.mastfrog.jackson.configuration.DurationSerializationMode.DURATION_AS_ISO_STRING;
 import com.telenav.blog.BlogService;
 import com.telenav.blog.auth.AuthenticateWithAuthUser;
+import com.telenav.smithy.blog.server.spi.impl.AuthImpl;
+import com.telenav.smithy.blog.server.spi.impl.ListBlogsResponderImpl;
+import com.telenav.smithy.blog.server.spi.impl.ListCommentsResponderImpl;
+import com.telenav.smithy.blog.server.spi.impl.ReadBlogResponderImpl;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import java.net.URLDecoder;
 import java.nio.file.Path;

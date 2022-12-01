@@ -389,6 +389,15 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                                     .endConcatenation()
                                     .on("ErrorResponse")
                                     .endIf();
+                            cb.importing("com.mastfrog.smithy.http.ResponseException");
+                            bb.iff(variable("thrown").isInstance("ResponseException"))
+                                    .returningInvocationOf("create")
+                                    .withArgumentFromInvoking("valueOf")
+                                    .withArgument("((ResponseException)thrown).status()")
+                                    .on("HttpResponseStatus")
+                                    .withArgumentFromInvoking("getMessage").on("thrown")
+                                    .on("ErrorResponse")
+                                    .endIf();
                             bb.iff(variable("thrown").isInstance("UnsupportedOperationException"))
                                     .returningInvocationOf("create")
                                     .withArgumentFromField("NOT_IMPLEMENTED").of("HttpResponseStatus")

@@ -31,6 +31,10 @@
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
+            <artifactId>util-time</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
             <artifactId>annotation-processors</artifactId>
             <scope>provided</scope>
         </dependency>

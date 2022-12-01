@@ -23,9 +23,12 @@
  */
 package com.telenav.smithy.vertx.adapter;
 
+import com.mastfrog.smithy.http.ResponseException;
 import com.mastfrog.smithy.http.AuthenticationResultConsumer;
 import com.mastfrog.smithy.http.AuthenticationResultConsumerFactory;
 import com.mastfrog.util.service.ServiceProvider;
+import com.mastfrog.util.strings.Strings;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -57,17 +60,17 @@ public class VertxAuthenticationResultConsumerFactory extends AuthenticationResu
 
         @Override
         public void unauthorized() {
-            throw new UnsupportedOperationException("Not supported yet.");
+            throw new ResponseException(401, "Unauthorized");
         }
 
         @Override
         public void forbidden() {
-            throw new UnsupportedOperationException("Not supported yet.");
+            throw new ResponseException(403, "Forbidden");
         }
 
         @Override
         public void failed(Throwable thrown) {
-            throw new UnsupportedOperationException("Not supported yet.");
+            throw new ResponseException(500, Strings.toString(thrown), thrown);
         }
 
     }

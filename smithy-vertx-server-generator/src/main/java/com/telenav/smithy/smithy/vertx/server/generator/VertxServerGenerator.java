@@ -23,9 +23,14 @@
  */
 package com.telenav.smithy.smithy.vertx.server.generator;
 
+import com.mastfrog.function.state.Bool;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
+import com.mastfrog.java.vogon.ClassBuilder.Value;
+import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
+import static com.mastfrog.java.vogon.ClassBuilder.number;
+import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
@@ -55,6 +60,7 @@ import static com.mastfrog.smithy.server.common.OriginType.URI_QUERY;
 import com.mastfrog.smithy.server.common.PayloadOrigin;
 import com.mastfrog.smithy.server.common.RequestParameterOrigin;
 import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
+import static com.mastfrog.util.strings.Strings.capitalize;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.packageOf;
@@ -62,6 +68,8 @@ import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.telenav.smithy.names.operation.OperationNames;
 import static com.telenav.smithy.names.operation.OperationNames.authPackage;
 import static com.telenav.smithy.names.operation.OperationNames.authenticateWithInterfaceName;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
 import static com.telenav.smithy.names.operation.OperationNames.serviceAuthenticatedOperationsEnumName;
 import com.telenav.smithy.utils.ResourceGraph;
 import com.telenav.smithy.utils.ResourceGraphs;
@@ -70,18 +78,24 @@ import static com.telenav.smithy.utils.ShapeUtils.requiredOrHasDefault;
 import com.telenav.smithy.utils.path.PathInfo;
 import com.telenav.smithy.utils.path.PathInformationExtractor;
 import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
+import static java.beans.Introspector.decapitalize;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
+import static javax.lang.model.element.Modifier.VOLATILE;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.pattern.SmithyPattern;
 import software.amazon.smithy.model.pattern.UriPattern;
@@ -89,6 +103,7 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
 import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
@@ -127,7 +142,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         debug = settings.is(DEBUG);
     }
 
-    private void initCb(ClassBuilder<?> cb) {
+    private void initDebug(ClassBuilder<?> cb) {
         applyGeneratedAnnotation(VertxServerGenerator.class, cb);
         if (debug) {
             cb.generateDebugLogCode();
@@ -136,7 +151,12 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
-        ClassBuilder<String> routerBuilder = ClassBuilder.forPackage(names().packageOf(shape))
+
+        ResourceGraph graph = ResourceGraphs.graph(model, shape);
+        Set<OperationShape> ops = graph.transformedClosure(shape, sh -> sh.isOperationShape() ? sh.asOperationShape().get() : null);
+
+        // Pending - need to sort ops by path to avoid collisions?
+        ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
                 .named(escape(shape.getId().getName(shape)))
                 .docComment("Generates and can start the " + shape.getId().getName() + ".")
                 .withModifier(PUBLIC, FINAL)
@@ -144,12 +164,214 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         "com.telenav.vertx.guice.VertxGuiceModule",
                         "com.telenav.vertx.guice.verticle.VerticleBuilder",
                         "io.vertx.core.http.HttpMethod",
-                        "com.mastfrog.jackson.JacksonModule"
-                );
-        initCb(routerBuilder);
+                        "com.mastfrog.jackson.JacksonModule",
+                        "com.google.inject.Binder",
+                        "com.google.inject.Module"
+                ).implementing("Module");
+        initDebug(cb);
 
-        routerBuilder.method("createModule", mth -> {
-            mth.withModifier(PUBLIC, STATIC, FINAL)
+        generateStartMethod(cb);
+
+        generateCustomizeVerticleFieldsAndMethods(cb);
+
+        generateConfigureOverride(cb, ops);
+
+        generateCreateVertxModuleMethod(cb, graph, ops, addTo);
+
+        generateMainMethod(cb);
+        addTo.accept(cb);
+    }
+
+    public void generateConfigureOverride(ClassBuilder<String> cb, Set<OperationShape> ops) {
+        cb.overridePublic("configure", mth -> {
+            mth.addArgument("Binder", "binder");
+            mth.body(bb -> {
+                generateOpInterfaceBindingMethodsFieldsAndConfigStanzas(bb, cb, ops);
+                generateAuthBindingMethodsAndCalls(bb, cb, ops);
+                String moduleVar = "vertxModule";
+
+                bb.declare(moduleVar)
+                        .initializedByInvoking("createVertxModule")
+                        .inScope()
+                        .as("VertxGuiceModule");
+
+                generateVertxModuleConfigurationStanzas(moduleVar, bb, cb);
+
+                generateModuleAdditionMethod(moduleVar, bb, cb);
+                bb.invoke("install").withArgument(moduleVar).on("binder");
+                bb.statement("initialized = true");
+            });
+        });
+    }
+
+    public void generateStartMethod(ClassBuilder<String> cb) {
+        cb.method("start", mth -> {
+            cb.importing("static com.google.inject.Guice.createInjector",
+                    "com.telenav.vertx.guice.VertxLauncher",
+                    "io.vertx.core.Vertx");
+
+            mth.withModifier(PUBLIC)
+                    .docComment("Start the server on the default port."
+                            + "\n@return the Vertx instance")
+                    .returning("Vertx")
+                    .body(bb -> {
+                        bb.returningInvocationOf("start")
+                                .onInvocationOf("getInstance")
+                                .withClassArgument("VertxLauncher")
+                                .onInvocationOf("createInjector")
+                                .withArgument("this")
+                                .inScope();
+                    });
+        });
+        cb.method("start", mth -> {
+            mth.withModifier(PUBLIC)
+                    .docComment("Start the server on the a specific port."
+                            + "\n@param port the port"
+                            + "\n@return the Vertx instance")
+                    .addArgument("int", "port")
+                    .returning("Vertx")
+                    .body(bb -> {
+                        bb.iff(variable("port").isLessThanOrEqualTo(number(0)))
+                                .andThrow(nb -> nb.withStringLiteral("Port must be > 0").ofType("IllegalArgumentException"))
+                                .endIf();
+                        bb.returningInvocationOf("start")
+                                .onInvocationOf("getInstance")
+                                .withClassArgument("VertxLauncher")
+                                .onInvocationOf("createInjector")
+                                .withArgumentFromInvoking("configuringVerticleWith")
+                                .withLambdaArgument(lb -> {
+                                    lb.withArgument("vb")
+                                            .body(lbb -> lbb.invoke("withPort").withArgument("port").on("vb"));
+                                })
+                                .on("this")
+                                .inScope();
+                    });
+
+        });
+    }
+
+    private <C, B extends BlockBuilderBase<C, B, ?>> String generateModuleAdditionMethod(String moduleVar, B bb, ClassBuilder<String> cb) {
+        String modulesField = "modules";
+        cb.field("modules")
+                .withModifier(PRIVATE, FINAL)
+                .initializedWithNew(nb -> nb.ofType("ArrayList<>"))
+                .ofType("List<Module>");
+        cb.importing(List.class, ArrayList.class);
+
+        cb.method("installing", mth -> {
+            mth.withModifier(PUBLIC)
+                    .addArgument("Module", "module")
+                    .returning(cb.className())
+                    .body(addModule -> {
+                        addModule.invoke("add").withArgument("module").on(modulesField);
+                        addModule.returningThis();
+                    });
+        });
+        bb.invoke("forEach")
+                .withMethodReference("withModule").on(moduleVar)
+                .on(modulesField);
+
+        return modulesField;
+    }
+
+    private <C, B extends BlockBuilderBase<C, B, ?>> void generateVertxModuleConfigurationStanzas(String moduleVar, B bb, ClassBuilder<String> cb) {
+        cb.importing(Consumer.class);
+        String consumerField = "vertxModuleConfigurer";
+        String consumerType = "Consumer<VertxGuiceModule>";
+        cb.field(consumerField, fld -> {
+            fld.withModifier(PRIVATE)
+                    .initializedAsLambda(consumerType, lb -> lb.withArgument("ignored").emptyBody());
+        });
+        cb.method("configuringVertxWith", mth -> {
+            mth.withModifier(PUBLIC).addArgument(consumerType, "consumer")
+                    .returning(cb.className())
+                    .body(setConsumer -> {
+                        setConsumer.ifNull("consumer")
+                                .andThrow(nb -> nb.withStringLiteral("Consumer may not be null").ofType("IllegalArgumentException")).endIf();
+                        setConsumer.assignField(consumerField)
+                                .ofThis()
+                                .toInvocation("andThen")
+                                .withArgument("consumer")
+                                .onField(consumerField).ofThis();
+                        setConsumer.returningThis();
+                    });
+        });
+        bb.invoke("accept").withArgument(moduleVar).onField(consumerField).ofThis();
+    }
+
+    private <C, B extends BlockBuilderBase<C, B, ?>> void generateOpInterfaceBindingMethodsFieldsAndConfigStanzas(B bb, ClassBuilder<String> cb, Set<OperationShape> ops) {
+        cb.field("initialized")
+                .withModifier(PRIVATE, VOLATILE)
+                .ofType("boolean");
+        cb.method("checkInitialized", mth -> {
+            mth.withModifier(PRIVATE)
+                    .body(mb -> {
+                        mb.iff().booleanExpression("initialized")
+                                .andThrow(nb -> nb
+                                .withStringLiteral("Cannot configure " + cb.className()
+                                        + " after injector creation.  configure() has already been called.")
+                                .ofType("IllegalStateException"))
+                                .endIf();
+                    });
+        });
+        for (OperationShape sh : ops) {
+            cb.importing(operationInterfaceFqn(model, sh));
+            String typeName = operationInterfaceName(sh);
+            String fieldName = decapitalize(typeName) + "Type";
+            String argName = "inbound" + capitalize(fieldName);
+            String fieldType = "Class<? extends " + typeName + ">";
+
+            bb.ifNotNull(fieldName).invoke("to")
+                    .withArgument(fieldName)
+                    .onInvocationOf("bind")
+                    .withClassArgument(typeName)
+                    .on("binder").endIf();
+
+            cb.field(fieldName, fld -> {
+                fld.withModifier(PRIVATE)
+                        .ofType(fieldType);
+            });
+
+            cb.method("with" + typeName, mth -> {
+                mth.withModifier(PUBLIC)
+                        .docComment("Provide an implementation of " + typeName + " to run with."
+                                + "\n@param " + argName + " a class that implements " + typeName
+                                + "\n@return this"
+                                + "\n@throws IllegalArgumentException if the value is null, abstract or not actually a subtype of " + typeName
+                                + "\n@throws IllegalStateException if configure() has been called and Guice bindings have already been set up"
+                        )
+                        .addArgument(fieldType, argName)
+                        .returning(cb.className())
+                        .body(typeAssign -> {
+                            typeAssign.invoke("checkInitialized").inScope();
+                            typeAssign.ifNull(argName)
+                                    .andThrow(nb -> {
+                                        nb.withStringLiteral(argName + " may not be null")
+                                                .ofType("IllegalArgumentException");
+                                    }).endIf();
+                            Value abstractTest = invocationOf("getModifiers")
+                                    .on(argName).and("java.lang.reflect.Modifier.ABSTRACT")
+                                    .parenthesized().isNotEqualTo(number(0)
+                                            .logicalOrWith(invocationOf("isInterface").on(argName)));
+
+                            typeAssign.iff(abstractTest)
+                                    .andThrow(nb -> nb.withStringLiteral("Cannot bind an abstract class or interface")
+                                    .ofType("IllegalArgumentException")).endIf();
+                            typeAssign.iff(invocationOf("isAssignableFrom").withArgument(argName).on(typeName + ".class").isEqualTo("false"))
+                                    .andThrow(nb -> nb.withStringLiteral("Not really a subclass of " + typeName).ofType("IllegalArgumentException")).endIf();
+
+                            typeAssign.assignField(fieldName)
+                                    .ofThis().toExpression(argName);
+                            typeAssign.returningThis();
+                        });
+                ;
+            });
+        }
+    }
+
+    public void generateCreateVertxModuleMethod(ClassBuilder<String> routerBuilder, ResourceGraph graph, Collection<? extends OperationShape> ops, Consumer<ClassBuilder<String>> addTo) {
+        routerBuilder.method("createVertxModule", mth -> {
+            mth.withModifier(PRIVATE, FINAL)
                     .returning("VertxGuiceModule")
                     .docComment("Creates a Guice module that sets up a Verticle with all of the "
                             + "operations for the " + shape.getId().getName() + " model."
@@ -175,10 +397,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .on("result")
                                 .as("VerticleBuilder<VertxGuiceModule>");
 
-                        ResourceGraph graph = ResourceGraphs.graph(model, shape);
-
-                        Set<OperationShape> ops = graph.transformedClosure(shape, sh -> sh.isOperationShape() ? sh.asOperationShape().get() : null);
-
                         ops.forEach(op -> {
                             System.out.println("OP " + op);
                             ClassBuilder<String> operationClass = generateOperation(op, graph);
@@ -187,6 +405,11 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             System.out.println("GEN VX OP " + op + " -> " + operationClass.fqn());
                             addTo.accept(operationClass);
                         });
+
+                        bb.invoke("accept")
+                                .withArgument(verticleBuilderName)
+                                .on("verticleConfigurer");
+
                         bb.blankLine()
                                 .lineComment("Finish the builder, leaving the guice module ready ")
                                 .lineComment("to have start() called on it, or to be included with ")
@@ -194,7 +417,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         bb.returningInvocationOf("bind").on(verticleBuilderName);
                     });
         });
-        addTo.accept(routerBuilder);
     }
 
     private String operationPackage(OperationShape op) {
@@ -217,7 +439,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 .implementing("Handler<RoutingContext>")
                 .withModifier(PUBLIC, FINAL);
 
-        initCb(cb);
+        initDebug(cb);
         cb.field("spi")
                 .withModifier(FINAL, PRIVATE)
                 .ofType(OperationNames.operationInterfaceName(op));
@@ -693,7 +915,7 @@ WANT SOMETHING LIKE:
                     String name = m.getMemberName();
                     RequestParameterOrigin uq = new RequestParameterOrigin(name, URI_QUERY,
                             declarationFor(URI_QUERY, memberTarget, m, model, cb));
-                    
+
                     sb.append(" - query ").append(name);
                     // XXX check the trait that can provide an alternate name
                     st.add(new InputMemberObtentionStrategy(uq,
@@ -701,7 +923,7 @@ WANT SOMETHING LIKE:
                 } else if (m.getTrait(HttpHeaderTrait.class).isPresent()) {
                     String name = m.getMemberName();
                     HttpHeaderTrait trait = m.getTrait(HttpHeaderTrait.class).get();
-                    sb.append(" - header " + trait.getValue());
+                    sb.append(" - header ").append(trait.getValue());
 
                     RequestParameterOrigin uq = new RequestParameterOrigin(trait.getValue(), HTTP_HEADER,
                             declarationFor(HTTP_HEADER, memberTarget, m, model, cb));
@@ -815,6 +1037,50 @@ WANT SOMETHING LIKE:
         return res.closedWith(DeclarationClose.onRequest(typeNameOf(memberTarget, requiredOrHasDefault)));
     }
 
+    private void generateCustomizeVerticleFieldsAndMethods(ClassBuilder<String> cb) {
+        cb.field("verticleConfigurer")
+                .withModifier(PRIVATE)
+                .initializedAsLambda("Consumer<VerticleBuilder<VertxGuiceModule>>", lb -> lb.withArgument("ignored").emptyBody());
+        cb.method("configuringVerticleWith")
+                .addArgument("Consumer<? super VerticleBuilder<VertxGuiceModule>>", "consumer")
+                .withModifier(PUBLIC)
+                .returning(cb.className())
+                .body(bb -> {
+                    bb.invoke("checkInitialized").inScope();
+                    bb.ifNull("consumer")
+                            .andThrow(nb -> nb.withStringLiteral("Consumer may not be null").ofType("IllegalArgumentException"));
+                    bb.assignField("verticleConfigurer")
+                            .ofThis()
+                            .toInvocation("andThen")
+                            .withArgument("consumer")
+                            .onField("verticleConfigurer")
+                            .ofThis();
+                    bb.returning("this");
+                });
+    }
+
+    private void generateMainMethod(ClassBuilder<String> cb) {
+        cb.method("main", mth -> {
+            mth.addArgument("String[]", "args")
+                    .withModifier(PUBLIC, STATIC)
+                    .body(bb -> {
+                        bb.invoke("start")
+                                .onInvocationOf("configuringVerticleWith")
+                                .withLambdaArgument(lb -> {
+                                    lb.withArgument("verticleBuilder")
+                                            .body(lbb -> {
+                                                lbb.invoke("withPort")
+                                                        .withArgument(8123)
+                                                        .on("verticleBuilder");
+                                            });
+                                })
+                                .onNew(nb -> {
+                                    nb.ofType(cb.className());
+                                });
+                    });
+        });
+    }
+
     interface AuthInfoConsumer {
 
         void authInfo(Shape payload, String mechanism, String pkg, String payloadType, boolean optional);
@@ -831,6 +1097,83 @@ WANT SOMETHING LIKE:
             String nm = typeNameOf(payload);
             c.authInfo(payload, auth.getMechanism(), pkg, nm, auth.isOptional());
         });
+    }
+
+    private <C, B extends BlockBuilderBase<C, B, ?>> void generateAuthBindingMethodsAndCalls(B bb, ClassBuilder<?> cb, Set<OperationShape> ops) {
+        Set<String> mechanisms = new TreeSet<>();
+        Bool hasOptional = Bool.create();
+        Map<ShapeId, Set<OperationShape>> operationsForPayload = new HashMap<>();
+        Set<ShapeId> allPayloadTypes = new HashSet<>();
+
+        for (Shape opId : ops) {
+            OperationShape op = opId.asOperationShape().get();
+            op.getTrait(AuthenticatedTrait.class).ifPresent(authTrait -> {
+                mechanisms.add(authTrait.getMechanism().toLowerCase());
+                hasOptional.or(authTrait::isOptional);
+                allPayloadTypes.add(authTrait.getPayload());
+                operationsForPayload.computeIfAbsent(authTrait.getPayload(), p -> new HashSet<>()).add(op);
+            });
+        }
+        if (mechanisms.isEmpty()) {
+            return;
+        }
+        String pkg = authPackage(shape, names());
+        for (ShapeId id : allPayloadTypes) {
+            String nm = authenticateWithInterfaceName(id);
+            cb.importing(pkg + "." + nm);
+
+            String fieldName = decapitalize(nm) + "Type";
+            String argName = "type";
+            String classType = "Class<? extends " + nm + ">";
+            String methodName = decapitalize(nm) + "Using";
+
+            bb.ifNotNull(fieldName)
+                    .invoke("to")
+                    .withArgument(fieldName)
+                    .onInvocationOf("bind")
+                    .withClassArgument(nm)
+                    .on("binder")
+                    .endIf();
+
+            cb.field(fieldName, fld -> {
+                fld.withModifier(PRIVATE)
+                        .ofType(classType);
+            });
+
+            cb.method(methodName, mth -> {
+                mth.addArgument(classType, argName)
+                        .withModifier(PUBLIC)
+                        /// Pending - list the operations using this interface
+                        .docComment("Bind an authenticator for use in authenticating.  An implementation <b>must</b> be bound "
+                                + "for the operations which use this authentication mechanism to function."
+                                + "\n@param " + argName + " an class which implements <code>" + nm + "</code>"
+                                + "\n@return this")
+                        .returning(cb.className())
+                        .body(typeAssign -> {
+                            typeAssign.invoke("checkInitialized").inScope();
+                            typeAssign.ifNull(argName)
+                                    .andThrow(nb -> {
+                                        nb.withStringLiteral(argName + " may not be null")
+                                                .ofType("IllegalArgumentException");
+                                    }).endIf();
+                            Value abstractTest = invocationOf("getModifiers")
+                                    .on(argName).and("java.lang.reflect.Modifier.ABSTRACT")
+                                    .parenthesized().isNotEqualTo(number(0)
+                                            .logicalOrWith(invocationOf("isInterface").on(argName)));
+
+                            typeAssign.iff(abstractTest)
+                                    .andThrow(nb -> nb.withStringLiteral("Cannot bind an abstract class or interface")
+                                    .ofType("IllegalArgumentException")).endIf();
+                            typeAssign.iff(invocationOf("isAssignableFrom").withArgument(argName).on(nm + ".class").isEqualTo("false"))
+                                    .andThrow(nb -> nb.withStringLiteral("Not really a subclass of " + classType).ofType("IllegalArgumentException")).endIf();
+
+                            typeAssign.assignField(fieldName)
+                                    .ofThis().toExpression(argName);
+                            typeAssign.returningThis();
+
+                        });
+            });
+        }
     }
 
 }
