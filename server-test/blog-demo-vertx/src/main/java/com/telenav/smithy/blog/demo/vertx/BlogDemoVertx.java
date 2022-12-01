@@ -51,9 +51,7 @@ public class BlogDemoVertx {
                             .annotatedWith(Names.named("background"))
                             .toInstance(Executors.newCachedThreadPool());
 
-                    // Requires a local copy of my old blogs, for now
-                    Path dir = Paths.get(System.getProperty("user.home"))
-                            .resolve("work/personal/blog-data");
+                    Path dir = Paths.get("/tmp/blog-demo");
                     binder.bind(Path.class).annotatedWith(Names.named("blogDir")).toInstance(dir);
                 })
                 .start(8123);

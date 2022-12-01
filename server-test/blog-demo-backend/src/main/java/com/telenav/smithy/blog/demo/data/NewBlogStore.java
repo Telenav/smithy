@@ -24,8 +24,6 @@
 package com.telenav.smithy.blog.demo.data;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.inject.Inject;
-import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.telenav.blog.model.BlogId;
 import com.telenav.blog.model.BlogInfo;
@@ -36,10 +34,8 @@ import com.telenav.blog.model.ListCommentsOutput;
 import com.telenav.blog.model.ReadBlogOutput;
 import static com.telenav.smithy.blog.demo.data.BlogCriteria.blogCriteria;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import static java.nio.file.StandardOpenOption.READ;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,8 +53,7 @@ import java.util.logging.Logger;
  *
  * @author Tim Boudreau
  */
-@Singleton
-public class BlogStore {
+public class NewBlogStore {
 
     private final Path dir;
     private final Map<BlogId, ReadBlogOutput> blogs = new LinkedHashMap<>();
@@ -66,27 +61,12 @@ public class BlogStore {
     private final Map<BlogId, List<Comment>> unpublishedComments = new HashMap<>();
     private final ObjectMapper mapper;
 
-    @Inject
-    public BlogStore(@Named(value = "blogDir") Path dir, ObjectMapper mapper) throws IOException {
+    NewBlogStore(@Named(value = "blogDir") Path dir, ObjectMapper mapper) throws IOException {
         this.mapper = mapper;
         if (!Files.exists(dir)) {
             Files.createDirectories(dir);
             System.out.println("Unpack blog archive to " + dir);
             BlogSet.load().unpack(dir);
-        }
-        this.dir = dir;
-        load();
-        System.out.println("Loaded " + blogs.size() + " blogs");
-    }
-
-    public BlogStore(@Named(value = "blogDir") Path dir, ObjectMapper mapper, Path blogSet) throws IOException {
-        this.mapper = mapper;
-        if (!Files.exists(dir)) {
-            Files.createDirectories(dir);
-            System.out.println("Unpack blog archive to " + dir);
-            try (InputStream in = Files.newInputStream(blogSet, READ)) {
-                BlogSet.load(in).unpack(dir);
-            }
         }
         this.dir = dir;
         load();

@@ -209,7 +209,7 @@ structure ListCommentsInput {
 string BlogId
 
 /// Title of a blog, with some constraints
-@length(min: 4, max: 480)
+@length(min: 2, max: 480)
 string Title
 
 @length(min: 5, max: 4096)
@@ -375,7 +375,7 @@ structure CommentContent {
     /// The author of the comment
     @required
     @identity
-    @length(min: 3, max: 64)
+    @length(min: 1, max: 64)
     author: String
 
     /// The email address of the comment author

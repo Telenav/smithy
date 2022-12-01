@@ -65,7 +65,7 @@ public class BlogDemo extends AbstractModule {
 
     @Override
     protected void configure() {
-        Path dir = Paths.get(System.getProperty("user.home")).resolve("work/personal/blog-data");
+        Path dir = Paths.get("/tmp/blog-demo");
         bind(Path.class).annotatedWith(Names.named("blogDir")).toInstance(dir);
         bind(AuthenticateWithAuthUser.class).to(AuthImpl.class);
         bind(RequestLogger.class).to(RL.class).asEagerSingleton();
