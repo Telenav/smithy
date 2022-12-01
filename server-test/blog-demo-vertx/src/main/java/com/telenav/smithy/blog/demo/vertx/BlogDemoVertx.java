@@ -42,10 +42,11 @@ public class BlogDemoVertx {
 
     public static void main(String[] args) {
         new BlogService()
+                .withReadBlogResponder(ReadBlogResponderImpl.class)
                 .authenticateWithAuthUserUsing(AuthImpl.class)
                 .withListBlogsResponder(ListBlogsResponderImpl.class)
                 .withListCommentsResponder(ListCommentsResponderImpl.class)
-                .withReadBlogResponder(ReadBlogResponderImpl.class)
+                
                 .installing(binder -> {
                     binder.bind(ExecutorService.class)
                             .annotatedWith(Names.named("background"))

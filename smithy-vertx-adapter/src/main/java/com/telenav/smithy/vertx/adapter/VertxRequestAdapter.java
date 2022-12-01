@@ -27,6 +27,7 @@ import com.mastfrog.smithy.http.SmithyRequest;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import static io.netty.util.CharsetUtil.UTF_8;
 import io.vertx.core.http.HttpServerRequest;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -64,8 +65,14 @@ public final class VertxRequestAdapter implements SmithyRequest {
             throw new IllegalArgumentException("Negative uri path index");
         }
         String pth = request.path();
+        if (pth.isEmpty()) {
+            return Optional.empty();
+        }
+        if (pth.charAt(0) == '/') {
+            pth = pth.substring(1);
+        }
         String[] parts = pth.split("\\/+");
-        if (parts.length >= index) {
+        if (index >= parts.length) {
             return Optional.empty();
         }
         return Optional.of(parts[index]);

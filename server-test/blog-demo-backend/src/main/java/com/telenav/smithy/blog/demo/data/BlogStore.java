@@ -201,7 +201,6 @@ public class BlogStore {
     }
 
     public Path blogFile(BlogId id, boolean published) {
-        Path base = dir.resolve(id.get());
         return blogDir(id, published).resolve("body.json");
     }
 

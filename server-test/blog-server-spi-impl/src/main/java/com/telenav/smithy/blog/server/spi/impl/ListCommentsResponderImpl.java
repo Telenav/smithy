@@ -52,11 +52,11 @@ public final class ListCommentsResponderImpl implements ListCommentsResponder {
             ListCommentsInput input, SmithyResponse<ListCommentsOutput> output)
             throws Exception {
 
-        if (!input.approved() && !authInfo.isPresent()) {
-            output.completeExceptionally(new ResponseException(403,
-                    "Only admins can view unpublished comments"));
-        }
-        store.comments(input.id(), input.approved())
+//        if (!input.approved() && !authInfo.isPresent()) {
+//            output.completeExceptionally(new ResponseException(403,
+//                    "Only admins can view unpublished comments"));
+//        }
+        store.comments(input.id(), input.approved() && authInfo.isPresent())
                 .ifPresentOrElse(comments -> {
                     if (request.isMethod("HEAD")) {
                         output.complete(null);
