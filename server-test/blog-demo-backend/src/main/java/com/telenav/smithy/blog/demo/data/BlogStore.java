@@ -104,7 +104,7 @@ public class BlogStore {
             try {
                 return Files.getLastModifiedTime(b).compareTo(Files.getLastModifiedTime(a));
             } catch (IOException ex) {
-                Logger.getLogger(NewBlogStore.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(BlogStore.class.getName()).log(Level.SEVERE, null, ex);
                 return 0;
             }
         });
@@ -113,7 +113,7 @@ public class BlogStore {
                 ReadBlogOutput o = mapper.readValue(bj.toFile(), ReadBlogOutput.class);
                 blogs.put(o.id(), o);
             } catch (IOException ioe) {
-                ioe.printStackTrace();
+                Logger.getLogger(BlogStore.class.getName()).log(Level.SEVERE, null, ioe);
             }
         }
     }
@@ -175,7 +175,7 @@ public class BlogStore {
                             try {
                                 result.add(mapper.readValue(cmtFile.toFile(), Comment.class));
                             } catch (IOException ex) {
-                                Logger.getLogger(NewBlogStore.class.getName()).log(Level.SEVERE, null, ex);
+                                Logger.getLogger(BlogStore.class.getName()).log(Level.SEVERE, null, ex);
                             }
                         });
             } catch (IOException ex) {
