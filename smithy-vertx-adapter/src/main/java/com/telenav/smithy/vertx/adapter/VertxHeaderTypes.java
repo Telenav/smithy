@@ -39,6 +39,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
@@ -78,10 +79,22 @@ public class VertxHeaderTypes extends HeaderTypes {
         return timeHeader("if-unmodified-since");
     }
 
+    @SuppressWarnings("deprecation")
     private HeaderSpec<Instant> timeHeader(String name) {
         return charSequenceHeader(name)
                 .convert(Instant.class,
-                        v -> TimeUtil.fromHttpHeaderFormat(v.toString()).toInstant(),
+                        v -> {
+                            String s = v.toString();
+                            try {
+                                // DateTimeFormatter will complain if, say Tuesday
+                                // should be Wednesday - we don't want that here -
+                                // as they say, be liberal in what you accept and
+                                // strict in what you emit.
+                                return TimeUtil.fromHttpHeaderFormat(s).toInstant();
+                            } catch (DateTimeParseException ex) {
+                                return Instant.ofEpochMilli(java.util.Date.parse(s));
+                            }
+                        },
                         t -> TimeUtil.toHttpHeaderFormat(ZonedDateTime.ofInstant(t, ZoneId.of("Z")))
                 );
     }
@@ -135,17 +148,47 @@ public class VertxHeaderTypes extends HeaderTypes {
 
     @Override
     public HeaderSpec<CharSequence> ifNoneMatch() {
-        return charSequenceHeader("if-none-match");
+        return charSequenceHeader("if-none-match")
+                .convert(CharSequence.class,
+                        VertxHeaderTypes::requote, VertxHeaderTypes::dequote);
     }
 
     @Override
     public HeaderSpec<CharSequence> ifMatch() {
-        return charSequenceHeader("if-match");
+        return charSequenceHeader("if-match")
+                .convert(CharSequence.class,
+                        VertxHeaderTypes::requote, VertxHeaderTypes::dequote);
     }
 
     @Override
     public HeaderSpec<CharSequence> etag() {
-        return charSequenceHeader("etag");
+        // ETag-like headers are a special case in that they are sometimes
+        // quoted, sometimes not, and we need to match on either
+        return charSequenceHeader("etag")
+                .convert(CharSequence.class,
+                        VertxHeaderTypes::requote, VertxHeaderTypes::dequote);
+    }
+
+    static CharSequence dequote(CharSequence seq) {
+        if (seq == null || seq.length() <= 1) {
+            return seq;
+        }
+        int end = seq.length() - 1;
+        if (seq.charAt(0) == '"' && seq.charAt(end) == '"') {
+            return seq.subSequence(1, end);
+        }
+        return seq;
+    }
+
+    static CharSequence requote(CharSequence seq) {
+        if (seq.length() <= 1) {
+            return seq;
+        }
+        int end = seq.length() - 1;
+        if (seq.charAt(0) != '"' && seq.charAt(end) != '"') {
+            return "\"" + seq + "\"";
+        }
+        return seq;
     }
 
     @Override

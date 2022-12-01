@@ -25,6 +25,7 @@ package com.telenav.smithy.blog.server.spi.impl;
 
 import com.telenav.smithy.blog.demo.data.BlogStore;
 import com.google.inject.Inject;
+import com.mastfrog.smithy.http.HeaderTypes;
 import static com.mastfrog.smithy.http.HeaderTypes.headerTypes;
 import com.mastfrog.smithy.http.ResponseException;
 import com.mastfrog.smithy.http.SmithyRequest;
@@ -32,6 +33,8 @@ import com.mastfrog.smithy.http.SmithyResponse;
 import com.telenav.blog.model.ReadBlogInput;
 import com.telenav.blog.model.ReadBlogOutput;
 import com.telenav.blog.spi.ReadBlogResponder;
+import java.time.Instant;
+import java.time.temporal.ChronoField;
 import java.util.Optional;
 
 /**
@@ -48,22 +51,47 @@ public final class ReadBlogResponderImpl implements ReadBlogResponder {
     }
 
     @Override
-    public void respond(SmithyRequest request, ReadBlogInput input, SmithyResponse<ReadBlogOutput> output) throws Exception {
+    public void respond(SmithyRequest request, ReadBlogInput input,
+            SmithyResponse<ReadBlogOutput> output) throws Exception {
         Optional<ReadBlogOutput> opt = store.blog(input.id());
         if (!opt.isPresent()) {
             output.completeExceptionally(new ResponseException(410, input.id().toString()));
             return;
         }
+        String hash = store.blogHash(input.id());
+
         ReadBlogOutput blog = opt.get();
+        boolean matched = isEtagMatch(hash, request) || isLastModifiedMatch(blog, request);
+
+        if (matched) {
+            output.status(304).complete(null);
+            return;
+        }
+
         blog.metadata().lastModified().ifPresent(lm -> {
             output.add(headerTypes().lastModified(), lm);
         });
-        output.add(headerTypes().etag(), store.blogHash(input.id()));
+        output.add(headerTypes().etag(), hash);
+
         if (request.isMethod("HEAD")) {
             output.complete(null);
         } else {
             output.complete(blog);
         }
+    }
+
+    private static boolean isEtagMatch(String hash, SmithyRequest request) {
+        return request.header(HeaderTypes.headerTypes().ifNoneMatch()).map(inm -> {
+            return inm.toString().equals(hash);
+        }).orElse(false);
+    }
+
+    private static boolean isLastModifiedMatch(ReadBlogOutput blog, SmithyRequest request) {
+        return request.header(HeaderTypes.headerTypes().ifModifiedSince()).map(ims -> {
+            Instant when = blog.metadata().lastModified().orElse(blog.metadata().created())
+                    .with(ChronoField.MILLI_OF_SECOND, 0);
+            return when.equals(ims) || when.isAfter(ims);
+        }).orElse(false);
     }
 
 }

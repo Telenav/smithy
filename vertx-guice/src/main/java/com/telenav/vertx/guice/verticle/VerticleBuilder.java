@@ -14,6 +14,7 @@ import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import java.util.ArrayList;
+import static java.util.Collections.singletonList;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -84,7 +85,11 @@ public final class VerticleBuilder<T> {
 
     public RouteBuilder<RouteFinisher<VerticleBuilder<T>>> route() {
         return new RouteBuilder<>(routeCreator -> {
-            return new RouteFinisher<>(routeCreator, (Function<Router, Route> rc, Function<Binder, Provider<? extends Handler<RoutingContext>>> handler) -> {
+            return new RouteFinisher<>(routeCreator, (Function<Router, Route> rc, 
+                    List<Function<Binder, Provider<? extends Handler<RoutingContext>>>> handler) -> {
+                if (handler.isEmpty()) {
+                    throw new IllegalStateException("Handler list is empty");
+                }
                 entries.add(new RouteEntry(rc, handler));
                 return this;
             });
@@ -94,21 +99,72 @@ public final class VerticleBuilder<T> {
     public static class RouteFinisher<B> {
 
         private final Function<Router, Route> routeCreator;
-        private final BiFunction<Function<Router, Route>, Function<Binder, Provider<? extends Handler<RoutingContext>>>, B> converter;
+        private final BiFunction<Function<Router, Route>, List<Function<Binder, Provider<? extends Handler<RoutingContext>>>>, B> converter;
 
-        RouteFinisher(Function<Router, Route> routeCreator, BiFunction<Function<Router, Route>, Function<Binder, Provider<? extends Handler<RoutingContext>>>, B> converter) {
+        RouteFinisher(Function<Router, Route> routeCreator, BiFunction<Function<Router, Route>, List<Function<Binder, Provider<? extends Handler<RoutingContext>>>>, B> converter) {
             this.routeCreator = routeCreator;
             this.converter = converter;
         }
 
+        public FinishableMultiHandlerRouteFinisher<B> withHandler(Handler<RoutingContext> handler) {
+            RouteHandlerFromInstanceCreator initial = new RouteHandlerFromInstanceCreator(handler);
+            return new FinishableMultiHandlerRouteFinisher<>(initial, routeCreator, converter);
+        }
+
+        public FinishableMultiHandlerRouteFinisher<B> withHandler(Class<? extends Handler<RoutingContext>> type) {
+            RouteHandlerFromTypeCreator initial = new RouteHandlerFromTypeCreator(type);
+            return new FinishableMultiHandlerRouteFinisher<>(initial, routeCreator, converter);
+        }
+
         public B handledBy(Handler<RoutingContext> handler) {
-            return converter.apply(routeCreator, new RouteHandlerFromInstanceCreator(handler));
+            return converter.apply(routeCreator, singletonList(new RouteHandlerFromInstanceCreator(handler)));
         }
 
         public B handledBy(Class<? extends Handler<RoutingContext>> type) {
-            return converter.apply(routeCreator, new RouteHandlerFromTypeCreator(type));
+            return converter.apply(routeCreator, singletonList(new RouteHandlerFromTypeCreator(type)));
+        }
+    }
+
+    public static class FinishableMultiHandlerRouteFinisher<B> {
+
+        private final Function<Router, Route> routeCreator;
+        private final BiFunction<Function<Router, Route>, List<Function<Binder, Provider<? extends Handler<RoutingContext>>>>, B> converter;
+        private List<Function<Binder, Provider<? extends Handler<RoutingContext>>>> all = new ArrayList<>();
+
+        public FinishableMultiHandlerRouteFinisher(
+                Function<Binder, Provider<? extends Handler<RoutingContext>>> initial, Function<Router, Route> routeCreator, BiFunction<Function<Router, Route>, List<Function<Binder, Provider<? extends Handler<RoutingContext>>>>, B> converter) {
+            all.add(initial);
+            this.routeCreator = routeCreator;
+            this.converter = converter;
         }
 
+        public B done() {
+            return converter.apply(routeCreator, all);
+        }
+
+        public FinishableMultiHandlerRouteFinisher<B> withHandler(Handler<RoutingContext> handler) {
+            RouteHandlerFromInstanceCreator curr = new RouteHandlerFromInstanceCreator(handler);
+            all.add(curr);
+            return this;
+        }
+
+        public FinishableMultiHandlerRouteFinisher<B> withHandler(Class<? extends Handler<RoutingContext>> type) {
+            RouteHandlerFromTypeCreator curr = new RouteHandlerFromTypeCreator(type);
+            all.add(curr);
+            return this;
+        }
+
+        public B terminatedBy(Handler<RoutingContext> handler) {
+            RouteHandlerFromInstanceCreator curr = new RouteHandlerFromInstanceCreator(handler);
+            all.add(curr);
+            return done();
+        }
+
+        public B terminatedBy(Class<? extends Handler<RoutingContext>> type) {
+            RouteHandlerFromTypeCreator curr = new RouteHandlerFromTypeCreator(type);
+            all.add(curr);
+            return done();
+        }
     }
 
     static class RouteHandlerFromTypeCreator implements Function<Binder, Provider<? extends Handler<RoutingContext>>> {

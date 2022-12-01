@@ -14,9 +14,9 @@ import javax.inject.Inject;
  */
 public final class InjectedVerticle extends AbstractVerticle {
 
-    private final Provider<Router> router;
+    private final Provider<Router> routerProvider;
     private final Provider<HttpServerOptions> serverOptionsCustomizer;
-    private final Provider<Vertx> vertx;
+    private final Provider<Vertx> vertxProvider;
     private final int port;
     private final List<RouteCreationHandler> routeCreators;
 
@@ -25,24 +25,24 @@ public final class InjectedVerticle extends AbstractVerticle {
             Provider<HttpServerOptions> serverOptionsCustomizer,
             Provider<Vertx> vertx, List<RouteCreationHandler> routeCreators,
             VerticleInfo info) {
-        this.router = router;
+        this.routerProvider = router;
         port = info.port;
         this.serverOptionsCustomizer = serverOptionsCustomizer;
-        this.vertx = vertx;
+        this.vertxProvider = vertx;
         this.routeCreators = routeCreators;
         System.out.println("Create an injected verticle");
     }
 
     @Override
     public void start() throws Exception {
-        Router router = this.router.get();
+        Router router = this.routerProvider.get();
 
         routeCreators.forEach(creator -> {
-            creator.rc.apply(router).handler(creator.handler.get());
+            creator.applyTo(router);
         });
 
-        Vertx vertx = this.vertx.get();
-        vertx.createHttpServer(serverOptionsCustomizer.get())
+        Vertx vx = this.vertxProvider.get();
+        vx.createHttpServer(serverOptionsCustomizer.get())
                 .requestHandler(router)
                 .listen(port)
                 .onSuccess(x -> {

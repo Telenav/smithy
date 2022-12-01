@@ -105,6 +105,18 @@ public class VertxGuiceModuleTest {
         }).assertNoFailures();
     }
 
+    @Test
+    public void testMultipleLazilyInstantiatedHandlers() {
+        harn1.get("multi").test(assertions -> {
+            assertions
+                    .assertOk()
+                    .assertBody("1,2,3")
+                    .assertHeaderEquals("x-one", "1")
+                    .assertHeaderEquals("x-two", "2")
+                    .assertHeaderEquals("x-three", "3");
+        }).assertNoFailures();
+    }
+
     @BeforeAll
     @SuppressWarnings("ThrowableResultIgnored")
     public static void setUpClass() {
@@ -137,6 +149,12 @@ public class VertxGuiceModuleTest {
                 .handledBy(x -> {
                     x.end("goodbye");
                 })
+                .route().forHttpMethod(HttpMethod.GET)
+                .withPath("/multi")
+                .withHandler(MultiHandlerOne.class)
+                .withHandler(MultiHandlerTwo.class)
+                .withHandler(MultiHandlerThree.class)
+                .terminatedBy(MultiHandlerEnd.class)
                 .bind()
                 .withVerticle(CustomVerticle.class);
 
@@ -215,6 +233,55 @@ public class VertxGuiceModuleTest {
         public void handle(RoutingContext e) {
             e.end("Hello, " + who);
         }
+    }
+
+    static class MultiHandlerOne implements Handler<RoutingContext> {
+
+        @Override
+        public void handle(RoutingContext event) {
+            event.response().putHeader("x-one", "1");
+            event.vertx().nettyEventLoopGroup().submit(event::next);
+        }
+
+    }
+
+    static class MultiHandlerTwo implements Handler<RoutingContext> {
+
+        @Override
+        public void handle(RoutingContext event) {
+            event.response().putHeader("x-two", "2");
+            event.vertx().nettyEventLoopGroup().submit(event::next);
+        }
+
+    }
+
+    static class MultiHandlerThree implements Handler<RoutingContext> {
+
+        @Override
+        public void handle(RoutingContext event) {
+            event.response().putHeader("x-three", "3");
+            event.vertx().nettyEventLoopGroup().submit(event::next);
+        }
+
+    }
+
+    static class MultiHandlerEnd implements Handler<RoutingContext> {
+
+        @Override
+        public void handle(RoutingContext event) {
+            StringBuilder sb = new StringBuilder();
+            HttpServerResponse resp = event.response();
+            MultiMap hdrs = resp.headers();
+            for (String s : new String[]{"x-one", "x-two", "x-three"}) {
+                if (sb.length() > 0) {
+                    sb.append(",");
+                }
+                sb.append(hdrs.get(s));
+            }
+            event.response().putHeader("x-done", "true");
+            resp.send(sb.toString());
+        }
+
     }
 
     static class CustomVerticle extends AbstractVerticle {
