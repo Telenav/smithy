@@ -3,7 +3,6 @@ package com.telenav.vertx.guice.util;
 import com.google.inject.Binder;
 import com.google.inject.Provider;
 import com.google.inject.util.Providers;
-import io.vertx.core.Verticle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
