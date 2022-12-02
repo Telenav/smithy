@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.telenav.smithy.smithy.vertx.server.generator;
+package com.telenav.smithy.vertx.server.generator;
 
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.java.vogon.ClassBuilder;

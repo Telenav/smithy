@@ -7,6 +7,7 @@ import com.google.inject.Provider;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
 import com.google.inject.TypeLiteral;
+import com.telenav.vertx.guice.scope.RequestScope;
 import com.telenav.vertx.guice.util.CustomizerTypeOrInstanceList;
 import static com.telenav.vertx.guice.util.CustomizerTypeOrInstanceList.customizerTypeOrInstanceList;
 import com.telenav.vertx.guice.util.TypeOrInstanceList;
@@ -44,6 +45,7 @@ public final class VertxGuiceModule extends AbstractModule {
             = new ArrayList<>();
     private final TypeOrInstanceList<Verticle> verticleTypes = typeOrInstanceList();
     private final List<Module> modules = new ArrayList<>();
+    private final RequestScope scope = new RequestScope();
     private volatile boolean initialized;
 
     /**
@@ -197,6 +199,7 @@ public final class VertxGuiceModule extends AbstractModule {
     @Override
     protected void configure() {
         try {
+            bind(RequestScope.class).toInstance(scope);
             bind(DEPLOYMENT_OPTIONS_CUSTOMIZER_FUNCTION)
                     .toInstance(deploymentOptionsCustomizers.toFunction(binder()));
             bind(VERTEX_OPTIONS_CUSTOMIZER_FUNCTION).toInstance(
@@ -242,6 +245,16 @@ public final class VertxGuiceModule extends AbstractModule {
             }
             return vertx;
         }
+    }
+
+    /**
+     * Get the request scope, which can be used to bind types that are generated
+     * in request processing and should be injectable into subsequent types.
+     *
+     * @return A scope
+     */
+    public RequestScope scope() {
+        return scope;
     }
 
     private static class DeploymentOptionsProvider implements Provider<DeploymentOptions> {
