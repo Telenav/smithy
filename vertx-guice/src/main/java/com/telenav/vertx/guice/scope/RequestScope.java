@@ -23,19 +23,29 @@
  */
 package com.telenav.vertx.guice.scope;
 
+import com.google.inject.Binder;
 import com.google.inject.Key;
 import com.google.inject.Provider;
 import com.google.inject.Scope;
+import com.google.inject.TypeLiteral;
+import com.google.inject.util.Providers;
 import io.vertx.core.Handler;
 import io.vertx.ext.web.RoutingContext;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import static java.util.Arrays.asList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * A straightforward, reentrant Guice scope.
+ * A straightforward, reentrant Guice scope. Supports binding concrete types and
+ * Optionals only - no type parameters other than those on Optional, or
+ * annotations, since it is essentially a bag of objects and neither type
+ * parameters nor annotations will be visible on objects placed into the scope
+ * by callers.
  *
  * @author Tim Boudreau
  */
@@ -44,8 +54,13 @@ public final class RequestScope implements Scope {
     private final LinkedList<List<Object>> contents = new LinkedList<>();
 
     @Override
+    @SuppressWarnings({"unchecked", "rawType"})
     public <T> Provider<T> scope(Key<T> key, Provider<T> prvdr) {
         checkKey(key);
+        if (key.getTypeLiteral().getRawType() == Optional.class) {
+            Key k = (Key<Optional<?>>) key;
+            return optionalProvider(k);
+        }
         return new P<>(key, prvdr);
     }
 
@@ -53,9 +68,21 @@ public final class RequestScope implements Scope {
         if (key.getAnnotation() != null || key.getAnnotationType() != null) {
             throw new IllegalArgumentException("RequestScope supports unannotated bindings only");
         }
-        if (!key.getTypeLiteral().getType().getTypeName().equals(key.getTypeLiteral().getRawType().getName())) {
-            throw new IllegalArgumentException("RequestScope does not support injecting parameterized types");
+        TypeLiteral<T> lit = key.getTypeLiteral();
+        if (!lit.getType().getTypeName().equals(lit.getRawType().getName())) {
+            // FIXME:  We can support exactly ONE Optional in scope without doing
+            // some special handling just for that - needs a separate Provider class
+            // for Optional which checks the value of get() for any Optionals, and if
+            // none
+            if (lit.getRawType() != Optional.class) {
+                throw new IllegalArgumentException("RequestScope does not support injecting parameterized types");
+            }
         }
+    }
+
+    @Override
+    public String toString() {
+        return "RequestScope(" + contents + ")";
     }
 
     /**
@@ -83,9 +110,69 @@ public final class RequestScope implements Scope {
         }
         LinkedList<Object> newContents = new LinkedList<>();
         for (Object o : with) {
-            newContents.addFirst(o);
+            newContents.add(o);
         }
+        contents.addFirst(newContents);
         return () -> contents.removeFirst();
+    }
+
+    /**
+     * Bind a collection of concrete types.
+     *
+     * @param binder A binder
+     * @param types Some types - must be concrete types
+     */
+    public void bindTypes(Binder binder, Class<?>... types) {
+        for (Class<?> type : types) {
+            bindType(binder, type);
+        }
+    }
+
+    /**
+     * Bind one type.
+     *
+     * @param <T> The type
+     * @param binder a binder
+     * @param type a type
+     * @return this
+     */
+    @SuppressWarnings("unchecked")
+    public <T> RequestScope bindType(Binder binder, Class<T> type) {
+        binder.bind(type).toProvider(scope(Key.get(type),
+                (Provider<T>) NotInScopeProvider.INSTANCE))
+                .in(this);
+        return this;
+    }
+
+    /**
+     * Bind one type, using a custom fallback provider.
+     *
+     * @param <T> The type
+     * @param binder A binder
+     * @param type A type
+     * @param fallback The fallback provider
+     * @return this
+     */
+    public <T> RequestScope bindType(Binder binder, Class<T> type, Provider<T> fallback) {
+        binder.bind(type).toProvider(scope(Key.get(type), fallback)).in(this);
+        return this;
+    }
+
+    /**
+     * Bind <code>Optional&lt;T&gt;</code> - the type must be a concrete type
+     * with no type paramaters.
+     *
+     * @param <T> The type
+     * @param binder A binder
+     * @param type A type
+     * @return this
+     */
+    @SuppressWarnings("unchecked")
+    public <T> RequestScope bindOptional(Binder binder, Class<T> type) {
+        Key<Optional<T>> key = (Key<Optional<T>>) Key.get(new FakeOptionalType<>(type));
+//        binder.bind(key).toProvider(new P<>(key, Providers.of(Optional.empty()))).in(this);
+        binder.bind(key).toProvider(new OP(key)).in(this);
+        return this;
     }
 
     /**
@@ -140,11 +227,10 @@ public final class RequestScope implements Scope {
      */
     public Runnable wrap(Runnable run, Object... add) {
         try (ScopeEntry en = enter(add)) {
-            if (contents.isEmpty()) {
-                return run;
-            }
             Snapshot snap = new Snapshot(asList(add));
-            return snap.wrap(run);
+            return snap.wrap(() -> {
+                run.run();
+            });
         }
     }
 
@@ -162,8 +248,7 @@ public final class RequestScope implements Scope {
             if (contents.isEmpty()) {
                 return run;
             }
-            Snapshot snap = new Snapshot(add);
-            return snap.wrap(run);
+            return new Snapshot(add).wrap(run);
         }
     }
 
@@ -203,6 +288,62 @@ public final class RequestScope implements Scope {
     public Handler<RoutingContext> wrap(Collection<? extends Object> objs,
             Handler<RoutingContext> run) {
         return new Snapshot(objs).wrap(run);
+    }
+
+    // Used by tests
+    List<Object> contents() {
+        List<Object> result = new ArrayList<>();
+        contents.forEach(result::addAll);
+        return result;
+    }
+
+    boolean inScope() {
+        return !contents.isEmpty();
+    }
+
+    <T> Provider<Optional<T>> optionalProvider(Key<Optional<T>> key) {
+        return new OP<>(key);
+    }
+
+    class OP<T> implements Provider<Optional<T>> {
+
+        private final Key<Optional<T>> key;
+        private final Class<T> tType;
+
+        @SuppressWarnings("unchecked")
+        OP(Key<Optional<T>> key) {
+            this.key = key;
+            Type t = key.getTypeLiteral().getType();
+            if (!(t instanceof ParameterizedType)) {
+                throw new IllegalStateException("Binding is not for a parameterized type: " + key);
+            }
+            ParameterizedType pt = (ParameterizedType) key.getTypeLiteral().getType();
+            Type[] params = pt.getActualTypeArguments();
+            if (params.length != 1) {
+                throw new IllegalStateException("Wrong number of type arguments: " + asList(params));
+            }
+            tType = (Class<T>) params[0];
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public Optional<T> get() {
+            for (List<Object> l : contents) {
+                for (Object o : l) {
+                    if (o instanceof Optional<?>) {
+                        Optional<?> opt = (Optional<?>) o;
+                        if (!opt.isPresent()) {
+                            continue;
+                        }
+                        Object target = opt.get();
+                        if (tType.isInstance(target)) {
+                            return opt.map(t -> (T) t);
+                        }
+                    }
+                }
+            }
+            return Optional.empty();
+        }
     }
 
     class P<T> implements Provider<T> {
@@ -285,4 +426,15 @@ public final class RequestScope implements Scope {
             }
         }
     }
+
+    static final class NotInScopeProvider implements Provider<Object> {
+
+        private static final NotInScopeProvider INSTANCE = new NotInScopeProvider();
+
+        @Override
+        public Object get() {
+            throw new IllegalStateException("Not in scope");
+        }
+    }
+
 }

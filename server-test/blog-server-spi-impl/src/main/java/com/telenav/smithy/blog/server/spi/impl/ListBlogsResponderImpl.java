@@ -52,7 +52,6 @@ public final class ListBlogsResponderImpl implements ListBlogsResponder {
 
     @Inject
     ListBlogsResponderImpl(BlogStore blogs,
-            @Named("background") ExecutorService svc,
             ObjectMapper mapper) {
         this.blogs = blogs;
         this.mapper = mapper;

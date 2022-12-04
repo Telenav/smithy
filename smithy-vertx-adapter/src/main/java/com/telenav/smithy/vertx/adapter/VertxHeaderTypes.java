@@ -235,7 +235,7 @@ public class VertxHeaderTypes extends HeaderTypes {
 
     @Override
     public HeaderSpec<BasicCredentials> basicAuth() {
-        return charSequenceHeader("www-authenticate")
+        return charSequenceHeader("authorization")
                 .convert(BasicCredentials.class,
                         BasicCredentials::parse,
                         Object::toString);

@@ -7,6 +7,7 @@ import com.google.inject.Provider;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
 import com.google.inject.TypeLiteral;
+import static com.google.inject.name.Names.named;
 import com.telenav.vertx.guice.scope.RequestScope;
 import com.telenav.vertx.guice.util.CustomizerTypeOrInstanceList;
 import static com.telenav.vertx.guice.util.CustomizerTypeOrInstanceList.customizerTypeOrInstanceList;
@@ -19,9 +20,11 @@ import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import javax.inject.Inject;
+import javax.inject.Named;
 
 /**
  * Entry point to building and launching Vertx applications with Guice
@@ -45,8 +48,17 @@ public final class VertxGuiceModule extends AbstractModule {
             = new ArrayList<>();
     private final TypeOrInstanceList<Verticle> verticleTypes = typeOrInstanceList();
     private final List<Module> modules = new ArrayList<>();
-    private final RequestScope scope = new RequestScope();
+    private final RequestScope scope;
     private volatile boolean initialized;
+    private Vertx vertxInstance;
+
+    public VertxGuiceModule() {
+        this(null);
+    }
+
+    public VertxGuiceModule(RequestScope scope) {
+        this.scope = scope == null ? new RequestScope() : scope;
+    }
 
     /**
      * Add a function which customizes the options used to create the Vertx
@@ -189,6 +201,23 @@ public final class VertxGuiceModule extends AbstractModule {
         return this;
     }
 
+    /**
+     * If for some reason you have an existing Vertx instance you must use, pass
+     * it here and that one will be used. Configurers will still run on the
+     * first retrieval.
+     *
+     * @param vertx A vertx
+     * @return this
+     */
+    public VertxGuiceModule withVertx(Vertx vertx) {
+        checkInitialized();
+        if (vertx == null) {
+            throw new IllegalArgumentException("Null vertx passed");
+        }
+        this.vertxInstance = vertx;
+        return this;
+    }
+
     private void checkInitialized() {
         if (initialized) {
             throw new IllegalStateException("Cannot customize " + getClass().getSimpleName()
@@ -204,7 +233,12 @@ public final class VertxGuiceModule extends AbstractModule {
                     .toInstance(deploymentOptionsCustomizers.toFunction(binder()));
             bind(VERTEX_OPTIONS_CUSTOMIZER_FUNCTION).toInstance(
                     vertxOptionsCustomizers.toFunction(binder()));
-            bind(Vertx.class).toProvider(VertxProvider.class).in(Scopes.SINGLETON);
+            if (vertxInstance != null) {
+                bind(Vertx.class).annotatedWith(named("provided")).toInstance(vertxInstance);
+                bind(Vertx.class).toProvider(ExistingVertxProvider.class).in(Scopes.SINGLETON);
+            } else {
+                bind(Vertx.class).toProvider(VertxProvider.class).in(Scopes.SINGLETON);
+            }
             for (Module mod : modules) {
                 install(mod);
             }
@@ -247,9 +281,42 @@ public final class VertxGuiceModule extends AbstractModule {
         }
     }
 
+    private static final class ExistingVertxProvider implements Provider<Vertx> {
+
+        private final VertxInitializer.Registry registry;
+        private final Vertx vertx;
+        private final AtomicBoolean configurersRun = new AtomicBoolean();
+
+        @Inject
+        public ExistingVertxProvider(VertxInitializer.Registry registry, @Named("provided") Vertx vertx) {
+            this.registry = registry;
+            this.vertx = vertx;
+        }
+
+        @Override
+        public Vertx get() {
+            if (configurersRun.compareAndSet(false, true)) {
+                try {
+                    registry.init(vertx);
+                } catch (Exception ex) {
+                    throw new Error(ex);
+                }
+            }
+            return vertx;
+        }
+    }
+
     /**
      * Get the request scope, which can be used to bind types that are generated
-     * in request processing and should be injectable into subsequent types.
+     * in request processing and should be injectable into subsequent types. The
+     * request scope is created at module creation time and this method may be
+     * called at any point.
+     * <p>
+     * The request scope is essentially a thread local containing object for
+     * injection, which may be entered reentrantly, and can wrap runnables and
+     * Vertx Handlers with a snapshot of its current contents for asynchronous
+     * invocation.
+     * </p>
      *
      * @return A scope
      */

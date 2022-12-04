@@ -24,10 +24,15 @@
 package com.telenav.smithy.vertx.server.generator;
 
 import com.mastfrog.function.state.Bool;
+import com.mastfrog.function.state.Obj;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
+import com.mastfrog.java.vogon.ClassBuilder.ElseClauseBuilder;
+import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
+import com.mastfrog.java.vogon.ClassBuilder.TryBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.Value;
+import com.mastfrog.java.vogon.ClassBuilder.Variable;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
 import static com.mastfrog.java.vogon.ClassBuilder.variable;
@@ -64,6 +69,8 @@ import static com.mastfrog.util.strings.Strings.capitalize;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.packageOf;
+import static com.telenav.smithy.names.TypeNames.rawTypeName;
+import static com.telenav.smithy.names.TypeNames.simpleNameOf;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.telenav.smithy.names.operation.OperationNames;
 import static com.telenav.smithy.names.operation.OperationNames.authPackage;
@@ -80,6 +87,7 @@ import com.telenav.smithy.utils.path.PathInformationExtractor;
 import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import static java.beans.Introspector.decapitalize;
 import java.nio.file.Path;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -133,6 +141,7 @@ import software.amazon.smithy.model.traits.RequiredTrait;
  */
 public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
+    private final ScopeBindings scope = new ScopeBindings();
     private final boolean debug;
 
     VertxServerGenerator(ServiceShape shape, Model model, Path destSourceRoot,
@@ -157,8 +166,15 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         // Pending - need to sort ops by path to avoid collisions?
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
-                .named(escape(shape.getId().getName(shape)))
-                .docComment("Generates and can start the " + shape.getId().getName() + ".")
+                .named(escape(shape.getId().getName(shape)));
+        cb
+                .docComment("Guice module to instantiate the " + shape.getId().getName() + " service. "
+                        + "A " + cb.className() + " can be used to launch the server, or simply as a Guice module "
+                        + "that is part of a larger configuration.  Modules to include on launch can be added via the "
+                        + "<code>installing(Module)</code> method, and the vertx and verticle can be customized using "
+                        + "<code>UnaryOperator</code>s passed to the appropriate methods."
+                        + "\nImplementations of the generated server SPI interfaces can be bound by "
+                        + "passing their types to the method for each one.")
                 .withModifier(PUBLIC, FINAL)
                 .importing(
                         "com.telenav.vertx.guice.VertxGuiceModule",
@@ -174,15 +190,21 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         generateCustomizeVerticleFieldsAndMethods(cb);
 
-        generateConfigureOverride(cb, ops);
-
+        generateSendErrorResponseMethod(cb);
+        generateErrorHandlingDisablementMethodAndField(cb);
         generateCreateVertxModuleMethod(cb, graph, ops, addTo);
 
         generateMainMethod(cb);
+        generateConfigureOverride(cb, ops);
+
+        generateCheckTypeMethod(cb);
+
+        cb.sortMembers();
         addTo.accept(cb);
     }
 
     public void generateConfigureOverride(ClassBuilder<String> cb, Set<OperationShape> ops) {
+        String binderVar = "binder";
         cb.overridePublic("configure", mth -> {
             mth.addArgument("Binder", "binder");
             mth.body(bb -> {
@@ -194,6 +216,12 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         .initializedByInvoking("createVertxModule")
                         .inScope()
                         .as("VertxGuiceModule");
+
+                if (!scope.isEmpty()) {
+                    scope.generateBindingCode(binderVar, moduleVar, bb, cb);
+                } else {
+                    bb.lineComment("No scoped bindings needed");
+                }
 
                 generateVertxModuleConfigurationStanzas(moduleVar, bb, cb);
 
@@ -260,9 +288,15 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         cb.method("installing", mth -> {
             mth.withModifier(PUBLIC)
+                    .docComment("Add a module to be installed with this one."
+                            + "\n@param module A module"
+                            + "\n@return this")
                     .addArgument("Module", "module")
                     .returning(cb.className())
                     .body(addModule -> {
+                        addModule.ifNull("module")
+                                .andThrow().withStringLiteral("Module may not be null")
+                                .ofType("IllegalArgumentException");
                         addModule.invoke("add").withArgument("module").on(modulesField);
                         addModule.returningThis();
                     });
@@ -284,8 +318,14 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         });
         cb.method("configuringVertxWith", mth -> {
             mth.withModifier(PUBLIC).addArgument(consumerType, "consumer")
+                    .docComment("Customize the vertx instance the server runs in using the "
+                            + "passed consumer.  This method may be called multiple times and all passed "
+                            + "consumers will be run."
+                            + "\n@param consumer A consumer"
+                            + "\n@return this")
                     .returning(cb.className())
                     .body(setConsumer -> {
+                        setConsumer.invoke("checkInitialized").inScope();
                         setConsumer.ifNull("consumer")
                                 .andThrow(nb -> nb.withStringLiteral("Consumer may not be null").ofType("IllegalArgumentException")).endIf();
                         setConsumer.assignField(consumerField)
@@ -305,6 +345,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 .ofType("boolean");
         cb.method("checkInitialized", mth -> {
             mth.withModifier(PRIVATE)
+                    .docComment("Used by mutation methods to ensure they cannot be called "
+                            + "after the injector has been created, when they would have no effect.")
                     .body(mb -> {
                         mb.iff().booleanExpression("initialized")
                                 .andThrow(nb -> nb
@@ -343,25 +385,31 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         .addArgument(fieldType, argName)
                         .returning(cb.className())
                         .body(typeAssign -> {
-                            typeAssign.invoke("checkInitialized").inScope();
-                            typeAssign.ifNull(argName)
-                                    .andThrow(nb -> {
-                                        nb.withStringLiteral(argName + " may not be null")
-                                                .ofType("IllegalArgumentException");
-                                    }).endIf();
-                            Value abstractTest = invocationOf("getModifiers")
-                                    .on(argName).and("java.lang.reflect.Modifier.ABSTRACT")
-                                    .parenthesized().isNotEqualTo(number(0)
-                                            .logicalOrWith(invocationOf("isInterface").on(argName)));
-
-                            typeAssign.iff(abstractTest)
-                                    .andThrow(nb -> nb.withStringLiteral("Cannot bind an abstract class or interface")
-                                    .ofType("IllegalArgumentException")).endIf();
-                            typeAssign.iff(invocationOf("isAssignableFrom").withArgument(argName).on(typeName + ".class").isEqualTo("false"))
-                                    .andThrow(nb -> nb.withStringLiteral("Not really a subclass of " + typeName).ofType("IllegalArgumentException")).endIf();
+//                            typeAssign.invoke("checkInitialized").inScope();
+//                            typeAssign.ifNull(argName)
+//                                    .andThrow(nb -> {
+//                                        nb.withStringLiteral(argName + " may not be null")
+//                                                .ofType("IllegalArgumentException");
+//                                    }).endIf();
+//                            Value abstractTest = invocationOf("getModifiers")
+//                                    .on(argName).and("java.lang.reflect.Modifier.ABSTRACT")
+//                                    .parenthesized().isNotEqualTo(number(0)
+//                                            .logicalOrWith(invocationOf("isInterface").on(argName)));
+//
+//                            typeAssign.iff(abstractTest)
+//                                    .andThrow(nb -> nb.withStringLiteral("Cannot bind an abstract class or interface")
+//                                    .ofType("IllegalArgumentException")).endIf();
+//                            typeAssign.iff(invocationOf("isAssignableFrom").withArgument(argName).on(typeName + ".class").isEqualTo("false"))
+//                                    .andThrow(nb -> nb.withStringLiteral("Not really a subclass of " + typeName).ofType("IllegalArgumentException")).endIf();
+//                            typeAssign.assignField(fieldName)
+//                                    .ofThis().toExpression(argName);
 
                             typeAssign.assignField(fieldName)
-                                    .ofThis().toExpression(argName);
+                                    .ofThis()
+                                    .toInvocation("checkType")
+                                    .withArgument(argName)
+                                    .withClassArgument(typeName)
+                                    .inScope();
                             typeAssign.returningThis();
                         });
                 ;
@@ -398,10 +446,10 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .as("VerticleBuilder<VertxGuiceModule>");
 
                         ops.forEach(op -> {
-                            System.out.println("OP " + op);
-                            ClassBuilder<String> operationClass = generateOperation(op, graph);
+                            List<String> handlers = new ArrayList<>();
+                            ClassBuilder<String> operationClass = generateOperation(op, graph, handlers, addTo);
                             bb.blankLine().lineComment("Operation " + op.getId());
-                            invokeRoute(bb, verticleBuilderName, routerBuilder, operationClass, op);
+                            invokeRoute(bb, verticleBuilderName, routerBuilder, handlers, op);
                             System.out.println("GEN VX OP " + op + " -> " + operationClass.fqn());
                             addTo.accept(operationClass);
                         });
@@ -409,6 +457,10 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         bb.invoke("accept")
                                 .withArgument(verticleBuilderName)
                                 .on("verticleConfigurer");
+
+                        bb.blankLine().lineComment("Translate exceptions we may throw into appropriate responses");
+
+                        generateErrorHandlingRouterCustomizer(bb, routerBuilder, verticleBuilderName);
 
                         bb.blankLine()
                                 .lineComment("Finish the builder, leaving the guice module ready ")
@@ -419,19 +471,321 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         });
     }
 
+    public <C, X, B extends BlockBuilderBase<C, B, X>> void generateErrorHandlingRouterCustomizer(B bb, ClassBuilder<String> routerBuilder, String verticleBuilderName) {
+        bb.iff().booleanExpression("defaultErrorHandling")
+                .invoke("customizingRouterWith")
+                .withLambdaArgument(lb -> {
+                    lb.withArgument("rtr");
+                    lb.body(lbb -> {
+                        lbb.lineComment("This code attaches an error handler to the router for the HTTP server")
+                                .lineComment("which intercepts what would be 500 responses due to thrown exceptions in")
+                                .lineComment("handlers and translates them to appropriate responses");
+                        lbb.returningInvocationOf("errorHandler")
+                                .withArgument(500)
+                                .withLambdaArgument(subLb -> {
+                                    subLb.withArgument("ctx");
+                                    subLb.body(subBb -> {
+                                        subBb.declare("failure")
+                                                .initializedByInvoking("failure")
+                                                .on("ctx")
+                                                .as("Throwable");
+                                        Variable v = variable("failure");
+                                        routerBuilder.importing(DateTimeParseException.class);
+                                        routerBuilder.importing(validationExceptions().fqn());
+                                        ClassBuilder.IfBuilder<?> test = subBb.iff(v.isInstance("IllegalArgumentException")
+                                                .logicalOrWith(v.isInstance("DateTimeParseException")
+                                                        .logicalOrWith(v.isInstance(validationExceptions().name()))));
+                                        test.lineComment("These exceptions all indicate input data that could not be parsed.");
+                                        test.invoke("sendErrorResponse")
+                                                .withArgumentFromInvoking("getMessage")
+                                                .on("failure")
+                                                .withArgument(400)
+                                                .withArgument("ctx")
+                                                .inScope();
+
+                                        routerBuilder.importing("com.mastfrog.smithy.http.ResponseException");
+
+                                        test = test.elseIf().variable("failure").instanceOf("ResponseException")
+                                                .lineComment("Convenience exception in smithy-java-http-extensions which")
+                                                .lineComment("can be used to specify an error response code and message.")
+                                                .invoke("sendErrorResponse")
+                                                .withArgumentFromInvoking("getMessage")
+                                                .on("failure")
+                                                .withArgumentFromInvoking("status")
+                                                .on("((ResponseException) failure)")
+                                                .withArgument("ctx")
+                                                .inScope();
+
+                                        test = test.elseIf().variable("failure").instanceOf("UnsupportedOperationException")
+                                                .lineComment("Used by the generated mock implementations to indicate a real")
+                                                .lineComment("implementation was not bound, and should be translated to a")
+                                                .lineComment("501 Not Implemented response.")
+                                                .invoke("sendErrorResponse")
+                                                .withArgumentFromInvoking("getMessage")
+                                                .on("failure")
+                                                .withArgument(501)
+                                                .withArgument("ctx")
+                                                .inScope();
+
+                                        test.orElse().invoke("next").on("ctx").endIf();
+                                    });
+                                }).on("rtr");
+                    });
+                }).on(verticleBuilderName).endIf();
+    }
+
+    private void generateCheckTypeMethod(ClassBuilder<String> cb) {
+        cb.method("checkType")
+                .docComment("Used by binding methods to ensure valid types are bound, and only "
+                        + "when the module is not yet initialized."
+                        + "\n@param type The type being proposed for binding"
+                        + "\n@param actualType The type it must be compatible with"
+                        + "\nreturn the actualType paramater"
+                        + "\n@throws IllegalArgumentException if the type is null, abstract, "
+                        + "an interface, or not actually a subtype of <code>actualType</code>")
+                .withModifier(PRIVATE)
+                .withTypeParam("T")
+                .addArgument("Class<? extends T>", "type")
+                .addArgument("Class<T>", "actualType")
+                .returning("Class<? extends T>")
+                .body(bb -> {
+                    bb.invoke("checkInitialized").inScope();
+                    bb.ifNull("type")
+                            .andThrow()
+                            .withStringLiteral("Type may not be null")
+                            .ofType("IllegalArgumentException");
+                    Value abstractTest = invocationOf("getModifiers")
+                            .on("type").and("java.lang.reflect.Modifier.ABSTRACT")
+                            .parenthesized().isNotEqualTo(number(0)
+                                    .logicalOrWith(invocationOf("isInterface").on("type")));
+
+                    bb.iff(abstractTest)
+                            .andThrow(nb -> nb.withStringLiteral("Cannot bind an abstract class or interface")
+                            .ofType("IllegalArgumentException")).endIf();
+                    bb.iff(invocationOf("isAssignableFrom").withArgument("type").on("actualType").isEqualTo("false"))
+                            .andThrow(nb -> nb.withStringConcatentationArgument("Not really a subclass of ")
+                            .appendInvocationOf("getSimpleName")
+                            .on("actualType")
+                            .endConcatenation()
+                            .ofType("IllegalArgumentException")).endIf();
+                    bb.returning("type");
+                });
+    }
+
+    public void generateErrorHandlingDisablementMethodAndField(ClassBuilder<String> routerBuilder) {
+        routerBuilder.field("defaultErrorHandling")
+                .withModifier(PRIVATE)
+                .initializedWith(true);
+
+        routerBuilder.method("disableDefaultErrorHandling")
+                .withModifier(PUBLIC)
+                .returning(routerBuilder.className())
+                .docComment("By default, various exception types are translated into appropriate "
+                        + "error response codes with string messages.  If you want to do your own, "
+                        + "call this method and attach an error handler to the router."
+                        + "\n@return this")
+                .body(bb -> {
+                    bb.invoke("checkInitialized").inScope();
+                    bb.statement("defaultErrorHandling = false");
+                    bb.returningThis();
+                });
+    }
+
+    public void generateSendErrorResponseMethod(ClassBuilder<String> routerBuilder) {
+        routerBuilder.method("sendErrorResponse", m1 -> {
+            m1.docComment("Used by the default error handling code to send an error "
+                    + "response."
+                    + "\n@param message The exception message or null"
+                    + "\n@param statusCode The http status code"
+                    + "\n@param ctx The routing context");
+            routerBuilder.importing("io.vertx.ext.web.RoutingContext");
+            m1.withModifier(PRIVATE, STATIC, FINAL);
+            m1.addArgument("String", "message")
+                    .addArgument("int", "statusCode")
+                    .addArgument("RoutingContext", "ctx");
+            m1.body(mbb -> {
+                mbb.ifNull("message")
+                        .invoke("send")
+                        .onInvocationOf("setStatusCode")
+                        .withArgument("statusCode")
+                        .onInvocationOf("response")
+                        .on("ctx")
+                        .orElse()
+                        .invoke("send")
+                        .withArgument("message")
+                        .onInvocationOf("setStatusCode")
+                        .withArgument("statusCode")
+                        .onInvocationOf("response")
+                        .on("ctx")
+                        .endIf();
+            });
+        });
+    }
+
     private String operationPackage(OperationShape op) {
         return packageOf(names().packageOf(op)) + ".impl";
     }
 
-    private ClassBuilder<String> generateOperation(OperationShape op, ResourceGraph graph) {
+    private String generateOperationAuth(OperationShape op, ResourceGraph graph,
+            String implPackage, AuthenticatedTrait auth, SpiTypesAndArgs spiArgs,
+            List<String> handlers, Consumer<ClassBuilder<String>> addTo) {
+        ClassBuilder<String> cb = ClassBuilder.forPackage(implPackage)
+                .named(escape(op.getId().getName() + "Authentication"))
+                .implementing("Handler<RoutingContext>")
+                .withModifier(PUBLIC, FINAL)
+                .docComment("Authentication implementation for the operation " + op.getId().getName()
+                        + ". Authenticates as specified in that operation, calling the appropriate authenticator interface, "
+                        + "makes it available for injection in the request scope and invokes next() on the "
+                        + "RoutingContext asynchronously.");
+        initDebug(cb);
+        handlers.add(cb.fqn());
+        String authPackage = OperationNames.authPackage(shape, names());
+        Shape authTarget = model.expectShape(auth.getPayload());
+        String authInterface = authenticateWithInterfaceName(auth.getPayload());
+
+        String authTargetFqn = names().qualifiedNameOf(authTarget, cb, true);
+        String authTargetName = typeNameOf(authTarget);
+        String authEnumTypeName = serviceAuthenticatedOperationsEnumName(shape);
+
+        if (auth.isOptional()) {
+            spiArgs.add("java.util.Optional<" + authTargetName + ">", "auth", true);
+            spiArgs.alsoImport(authTargetFqn);
+        } else {
+            spiArgs.add(authTargetFqn, "auth", true);
+        }
+
+        scope.bindDirect(authPackage + "." + authEnumTypeName,
+                "Used by " + typeNameOf(op));
+        if (auth.isOptional()) {
+            scope.bindOptional(authTargetFqn, "Optional auth target of " + typeNameOf(op));
+        } else {
+            scope.bindDirect(authTargetFqn, "Auth target of " + typeNameOf(op));
+        }
+
+        maybeImport(cb,
+                authPackage + "." + authEnumTypeName,
+                authTargetFqn
+        );
+
+        String authEnumConstantName = authEnumTypeName + "."
+                + TypeNames.enumConstantName(op.getId().getName());
+
+        maybeImport(cb, authTargetFqn,
+                authPackage + "." + authInterface,
+                "javax.inject.Inject",
+                "io.vertx.core.Handler",
+                "io.vertx.ext.web.RoutingContext",
+                "java.util.Optional",
+                "com.mastfrog.smithy.http.AuthenticationResultConsumer",
+                "static com.telenav.smithy.vertx.adapter.VertxRequestAdapter.smithyRequest",
+                "com.telenav.vertx.guice.scope.RequestScope");
+        cb.field("authenticator")
+                .withModifier(PRIVATE, FINAL)
+                .ofType(authInterface);
+        cb.field("scope")
+                .withModifier(PRIVATE, FINAL)
+                .ofType("RequestScope");
+
+        cb.constructor(con -> {
+            con.annotatedWith("Inject").closeAnnotation();
+            con.addArgument(authInterface, "authenticator")
+                    .addArgument("RequestScope", "scope")
+                    .body(bb -> {
+                        bb.statement("this.authenticator = authenticator");
+                        bb.statement("this.scope = scope");
+                    });
+        });
+        cb.overridePublic("handle", mth -> {
+            mth.addArgument("RoutingContext", "event");
+            mth
+                    .body(bb -> {
+                        cb.importing(CompletableFuture.class
+                        );
+                        bb.declare("fut")
+                                .initializedWithNew().ofType("CompletableFuture<>")
+                                .as("CompletableFuture<" + authTargetName + ">");
+                        bb.invoke("whenCompleteAsync")
+                                .withLambdaArgument(lb -> {
+                                    lb.withArgument("user")
+                                            .withArgument("thrown");
+                                    lb.body(lbb -> {
+                                        wrapInTryCatch("event", lbb, tri -> {
+                                            generateAuthFutureCompletion(tri, auth,
+                                                    authEnumTypeName, authEnumConstantName);
+                                        });
+                                    });
+                                })
+                                .withArgumentFromInvoking("nettyEventLoopGroup")
+                                .onInvocationOf("vertx")
+                                .on("event")
+                                .on("fut");
+
+                        bb.invoke("authenticate")
+                                .withArgument(authEnumConstantName)
+                                .withArgumentFromInvoking("smithyRequest")
+                                .withArgumentFromInvoking("request")
+                                .on("event")
+                                .inScope()
+                                .withArgument(auth.isOptional())
+                                .withArgumentFromInvoking("create")
+                                .withArgument("fut")
+                                .withArgument(auth.isOptional())
+                                .on("AuthenticationResultConsumer")
+                                .on("authenticator");
+                    });
+        });
+
+        addTo.accept(cb);
+        return authPackage + "." + authInterface;
+    }
+
+    public <C, X, B extends BlockBuilderBase<C, B, X>> void generateAuthFutureCompletion(B bb, AuthenticatedTrait auth,
+            String authEnumTypeName, String authEnumConstantName) {
+
+        ElseClauseBuilder<B> els = bb.ifNotNull("thrown")
+                .lineComment("If authentication has failed, abort here and let")
+                .lineComment("the verticle's failure handler translate the exception into an")
+                .lineComment("appropriate http response")
+                .invoke("fail")
+                .withArgument("thrown")
+                .on("event")
+                .orElse()
+                .lineComment("Authentication succeeded.  Enqueue the actual processing of the")
+                .lineComment("request, injecting the authentication result into the request scope")
+                .lineComment("so that the next handler can take it as a constructor argument");
+
+        InvocationBuilder<InvocationBuilder<ElseClauseBuilder<B>>> partialInvoke = els.invoke("submit")
+                .withArgumentFromInvoking("wrap")
+                .withMethodReference("next").on("event");
+        if (auth.isOptional()) {
+            partialInvoke = partialInvoke.withArgumentFromInvoking("ofNullable")
+                    .withArgument("user")
+                    .on("Optional");
+        } else {
+            partialInvoke = partialInvoke.withArgument("user");
+        }
+        partialInvoke
+                .withArgument(authEnumConstantName)
+                .on("scope")
+                .onInvocationOf("nettyEventLoopGroup")
+                .onInvocationOf("vertx")
+                .on("event")
+                .endIf();
+    }
+
+    private ClassBuilder<String> generateOperation(OperationShape op,
+            ResourceGraph graph, List<String> handlers, Consumer<ClassBuilder<String>> others) {
         String implPackage = operationPackage(op);
         ClassBuilder<String> cb = ClassBuilder.forPackage(implPackage)
                 .named(escape(op.getId().getName()))
+                .docComment("Handles assembling the input for the "
+                        + op.getId().getName() + " operation.")
                 .importing(
                         "io.vertx.core.Handler",
                         "io.vertx.ext.web.RoutingContext",
                         "com.mastfrog.smithy.http.SmithyRequest",
                         "com.mastfrog.smithy.http.SmithyResponse",
+                        "com.telenav.vertx.guice.scope.RequestScope",
                         "static com.telenav.smithy.vertx.adapter.VertxRequestAdapter.smithyRequest",
                         "javax.inject.Inject",
                         OperationNames.operationInterfaceFqn(model, op)
@@ -439,57 +793,62 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 .implementing("Handler<RoutingContext>")
                 .withModifier(PUBLIC, FINAL);
 
+        SpiTypesAndArgs spiArgs = new SpiTypesAndArgs();
+
+        spiArgs.add("com.mastfrog.smithy.http.SmithyRequest", "smithyRequest");
+
         initDebug(cb);
         cb.field("spi")
                 .withModifier(FINAL, PRIVATE)
                 .ofType(OperationNames.operationInterfaceName(op));
 
-        if (op.getOutput().isPresent()) {
-            cb.importing("com.fasterxml.jackson.databind.ObjectMapper");
-            cb.field("mapper")
-                    .withModifier(FINAL, PRIVATE)
-                    .ofType("ObjectMapper");
-        }
         StructureShape in = inputOrNull(op);
         Input input = in == null ? null : examineInput(op, in, graph, cb);
+
+        if (input != null) {
+            scope.bindDirect(input.fqn(), "Input for " + op.getId().getName());
+        }
 
         cb.blockComment("INPUT: " + input);
 
         boolean readsPayload = input != null && (input.httpPayloadType() != null)
                 || (input != null && input.isEmpty());
         boolean writesPayload = op.getOutput().isPresent();
-        boolean needsObjectMapper = readsPayload || writesPayload;
 
-        String authInterfaceName
-                = op.getTrait(AuthenticatedTrait.class)
-                        .map(auth -> {
-                            String authPackage = OperationNames.authPackage(shape, names());
-                            Shape authTarget = model.expectShape(auth.getPayload());
-                            String authInterface = authenticateWithInterfaceName(auth.getPayload());
-                            maybeImport(cb, names().packageOf(authTarget) + "." + typeNameOf(authTarget),
-                                    authPackage + "." + authInterface);
-                            cb.field("authenticator")
-                                    .withModifier(PRIVATE, FINAL)
-                                    .ofType(authInterface);
-                            return authInterface;
-                        }).orElse(null);
+        if (readsPayload) {
+            cb.importing("com.fasterxml.jackson.databind.ObjectMapper");
+            cb.field("mapper")
+                    .withModifier(FINAL, PRIVATE)
+                    .ofType("ObjectMapper");
+        }
+
+        op.getTrait(AuthenticatedTrait.class
+        )
+                .map(auth -> {
+                    return generateOperationAuth(op,
+                            graph, implPackage, auth, spiArgs,
+                            handlers, others);
+                }
+                ).orElse(null);
+
+        cb.field("scope", fld -> {
+            fld.withModifier(PRIVATE, FINAL)
+                    .ofType("RequestScope");
+        });
 
         cb.constructor(con -> {
             con.annotatedWith("Inject").closeAnnotation();
             con.addArgument(OperationNames.operationInterfaceName(op), "spi");
-            if (needsObjectMapper) {
+            con.addArgument("RequestScope", "scope");
+            if (readsPayload) {
                 con.addArgument("ObjectMapper", "mapper");
-            }
-            if (authInterfaceName != null) {
-                con.addArgument(authInterfaceName, "authenticator");
             }
             con.body(bb -> {
                 bb.assignField("spi").ofThis().toExpression("spi");
-                if (needsObjectMapper) {
+                bb.assignField("scope").ofThis().toExpression("scope");
+
+                if (readsPayload) {
                     bb.assignField("mapper").ofThis().toExpression("mapper");
-                }
-                if (authInterfaceName != null) {
-                    bb.assignField("authenticator").ofThis().toExpression("authenticator");
                 }
             });
         });
@@ -503,134 +862,178 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .on("context")
                                 .inScope()
                                 .as("SmithyRequest");
-                        List<String> spiArgs = new ArrayList<>();
-                        spiArgs.add("smithyRequest");
-                        handleAuthAndGatherInput(in, op, input, bb, cb, spiArgs);
+                        String inputVar = gatherInput(in, op, input, bb, cb, spiArgs);
+                        // XXX need to test something that has an empty response
+
+                        if (!writesPayload) {
+                            int responseCode = op.getTrait(HttpTrait.class
+                            )
+                                    .map(http -> http.getCode()).orElse(200);
+                            bb.invoke("send")
+                                    .onInvocationOf("setStatusCode")
+                                    .withArgument(responseCode)
+                                    .onInvocationOf("response")
+                                    .on("context");
+                        }
+
                     });
         });
+        handlers.add(cb.fqn());
         if (readsPayload) {
             generateWithContentMethod(cb);
         }
         if (writesPayload) {
-            generateWriteOutputMethod(cb);
+            generateOutputWritingHandler(op, implPackage, input, spiArgs, handlers, others);
+//            generateWriteOutputMethod(cb);
         }
         return cb;
     }
 
-    public <C, B extends BlockBuilderBase<C, B, ?>> void handleAuthAndGatherInput(StructureShape in, OperationShape op, Input input, B bb, ClassBuilder<String> cb, List<String> spiArgs) {
-        op.getTrait(AuthenticatedTrait.class)
-                .ifPresentOrElse(auth -> {
-                    cb.importing(CompletableFuture.class);
-                    /*
-WANT SOMETHING LIKE:                    
-                    
-        AuthenticateWithAuthUser authenticator) {
-        EnhCompletableFuture<AuthUser> future = defer();
-        authenticator.authenticate(BlogServiceAuthenticatedOperations.APPROVE_COMMENT,
-            request, false, AuthenticationResultConsumer.create(future, false));
-                     */
+    private void generateOutputWritingHandler(OperationShape op, String implPackage, Input input, SpiTypesAndArgs spiArgs, List<String> handlers, Consumer<ClassBuilder<String>> addTo) {
+        ClassBuilder<String> cb = ClassBuilder.forPackage(implPackage)
+                .named(escape(op.getId().getName() + "ResponseEmitter"))
+                .docComment("Handles computing and sending the response for the "
+                        + op.getId().getName() + " operation.")
+                .importing(
+                        "io.vertx.core.Handler",
+                        "io.vertx.ext.web.RoutingContext",
+                        "com.mastfrog.smithy.http.SmithyRequest",
+                        "com.mastfrog.smithy.http.SmithyResponse",
+                        "static com.telenav.smithy.vertx.adapter.VertxRequestAdapter.smithyRequest",
+                        "javax.inject.Inject",
+                        "com.telenav.vertx.guice.scope.RequestScope",
+                        input.fqn(),
+                        operationInterfaceFqn(model, op)
+                )
+                .implementing("Handler<RoutingContext>")
+                .withModifier(PUBLIC, FINAL);
+        initDebug(cb);
+        handlers.add(cb.fqn());
+        spiArgs.importTypes(cb);
+        cb
+                .importing(CompletableFuture.class
+                );
+        boolean writesPayload = op.getOutput().isPresent();
 
-                    String authPackage = authPackage(shape, names());
+        cb.constructor(con -> {
+            con.annotatedWith("Inject").closeAnnotation()
+                    .addArgument(operationInterfaceName(op), "spi")
+                    .addArgument(simpleNameOf(input.typeName()), "input")
+                    .body(bb -> {
+                        cb.field("input", inField -> {
+                            inField.withModifier(PRIVATE, FINAL)
+                                    .ofType(simpleNameOf(input.typeName()));
+                        });
+                        cb.field("spi", spiField -> {
+                            spiField.withModifier(PRIVATE, FINAL)
+                                    .ofType(operationInterfaceName(op));
+                        });
+                        bb.statement("this.input = input");
+                        bb.statement("this.spi = spi");
+                        if (writesPayload) {
+                            cb.importing("com.fasterxml.jackson.databind.ObjectMapper");
+                            cb.field("mapper", mapField -> {
+                                mapField.withModifier(PRIVATE, FINAL)
+                                        .ofType("ObjectMapper");
+                            });
+                            con.addArgument("ObjectMapper", "mapper");
+                            bb.statement("this.mapper = mapper");
+                        }
+                        spiArgs.eachInjectableType((fqn, varName) -> {
+                            // Need to strip generics
+                            cb.importing(rawTypeName(fqn));
+                            con.addArgument(simpleNameOf(fqn), varName);
+                            cb.field(varName, fld -> {
+                                fld.withModifier(PRIVATE, FINAL);
+                                fld.ofType(simpleNameOf(fqn));
+                            });
+                            bb.statement("this." + varName + " = " + varName);
+                        });
+                    });
+        });
 
-                    Shape authTarget = model.expectShape(auth.getPayload());
-                    String authTargetName = typeNameOf(authTarget);
-                    String authEnumTypeName = serviceAuthenticatedOperationsEnumName(shape);
+        cb.overridePublic("handle", mth -> {
+            mth.addArgument("RoutingContext", "context");
+            mth.body(bb -> {
+                bb.declare("smithyRequest")
+                        .initializedByInvoking("smithyRequest")
+                        .withArgumentFromInvoking("request")
+                        .on("context")
+                        .inScope()
+                        .as("SmithyRequest");
+                generateResponseHandling(bb, op, cb, spiArgs);
+            });
+        });
+        if (writesPayload) {
+            generateWriteOutputMethod(cb);
+        }
+        addTo.accept(cb);
 
-                    maybeImport(cb,
-                            authPackage + "." + authEnumTypeName
-                    );
-
-                    String authEnumConstantName = authEnumTypeName + "."
-                            + TypeNames.enumConstantName(op.getId().getName());
-
-                    bb.declare("authFuture")
-                            .initializedWithNew(nb -> nb.ofType("CompletableFuture<>"))
-                            .as("CompletableFuture<" + authTargetName + ">");
-
-                    cb.importing("com.mastfrog.smithy.http.AuthenticationResultConsumer");
-
-                    bb.invoke("authenticate")
-                            .withArgument(authEnumConstantName)
-                            .withArgument("smithyRequest")
-                            .withArgument(auth.isOptional())
-                            .withArgumentFromInvoking("create")
-                            .withArgument("authFuture")
-                            .withArgument(auth.isOptional())
-                            .on("AuthenticationResultConsumer")
-                            .on("authenticator");
-
-                    bb.invoke("whenCompleteAsync")
-                            .withLambdaArgument(lb -> {
-                                lb.withArgument("authResult")
-                                        .withArgument("authFailure");
-                                lb.body(lbb -> {
-                                    String authArgument;
-                                    if (auth.isOptional()) {
-                                        cb.importing(Optional.class);
-                                        lbb.declare("authOptional")
-                                                .initializedByInvoking("ofNullable")
-                                                .withArgument("authResult")
-                                                .on("Optional")
-                                                .as("Optional<" + authTargetName + ">");
-                                        authArgument = "authOptional";
-                                    } else {
-                                        authArgument = "authResult";
-                                    }
-                                    ClassBuilder.ElseClauseBuilder<?> els
-                                            = lbb.ifNotNull("authFailure")
-                                                    .invoke("fail")
-                                                    .withArgument("authFailure")
-                                                    .on("context")
-                                                    .orElse();
-                                    spiArgs.add(authArgument);
-                                    gatherInput(in, op, input, els, cb, spiArgs);
-                                    els.endIf();
-                                });
-                            })
-                            .withArgumentFromInvoking("nettyEventLoopGroup")
-                            .onInvocationOf("vertx")
-                            .on("context")
-                            .on("authFuture");
-                }, () -> {
-                    gatherInput(in, op, input, bb, cb, spiArgs);
-                });
     }
 
-    public <C, B extends BlockBuilderBase<C, B, ?>> void gatherInput(StructureShape in, OperationShape op, Input input, B bb, ClassBuilder<String> cb, List<String> spiArgs) {
+    private <C, B extends BlockBuilderBase<C, B, ?>> String gatherInput(StructureShape in, OperationShape op, Input input, B bb, ClassBuilder<String> cb, SpiTypesAndArgs spiArgs) {
+
         if (in != null) {
+            Obj<String> ret = Obj.create();
             if (input.httpPayloadType() != null || input.isEmpty()) {
                 cb.importing(input.fqn());
                 input.applyImports(cb);
                 String inputType = input.isEmpty() ? input.typeName() : input.httpPayloadType();
+
+                scope.bindDirect(input.fqn(), "Input type for " + typeNameOf(op)
+                        + " consumed by " + OperationNames.operationInterfaceName(op));
+
                 bb.invoke("withContent")
                         .withClassArgument(inputType)
                         .withArgument("context")
                         .withLambdaArgument(lb -> {
                             lb.withArgument("payload")
                                     .body(lbb -> {
-                                        assembleOperationInput(lbb, op, input, cb, "payload", spiArgs);
+                                        ret.set(assembleOperationInput(lbb, op, input, cb, "payload", spiArgs));
                                     });
                         }).inScope();
             } else {
-                assembleOperationInput(bb, op, input, cb, "payload", spiArgs);
+                ret.set(assembleOperationInput(bb, op, input, cb, "payload", spiArgs));
             }
+            return ret.get();
         } else {
-            generateResponseHandling(bb, op, cb, spiArgs);
+            bb.lineComment("Do the thing.");
+            invokeNextAsync(bb, null);
         }
+        return null;
     }
 
-    public <C, B extends BlockBuilderBase<C, B, ?>> void generateResponseHandling(B bb, OperationShape op, ClassBuilder<?> cb, List<String> spiArgs) {
-        cb.importing(CompletableFuture.class);
+    private <C, B extends BlockBuilderBase<C, B, ?>> void invokeNextAsync(B bb, String inputVar) {
+        InvocationBuilder<InvocationBuilder<B>> partialInvoke = bb.invoke("submit")
+                .withArgumentFromInvoking("wrap")
+                .withMethodReference("next").on("context");
+
+        if (inputVar != null) {
+            partialInvoke = partialInvoke.withArgument(inputVar);
+        }
+        partialInvoke
+                .on("scope")
+                .onInvocationOf("nettyEventLoopGroup")
+                .onInvocationOf("vertx")
+                .on("context");
+
+    }
+
+    public <C, B extends BlockBuilderBase<C, B, ?>> void generateResponseHandling(B bb,
+            OperationShape op, ClassBuilder<?> cb, SpiTypesAndArgs spiArgs) {
+        cb.importing(CompletableFuture.class
+        );
         cb.importing(
                 "static com.telenav.smithy.vertx.adapter.VertxResponseCompletableFutureAdapter.smithyResponse"
         );
-        spiArgs.add("response");
+        spiArgs.add("com.mastfrog.smithy.http.SmithyResponse", "response");
         String outputTypeName = op.getOutput().map(outId -> {
             Shape outShape = model.expectShape(outId);
             String result = typeNameOf(outShape);
             maybeImport(cb, names().packageOf(outShape) + "." + result);
             return result;
         }).orElse("Void");
+        bb.lineComment("The SPI takes a CompletableFuture to be framework-independent");
         bb.declare("fut")
                 .initializedWithNew(nb -> nb.ofType("CompletableFuture<>"))
                 .as("CompletableFuture<" + outputTypeName + ">");
@@ -642,22 +1045,17 @@ WANT SOMETHING LIKE:
                 .as("SmithyResponse<" + outputTypeName + ">");
         bb.trying(tri -> {
             ClassBuilder.InvocationBuilder<?> inv = tri.invoke("respond");
-            for (String arg : spiArgs) {
+            for (String arg : spiArgs.args) {
                 inv = inv.withArgument(arg);
             }
             inv.on("spi");
             tri.catching(cat -> {
+                cat.blankLine().lineComment("The SPI can throw an exception which the outer")
+                        .lineComment("error handler will translate into an appropriate response.");
                 cat.invoke("fail")
-                        //                        .withArgument(400)
                         .withArgument("thrown")
                         .on("context");
                 cat.statement("return");
-//                cat.catching(cat2 -> {
-//                    cat2.invoke("fail")
-//                            .withArgument("thrown")
-//                            .on("context");
-//                    cat2.statement("return");
-//                }, "Exception");
             }, "Exception");
         });
         bb.invoke("whenCompleteAsync")
@@ -665,16 +1063,21 @@ WANT SOMETHING LIKE:
                     lb.withArgument("output")
                             .withArgument("thrown")
                             .body(lbb -> {
-                                lbb.ifNotNull("thrown")
-                                        .invoke("fail")
-                                        .withArgument("thrown")
-                                        .on("context")
-                                        .orElse()
-                                        .invoke("writeOutput")
-                                        .withArgument("output")
-                                        .withArgument("context")
-                                        .inScope()
-                                        .endIf();
+                                lbb.lineComment("Ensure that anything that goes wrong results")
+                                        .lineComment("in SOME response; otherwise the request would")
+                                        .lineComment("hang.");
+                                wrapInTryCatch("context", lbb, tri -> {
+                                    tri.ifNotNull("thrown")
+                                            .invoke("fail")
+                                            .withArgument("thrown")
+                                            .on("context")
+                                            .orElse()
+                                            .invoke("writeOutput")
+                                            .withArgument("output")
+                                            .withArgument("context")
+                                            .inScope()
+                                            .endIf();
+                                });
                             });
                 })
                 .withArgumentFromInvoking("nettyEventLoopGroup")
@@ -683,16 +1086,18 @@ WANT SOMETHING LIKE:
                 .on("fut");
     }
 
-    public <C, B extends BlockBuilderBase<C, B, ?>> void assembleOperationInput(B bb, OperationShape op, Input input, ClassBuilder<String> cb, String payloadVar, List<String> spiArgs) {
+    public <C, B extends BlockBuilderBase<C, B, ?>> String assembleOperationInput(B bb, OperationShape op, Input input, ClassBuilder<String> cb, String payloadVar, SpiTypesAndArgs spiArgs) {
         cb.importing(input.fqn());
         if (input.httpPayloadType() != null && input.size() == 1) {
-            spiArgs.add(payloadVar);
-            generateResponseHandling(bb, op, cb, spiArgs);
-            return;
+            spiArgs.add(input.fqn(), "input");
+            scope.bindDirect(input.fqn(), "Input payload of " + op.getId().getName());
+            invokeNextAsync(bb, payloadVar);
+            return payloadVar;
         } else if (input.isEmpty()) {
-            spiArgs.add(payloadVar);
-            generateResponseHandling(bb, op, cb, spiArgs);
-            return;
+            spiArgs.add(input.fqn(), "input");
+            scope.bindDirect(input.fqn(), "Input payload of " + op.getId().getName());
+            invokeNextAsync(bb, payloadVar);
+            return payloadVar;
         }
 
         bb.lineComment("Have input " + input);
@@ -714,17 +1119,34 @@ WANT SOMETHING LIKE:
             }
             nb.ofType(nm);
         }).as(nm);
-        spiArgs.add("input");
-        generateResponseHandling(bb, op, cb, spiArgs);
+        spiArgs.add(input.fqn(), "input");
+
+        invokeNextAsync(bb, "input");
+        return "input";
+    }
+
+    static <C, X, B extends BlockBuilderBase<C, B, X>> void wrapInTryCatch(
+            String ctxVar, B bb, Consumer<TryBuilder<B>> consumer) {
+        TryBuilder<B> tri = bb.trying();
+        consumer.accept(tri);
+        tri.catching(cat -> {
+            cat.lineComment("We need to ensure " + ctxVar + ".fail() is called on")
+                    .lineComment("failure no matter WHAT happens.");
+            cat.as("ex").invoke("fail").withArgument("ex").on(ctxVar);
+        }, "Exception", "Error");
     }
 
     private <C> void generateWriteOutputMethod(ClassBuilder<C> cb) {
         cb.importing(
                 "com.fasterxml.jackson.core.JsonProcessingException",
                 "io.vertx.core.Future",
-                "io.vertx.core.buffer.Buffer"
+                "static io.vertx.core.buffer.Buffer.buffer"
         );
         cb.method("writeOutput", mth -> {
+            mth.docComment("Write an object to the response using jackson."
+                    + "\n@param output the output object or null"
+                    + "\n@param context the context we are writing to"
+                    + "\n@return the future returned by the write operation");
             mth.withModifier(PRIVATE)
                     .withTypeParam("T")
                     .addArgument("T", "output")
@@ -741,7 +1163,7 @@ WANT SOMETHING LIKE:
                             .withArgumentFromInvoking("writeValueAsBytes")
                             .withArgument("output")
                             .on("mapper")
-                            .on("Buffer")
+                            .inScope()
                             .onInvocationOf("response")
                             .on("context");
                     tri.catching(cat -> {
@@ -755,19 +1177,6 @@ WANT SOMETHING LIKE:
                 });
             });
         });
-        /*
-    private <T> Future<Void> writeOutput(T output, RoutingContext ctx) {
-        if (output == null) {
-            return ctx.response().send();
-        }
-        try {
-            return ctx.response().send(Buffer.buffer(mapper.writeValueAsBytes(output)));
-        } catch (JsonProcessingException ex) {
-            ctx.fail(ex);
-            return Future.failedFuture(ex);
-        }
-    }        
-         */
     }
 
     private <C> void generateWithContentMethod(ClassBuilder<C> cb) {
@@ -820,11 +1229,30 @@ WANT SOMETHING LIKE:
     }
 
     private <B> void invokeRoute(BlockBuilder<B> bb, String verticleBuilderName,
-            ClassBuilder<String> routerBuilder, ClassBuilder<String> operationClass,
+            ClassBuilder<String> routerBuilder, List<String> handlers,
             OperationShape op) {
-        routerBuilder.importing(operationClass.fqn());
-        ClassBuilder.InvocationBuilder<BlockBuilder<B>> inv = bb.invoke("handledBy")
-                .withClassArgument(operationClass.className());
+
+        handlers.forEach(routerBuilder::importing);
+        InvocationBuilder<BlockBuilder<B>> inv = null;
+        if (handlers.size() == 1) {
+            inv = bb.invoke("handledBy")
+                    .withClassArgument(handlers.get(0));
+        } else {
+            // We need to iterate in reverse order, since we start
+            // with the last thing invoked and work backwards - as in
+            // invoke("last").onInvocationOf("middle").onInvocationOf("first")
+            // gets you first().middle().last().
+            for (int i = handlers.size() - 1; i >= 0; i--) {
+                String handler = handlers.get(i);
+                if (i == handlers.size() - 1) {
+                    inv = bb.invoke("terminatedBy")
+                            .withClassArgument(simpleNameOf(handler));
+                } else {
+                    inv = inv.onInvocationOf("withHandler")
+                            .withClassArgument(simpleNameOf(handler));
+                }
+            }
+        }
 
         Optional<HttpTrait> httpOpt = op.getTrait(HttpTrait.class);
         if (!httpOpt.isPresent()) {
@@ -857,7 +1285,8 @@ WANT SOMETHING LIKE:
 
     private Input examineInput(OperationShape op, StructureShape input, ResourceGraph graph,
             ClassBuilder<String> cb) {
-        Optional<HttpTrait> httpOpt = op.getTrait(HttpTrait.class);
+        Optional<HttpTrait> httpOpt = op.getTrait(HttpTrait.class
+        );
         List<InputMemberObtentionStrategy> st = new ArrayList<>();
         StringBuilder sb = new StringBuilder();
         sb.append(" ************** STRATEGIES **************");
@@ -867,7 +1296,6 @@ WANT SOMETHING LIKE:
             HttpTrait http = httpOpt.get();
             UriPattern pattern = http.getUri();
 
-//            addNumericQueryParametersAnnotation(input, cb);
             for (Map.Entry<String, MemberShape> e : input.getAllMembers().entrySet()) {
 
                 MemberShape m = e.getValue();
@@ -878,16 +1306,14 @@ WANT SOMETHING LIKE:
 
                 // Ensure the member type is imported
                 names().typeNameOf(cb, memberTarget, false);
+
                 if (m.getTrait(HttpPayloadTrait.class).isPresent()) {
                     sb.append(" - payload");
                     StructureShape payloadShape = model.expectShape(m.getTarget(), StructureShape.class);
                     String fqn = names().packageOf(payloadShape) + "."
                             + typeNameOf(payloadShape);
+
                     maybeImport(cb, fqn);
-//                    cb.importing("com.mastfrog.acteur.preconditions.InjectRequestBodyAs");
-//                    cb.annotatedWith("InjectRequestBodyAs", anno -> {
-//                        anno.addClassArgument("value", typeNameOf(payloadShape));
-//                    });
                     st.add(new InputMemberObtentionStrategy(new PayloadOrigin(fqn), payloadShape, m, names()));
                 } else if (m.getTrait(HttpLabelTrait.class).isPresent()) {
                     HttpLabelTrait t = m.expectTrait(HttpLabelTrait.class);
@@ -905,6 +1331,7 @@ WANT SOMETHING LIKE:
                             }
                         }
                     }
+
                     sb.append(" - label ").append(ix).append(" - ").append(t.toShapeId());
 
                     RequestParameterOrigin uq = new RequestParameterOrigin(Integer.toString(ix), URI_PATH, declarationFor(URI_PATH, memberTarget, m, model, cb));
@@ -918,18 +1345,22 @@ WANT SOMETHING LIKE:
 
                     sb.append(" - query ").append(name);
                     // XXX check the trait that can provide an alternate name
-                    st.add(new InputMemberObtentionStrategy(uq,
-                            model.expectShape(m.getTarget()), m, names()));
+                    st.add(
+                            new InputMemberObtentionStrategy(uq,
+                                    model.expectShape(m.getTarget()), m, names()));
                 } else if (m.getTrait(HttpHeaderTrait.class).isPresent()) {
                     String name = m.getMemberName();
                     HttpHeaderTrait trait = m.getTrait(HttpHeaderTrait.class).get();
+
                     sb.append(" - header ").append(trait.getValue());
 
                     RequestParameterOrigin uq = new RequestParameterOrigin(trait.getValue(), HTTP_HEADER,
                             declarationFor(HTTP_HEADER, memberTarget, m, model, cb));
                     // XXX check the trait that can provide an alternate name
-                    st.add(new InputMemberObtentionStrategy(uq,
-                            model.expectShape(m.getTarget()), m, names()));
+
+                    st.add(
+                            new InputMemberObtentionStrategy(uq,
+                                    model.expectShape(m.getTarget()), m, names()));
                 }
             }
         } else {
@@ -943,6 +1374,7 @@ WANT SOMETHING LIKE:
 //            st.add(strat);
 //        }
         return new Input(input, st, op, names());
+
     }
 
     <B extends ClassBuilder.BlockBuilderBase<Tr, B, Rr>, Tr, Rr>
@@ -953,6 +1385,7 @@ WANT SOMETHING LIKE:
         boolean required = member.getTrait(RequiredTrait.class).isPresent();
         Optional<DefaultTrait> def = member.getTrait(DefaultTrait.class)
                 .or(() -> memberTarget.getTrait(DefaultTrait.class));
+
         boolean isModelType = !"smithy.api".equals(memberTarget.getId().getNamespace());
 
         Declarer<B, Tr, Rr, ClassBuilder.InvocationBuilder<ClassBuilder.TypeAssignment<B>>> decl;
@@ -1042,6 +1475,12 @@ WANT SOMETHING LIKE:
                 .withModifier(PRIVATE)
                 .initializedAsLambda("Consumer<VerticleBuilder<VertxGuiceModule>>", lb -> lb.withArgument("ignored").emptyBody());
         cb.method("configuringVerticleWith")
+                .docComment("This module installs http handlers in a single verticle; the configuration "
+                        + "of that verticle can be customized with a consumer passed here, which will be called "
+                        + "with the VerticleBuilder during initialization.  This method can be called multiple times "
+                        + "and all consumers will be run in sequence."
+                        + "\n@param consumer a consumer"
+                        + "\n@return this")
                 .addArgument("Consumer<? super VerticleBuilder<VertxGuiceModule>>", "consumer")
                 .withModifier(PUBLIC)
                 .returning(cb.className())
@@ -1062,6 +1501,9 @@ WANT SOMETHING LIKE:
     private void generateMainMethod(ClassBuilder<String> cb) {
         cb.method("main", mth -> {
             mth.addArgument("String[]", "args")
+                    .docComment("A simple main method which will launch the server with no "
+                            + "handlers installed to prove it works."
+                            + "\n@param args ignored")
                     .withModifier(PUBLIC, STATIC)
                     .body(bb -> {
                         bb.invoke("start")
@@ -1091,10 +1533,12 @@ WANT SOMETHING LIKE:
     }
 
     public static void withAuthInfo(OperationShape shape, Model model, TypeNames names, AuthInfoConsumer c) {
-        shape.getTrait(AuthenticatedTrait.class).ifPresent(auth -> {
+        shape.getTrait(AuthenticatedTrait.class
+        ).ifPresent(auth -> {
             Shape payload = model.expectShape(auth.getPayload());
             String pkg = names.packageOf(payload);
             String nm = typeNameOf(payload);
+
             c.authInfo(payload, auth.getMechanism(), pkg, nm, auth.isOptional());
         });
     }
@@ -1107,12 +1551,14 @@ WANT SOMETHING LIKE:
 
         for (Shape opId : ops) {
             OperationShape op = opId.asOperationShape().get();
-            op.getTrait(AuthenticatedTrait.class).ifPresent(authTrait -> {
-                mechanisms.add(authTrait.getMechanism().toLowerCase());
-                hasOptional.or(authTrait::isOptional);
-                allPayloadTypes.add(authTrait.getPayload());
-                operationsForPayload.computeIfAbsent(authTrait.getPayload(), p -> new HashSet<>()).add(op);
-            });
+            op.getTrait(AuthenticatedTrait.class)
+                    .ifPresent(authTrait -> {
+                        mechanisms.add(authTrait.getMechanism().toLowerCase());
+                        hasOptional.or(authTrait::isOptional);
+                        allPayloadTypes.add(authTrait.getPayload());
+                        operationsForPayload.computeIfAbsent(authTrait.getPayload(),
+                                p -> new HashSet<>()).add(op);
+                    });
         }
         if (mechanisms.isEmpty()) {
             return;
@@ -1150,27 +1596,13 @@ WANT SOMETHING LIKE:
                                 + "\n@return this")
                         .returning(cb.className())
                         .body(typeAssign -> {
-                            typeAssign.invoke("checkInitialized").inScope();
-                            typeAssign.ifNull(argName)
-                                    .andThrow(nb -> {
-                                        nb.withStringLiteral(argName + " may not be null")
-                                                .ofType("IllegalArgumentException");
-                                    }).endIf();
-                            Value abstractTest = invocationOf("getModifiers")
-                                    .on(argName).and("java.lang.reflect.Modifier.ABSTRACT")
-                                    .parenthesized().isNotEqualTo(number(0)
-                                            .logicalOrWith(invocationOf("isInterface").on(argName)));
-
-                            typeAssign.iff(abstractTest)
-                                    .andThrow(nb -> nb.withStringLiteral("Cannot bind an abstract class or interface")
-                                    .ofType("IllegalArgumentException")).endIf();
-                            typeAssign.iff(invocationOf("isAssignableFrom").withArgument(argName).on(nm + ".class").isEqualTo("false"))
-                                    .andThrow(nb -> nb.withStringLiteral("Not really a subclass of " + classType).ofType("IllegalArgumentException")).endIf();
-
                             typeAssign.assignField(fieldName)
-                                    .ofThis().toExpression(argName);
+                                    .ofThis()
+                                    .toInvocation("checkType")
+                                    .withArgument(argName)
+                                    .withClassArgument(nm)
+                                    .inScope();
                             typeAssign.returningThis();
-
                         });
             });
         }

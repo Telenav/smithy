@@ -47,7 +47,7 @@ public final class TypeNames {
     public TypeNames(Model model) {
         this.model = model;
     }
-    
+
     public Model model() {
         return model;
     }
@@ -186,5 +186,13 @@ public final class TypeNames {
     public static String enumConstantName(String s) {
         return escape(Strings.camelCaseToDelimited(s, '_').toUpperCase());
     }
-    
+
+    public static String rawTypeName(String typeName) {
+        int ix = typeName.indexOf('<');
+        if (ix > 0) {
+            return typeName.substring(0, ix);
+        }
+        return typeName;
+    }
+
 }

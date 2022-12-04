@@ -28,17 +28,10 @@ import com.telenav.smithy.blog.server.spi.impl.ListCommentsResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.AuthImpl;
 import com.telenav.smithy.blog.server.spi.impl.ReadBlogResponderImpl;
 import com.google.inject.name.Names;
-import com.mastfrog.smithy.http.InvalidInputException;
-import com.mastfrog.smithy.http.ResponseException;
 import com.telenav.blog.BlogService;
 import com.telenav.vertx.guice.VertxGuiceModule;
-import com.telenav.vertx.guice.verticle.VerticleBuilder;
-import io.vertx.ext.web.RoutingContext;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.format.DateTimeParseException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  *
@@ -53,14 +46,10 @@ public class BlogDemoVertx {
                 .withListBlogsResponder(ListBlogsResponderImpl.class)
                 .withListCommentsResponder(ListCommentsResponderImpl.class)
                 .configuringVertxWith(BlogDemoVertx::configureVertx)
-                .configuringVerticleWith(BlogDemoVertx::configureVerticle)
                 .installing(binder -> {
-                    binder.bind(ExecutorService.class)
-                            .annotatedWith(Names.named("background"))
-                            .toInstance(Executors.newCachedThreadPool());
-
-                    Path dir = Paths.get("/tmp/blog-demo");
-                    binder.bind(Path.class).annotatedWith(Names.named("blogDir")).toInstance(dir);
+                    binder.bind(Path.class)
+                            .annotatedWith(Names.named("blogDir"))
+                            .toInstance(Paths.get("/tmp/blog-demo"));
                 })
                 .start(8123);
     }
@@ -74,33 +63,4 @@ public class BlogDemoVertx {
         });
     }
 
-    static <T> VerticleBuilder<T> configureVerticle(VerticleBuilder<T> vb) {
-        vb.customizingRouterWith(rtr -> {
-            rtr.errorHandler(500, (RoutingContext res) -> {
-                if (res.failure() != null) {
-                    System.out.println("HAVE FAILURE " + res.failure());
-                    if (res.failure() instanceof IllegalArgumentException
-                            || res.failure() instanceof DateTimeParseException
-                            || res.failure() instanceof InvalidInputException) {
-                        String msg = res.failure().getMessage();
-                        if (msg == null) {
-                            res.response().setStatusCode(400).send();
-                        } else {
-                            res.response().setStatusCode(400)
-                                    .send(msg);
-                        }
-                    } else if (res.failure() instanceof ResponseException) {
-                        ResponseException ex = (ResponseException) res.failure();
-                        res.response().setStatusCode(ex.status())
-                                .send(ex.getMessage());
-                    } else if (res.failure() instanceof UnsupportedOperationException) {
-                        res.response().setStatusCode(501)
-                                .send(res.failure().getMessage());
-                    }
-                }
-            });
-            return rtr;
-        });
-        return vb;
-    }
 }
