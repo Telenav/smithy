@@ -1,7 +1,158 @@
 Smithy Tooling
 ==============
 
-Some tooling for [Smithy](https://awslabs.github.io/smithy/2.0/index.html).
+Some tooling for generating Java-based servers using 
+[Smithy](https://awslabs.github.io/smithy/2.0/index.html), an Interface Definition
+Language for defining network APIs and generating servers and clients from
+Amazon.  Amazon uses it internally quite a bit, but the only public, open-source
+code generator available is a generator for NodeJS server.
+
+The tooling here is under development, but the basics work well - it is initially
+aimed at Java code generation, but other languages are planned (clients first).
+Currently there is:
+
+ * Model type generation (POJOs) - with an emphasis on generating code that
+is expressive and pleasant to work with
+   * Wrapper types for numbers implement Number; wrapper types for Strings
+     implement CharSequence;  list types extend AbstractList and validate
+     their contents, and similar for Set and Map types
+   * All validation expressions from Smithy are enforced by generated types - an
+     invalid instance of a generated model type cannot exist
+   * All non-collection model types are immutable
+   * The `@builder` trait defined here can be used to simplify model object
+     creaton by generating a "builder" class for the type
+   * Generated types return valid JSON from `toString()` with no serialization
+     framework needed; and all generated types correctly implement `equals()`,
+     `hashCode()`, and, where applicable (numbers, timestamps, strings) `Comparable`.
+   * Convenience constructors taking `int` or `double` are provided for types
+     that use `short`, `byte` and `float` internally (and the inbound values are
+     range-checked)
+   * Certain code patterns are recognized in combination with traits that imply
+     them
+   * The generated code endeavors to be human-readable, and to be, essentially,
+     the code you would write for them if you had infinite time and patience.
+     Generated code should be beautiful code.
+   * Javadoc is thorough and includes both documentation from the smithy model
+     and information about any constraints or other information that plays a
+     role in code generation and class usage.
+ * Server generation (Acteur) - generates a configurable HTTP server using the
+Netty-based Acteur server framework
+ * Server generation (Vertx) - generates a configurable HTTP server using the
+Netty-based Vertx server framework
+ * Client generation - generates an HTTP SDK library which uses the same 
+generated model classes and provides a straightforward, easy-to-use API for
+interacting with the generated server
+ * Swagger (OpenAPI) generation - Swagger documentation can be generated from
+the model; Acteur-based servers can optionally serve it.
+ * Unit test generation for model classes - while mostly a sanity check of the
+generation code itself, the generated JUnit 5 tests also serve to prove that
+all generated types
+
+Server code generation will generate a set of interfaces for you to implement,
+one for each `OperationShape` in your Smithy model (and additional interfaces
+to perform authentication if needed).  So you get an SPI (Service Provider Interface)
+that lets you plug in the business logic that services requests.
+
+All you need to do to create a working server and clients, once you have a Smithy model,
+is implement the SPI interfaces and write a launcher to start the server.
+
+Server code generation also generates a Guice module which allows you
+to bind those implementations types and configure and start a server.  The
+launcher for the blog-demo project looks like:
+
+```java
+    public static void main(String[] args) {
+        new BlogService()
+                .withReadBlogResponder(ReadBlogResponderImpl.class)
+                .authenticateWithAuthUserUsing(AuthImpl.class)
+                .withListBlogsResponder(ListBlogsResponderImpl.class)
+                .withListCommentsResponder(ListCommentsResponderImpl.class)
+                .installing(binder -> {
+                    // bind the blog data back end to a folder containing
+                    // blog entries
+                    binder.bind(Path.class)
+                            .annotatedWith(Names.named("blogDir"))
+                            .toInstance(Paths.get("/tmp/blog-demo"));
+                })
+                .start(8123);
+    }
+```
+
+### Division into projects
+
+Since you generate model classes that are shared between both client and
+server, obviously you don't want to ship a server inside your client library -
+the model classes should be in their own library, the server code in another
+and the client in another.
+
+In addition to that, we can generate server code for multiple frameworks, and
+it wouldn't make much sense to mix those (at least for projects here, which
+generate more than one set of server code).
+
+So in general, given one Smithy model file in a project, a good division
+of code is to split into projects as follows:
+
+ * model - contains the Smithy model file, and is the code-generation destination
+for the `model` generation target (and optionally the `modeltest` unit tests).
+No human-edited code other than the Smithy model.
+ * server-spi - SPI interfaces for implementing business logic - no human-edited code
+ * server - generated server code; contains the Guice module for launching the
+server, which will have the same name as the `service` the Smithy model defines
+ * business-logic - where you will implement the SPI interfaces - you could also
+just put this in your server-application project, but it can help keep your code
+testable if the business logic does not live in the same place as the details of
+how you set up, say, database configuration, etc. so that code does not inadvertently
+make assumptions about how it's being run that won't be true for all tests
+ * server-application - depends on the business-logic and the server project and
+contains code to configure and start the server (say, setting up database bindings,
+configuring the server from configuration files and things like that)
+ * client - if you are generating a client SDK library
+
+You are not *required* to do all of this stuff initially - in fact, this library
+is quite useful if you just want to describe some complex types in Smithy and
+generate pleasant-to-use, bulletproof POJOs you don't have to worry about bugs in
+and do what you want with them.  And it will work to just generate model, spi and
+server all into the same project when building a proof-of-concept.
+
+Do note that *all child directories* of code generation destination folders are
+**deleted** when before code generation writes anything.  You do not want to put
+code you want to keep under those folders (by default, the plugin generates into
+`target/generated-sources/smithy` so you can do what you want in `src/main/java`).
+
+
+### How It All Gets Built
+
+The smithy-maven-plugin project runs code generation - you start with a Maven
+project which contains a Smithy IDL file (typically in `src/main/smithy`) and
+which uses the Maven plugin.  There are separate code generators for clients and
+various types of servers.  To use them, you need both to set up the a
+`<build><plugins>` section in the model project's `pom.xml` and *configure the
+plugin's dependencies to include the generators you want to use*.  The sample
+project `server-test/blog-service-model` provides an example.
+
+The Maven plugin - and the `smithy-generation` library it uses - has a concept
+of *generation targets* - a way of saying what it is you want to build and where
+you want to put it - along with the languages you want to generate.  The
+`<configuration><destinations>` section of the plugin configuration is where
+you direct the destination of source generation by generation target:
+
+```xml
+<namespaces>com.telenav.blog</namespaces>
+
+<targets>model,modeltest,server,server-spi,client,docs,vertx-server</targets>
+
+<destinations>
+    <client>${basedir}/../blog-client-demo/src/main/java</client>
+    <docs>${basedir}/../blog-server-generated-impl/src/main/resources</docs>
+    <server>${basedir}/../blog-server-generated-impl/src/main/java</server>
+    <server-spi>${basedir}/../blog-server-spi/src/main/java/</server-spi>
+    <vertx-server>${basedir}/../blog-server-vertx/src/main/java/</vertx-server>
+</destinations>
+```
+
+It is also an option to configure each project with the Maven plugin to point
+to the model file in whatever project it lives in.
+
 
 Quick-Start
 -----------
@@ -143,16 +294,6 @@ Other Stuff
    that grammar.  Requires 
    [the Antlr language-support modules to be installed](https://github.com/timboudreau/ANTLR4-Plugins-for-NetBeans).
 
-
-Obsolete Stuff Still Being Mined for Code
------------------------------------------
-
- * `smithy-pojo-generator` - the pojo and complete server and client generator
-   demo prototype.
- * `smithy-extensions` - extensions used in the prototype demo - generic ones
-   already moved to `simple-smithy-extensions` - http-specific ones pending
- * `demo` - has subprojects from the original prototype - most empty, since the
-   code was nearly entirely generated
 
 Using The Maven Generation Plugin
 ==================================

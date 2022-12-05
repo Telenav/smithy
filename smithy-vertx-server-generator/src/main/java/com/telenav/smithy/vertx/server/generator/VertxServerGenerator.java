@@ -65,6 +65,7 @@ import static com.mastfrog.smithy.server.common.OriginType.URI_QUERY;
 import com.mastfrog.smithy.server.common.PayloadOrigin;
 import com.mastfrog.smithy.server.common.RequestParameterOrigin;
 import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
+import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.telenav.smithy.names.TypeNames;
@@ -98,6 +99,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
@@ -141,6 +143,7 @@ import software.amazon.smithy.model.traits.RequiredTrait;
  */
 public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
+    private static final String BODY_PLACEHOLDER = "--body--";
     private final ScopeBindings scope = new ScopeBindings();
     private final boolean debug;
 
@@ -286,7 +289,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 .ofType("List<Module>");
         cb.importing(List.class, ArrayList.class);
 
-        cb.method("installing", mth -> {
+        cb.method("withModule", mth -> {
             mth.withModifier(PUBLIC)
                     .docComment("Add a module to be installed with this one."
                             + "\n@param module A module"
@@ -374,7 +377,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         .ofType(fieldType);
             });
 
-            cb.method("with" + typeName, mth -> {
+            cb.method("with" + typeName + "Type", mth -> {
                 mth.withModifier(PUBLIC)
                         .docComment("Provide an implementation of " + typeName + " to run with."
                                 + "\n@param " + argName + " a class that implements " + typeName
@@ -412,12 +415,106 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                     .inScope();
                             typeAssign.returningThis();
                         });
-                ;
             });
         }
     }
 
+    private String operationEnumConstant(OperationShape op) {
+        return Strings.camelCaseToDelimited(op.getId().getName(), '_').toUpperCase();
+    }
+
+    private String operationEnumTypeName() {
+        return escape(shape.getId().getName() + "Operations");
+    }
+
+    private void withOperationEnumItem(OperationShape op, BiConsumer<String, String> enumTypeAndConstant) {
+        enumTypeAndConstant.accept(names().packageOf(shape) + "." + operationEnumTypeName(),
+                operationEnumConstant(op));
+    }
+
+    public String createOperationsEnum(Collection<? extends OperationShape> ops, Consumer<ClassBuilder<String>> addTo) {
+        String nm = operationEnumTypeName();
+        ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
+                .named(nm)
+                .withModifier(PUBLIC)
+                .toEnum();
+        cb.field("operationId")
+                .withModifier(FINAL)
+                .ofType("String");
+        cb.constructor(con -> {
+            con.addArgument("String", "opId");
+            con.body(bb -> {
+                bb.assignField("operationId")
+                        .ofThis().toExpression("opId");
+            });
+        });
+        cb.overridePublic("toString")
+                .returning("String")
+                .bodyReturning("operationId");
+        cb.docComment("Enum of smithy operations in " + shape.getId().getName() + " used "
+                + "by the body handler factory provided to the " + shape.getId().getName()
+                + "guice module, and optionally also for logging.");
+        cb.enumConstants(ecb -> {
+            for (OperationShape op : ops) {
+                String s = operationEnumConstant(op);
+                ecb.addWithArgs(s).withStringLiteral(op.getId().toString()).inScope();
+            }
+        });
+        addTo.accept(cb);
+        return nm;
+    }
+
+    public void generateBodyHandlerSupport(ClassBuilder<String> routerBuilder, String operationsEnumName) {
+        routerBuilder.innerClass("DefaultBodyHandlerFactory", cb -> {
+            cb.importing(
+                    "io.vertx.ext.web.handler.BodyHandler",
+                    "java.util.function.Function",
+                    "io.vertx.ext.web.RoutingContext",
+                    "io.vertx.core.Handler")
+                    .implementing("Function<" + operationsEnumName + ", Handler<RoutingContext>>")
+                    .withModifier(PRIVATE, STATIC, FINAL);
+            cb.overridePublic("apply")
+                    .addArgument(operationsEnumName, "operation")
+                    .returning("Handler<RoutingContext>")
+                    .body(bb -> {
+                        bb.returningInvocationOf("create")
+                                .on("BodyHandler");
+                    });
+        });
+
+        routerBuilder.field("bodyFactory", fld -> {
+            fld.withModifier(PRIVATE)
+                    .initializedWithNew().ofType("DefaultBodyHandlerFactory")
+                    .ofType("Function<? super " + operationsEnumName + ", ? extends Handler<RoutingContext>>");
+        });
+
+        routerBuilder.method("withRequestBodyHandlerFactory", mth -> {
+            mth.addArgument("Function<? super " + operationsEnumName + ", ? extends Handler<RoutingContext>>", "factory")
+                    .withModifier(PUBLIC)
+                    .returning(routerBuilder.className());
+            mth.docComment("Requests that read the inbound HTTP payload need a <code>BodyHandler</code> or "
+                    + "equivalent <code>Handler</code> which pauses response handling until the inbound "
+                    + "request body is complete, and then decode it and set it on the request before resuming "
+                    + "it.  Vertx offers a number of options for this, including streaming the content to "
+                    + "disk.  What is needed is likely to vary on a per-operation basis."
+                    + "\nThe passed function is passed the operation it is creating a body handler for.");
+            mth.body(bb -> {
+                bb.invoke("checkInitialized").inScope();
+                bb.ifNull("factory")
+                        .andThrow().withStringLiteral("Body handler cannot be null")
+                        .ofType("IllegalArgumentException");
+                bb.assignField("bodyFactory")
+                        .ofThis()
+                        .toExpression("factory");
+                bb.returningThis();
+            });
+        });
+    }
+
     public void generateCreateVertxModuleMethod(ClassBuilder<String> routerBuilder, ResourceGraph graph, Collection<? extends OperationShape> ops, Consumer<ClassBuilder<String>> addTo) {
+        String operationsEnumName = createOperationsEnum(ops, addTo);
+        generateBodyHandlerSupport(routerBuilder, operationsEnumName);
+
         routerBuilder.method("createVertxModule", mth -> {
             mth.withModifier(PRIVATE, FINAL)
                     .returning("VertxGuiceModule")
@@ -429,6 +526,11 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         bb.declare("result")
                                 .initializedWithNew(nb -> nb.ofType("VertxGuiceModule"))
                                 .as("VertxGuiceModule");
+
+                        bb.declare("bodyFactory")
+                                .initializedFromField("bodyFactory")
+                                .ofThis()
+                                .as("Function<? super " + operationsEnumName + ", ? extends Handler<RoutingContext>>");
 
                         bb.blankLine().lineComment("Binds ObjectMapper configured to correctly "
                                 + " handle").lineComment("java.time types as ISO 8601 strings");
@@ -878,13 +980,15 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
                     });
         });
+        if (input != null && input.consumesHttpPayload()) {
+            handlers.add(BODY_PLACEHOLDER);
+        }
         handlers.add(cb.fqn());
         if (readsPayload) {
             generateWithContentMethod(cb);
         }
         if (writesPayload) {
             generateOutputWritingHandler(op, implPackage, input, spiArgs, handlers, others);
-//            generateWriteOutputMethod(cb);
         }
         return cb;
     }
@@ -1232,7 +1336,14 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             ClassBuilder<String> routerBuilder, List<String> handlers,
             OperationShape op) {
 
-        handlers.forEach(routerBuilder::importing);
+        for (String h : handlers) {
+            switch (h) {
+                case BODY_PLACEHOLDER:
+                    continue;
+                default:
+                    routerBuilder.importing(h);
+            }
+        }
         InvocationBuilder<BlockBuilder<B>> inv = null;
         if (handlers.size() == 1) {
             inv = bb.invoke("handledBy")
@@ -1244,12 +1355,22 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             // gets you first().middle().last().
             for (int i = handlers.size() - 1; i >= 0; i--) {
                 String handler = handlers.get(i);
-                if (i == handlers.size() - 1) {
-                    inv = bb.invoke("terminatedBy")
-                            .withClassArgument(simpleNameOf(handler));
-                } else {
-                    inv = inv.onInvocationOf("withHandler")
-                            .withClassArgument(simpleNameOf(handler));
+                switch (handler) {
+                    case BODY_PLACEHOLDER:
+                        assert inv != null;
+                        inv = inv.onInvocationOf("withHandler")
+                                .withArgumentFromInvoking("apply")
+                                .withArgument(operationEnumTypeName() + "." + operationEnumConstant(op))
+                                .on("bodyFactory");
+                        break;
+                    default:
+                        if (i == handlers.size() - 1) {
+                            inv = bb.invoke("terminatedBy")
+                                    .withClassArgument(simpleNameOf(handler));
+                        } else {
+                            inv = inv.onInvocationOf("withHandler")
+                                    .withClassArgument(simpleNameOf(handler));
+                        }
                 }
             }
         }

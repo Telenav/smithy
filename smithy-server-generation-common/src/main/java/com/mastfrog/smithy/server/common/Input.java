@@ -69,6 +69,10 @@ public class Input implements Iterable<InputMemberObtentionStrategy> {
         }
         return null;
     }
+    
+    public boolean consumesHttpPayload() {
+        return entireInputIsHttpPayload() || httpPayloadType() != null;
+    }
 
     public boolean entireInputIsHttpPayload() {
         return isEmpty() || (strategies.size() == 1

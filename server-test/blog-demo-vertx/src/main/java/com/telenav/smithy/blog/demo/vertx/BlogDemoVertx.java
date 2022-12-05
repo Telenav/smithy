@@ -41,12 +41,12 @@ public class BlogDemoVertx {
 
     public static void main(String[] args) {
         new BlogService()
-                .withReadBlogResponder(ReadBlogResponderImpl.class)
+                .withReadBlogResponderType(ReadBlogResponderImpl.class)
                 .authenticateWithAuthUserUsing(AuthImpl.class)
-                .withListBlogsResponder(ListBlogsResponderImpl.class)
-                .withListCommentsResponder(ListCommentsResponderImpl.class)
+                .withListBlogsResponderType(ListBlogsResponderImpl.class)
+                .withListCommentsResponderType(ListCommentsResponderImpl.class)
                 .configuringVertxWith(BlogDemoVertx::configureVertx)
-                .installing(binder -> {
+                .withModule(binder -> {
                     binder.bind(Path.class)
                             .annotatedWith(Names.named("blogDir"))
                             .toInstance(Paths.get("/tmp/blog-demo"));

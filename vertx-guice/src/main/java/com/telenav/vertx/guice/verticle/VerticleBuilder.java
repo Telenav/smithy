@@ -13,6 +13,7 @@ import io.vertx.core.http.HttpServerOptions;
 import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
 import java.util.ArrayList;
 import static java.util.Collections.singletonList;
 import java.util.List;
@@ -85,7 +86,7 @@ public final class VerticleBuilder<T> {
 
     public RouteBuilder<RouteFinisher<VerticleBuilder<T>>> route() {
         return new RouteBuilder<>(routeCreator -> {
-            return new RouteFinisher<>(routeCreator, (Function<Router, Route> rc, 
+            return new RouteFinisher<>(routeCreator, (Function<Router, Route> rc,
                     List<Function<Binder, Provider<? extends Handler<RoutingContext>>>> handler) -> {
                 if (handler.isEmpty()) {
                     throw new IllegalStateException("Handler list is empty");
@@ -259,7 +260,8 @@ public final class VerticleBuilder<T> {
         }
     }
 
-    private static final class HttpMethodRegexRouteCreator implements Function<Router, Route> {
+    private static final class HttpMethodRegexRouteCreator
+            implements Function<Router, Route> {
 
         private final String path;
         private final HttpMethod method;
