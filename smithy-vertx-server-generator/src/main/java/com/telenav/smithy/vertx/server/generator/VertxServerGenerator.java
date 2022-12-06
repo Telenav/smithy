@@ -1075,7 +1075,9 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     }
 
-    private <C, B extends BlockBuilderBase<C, B, ?>> String gatherInput(StructureShape in, OperationShape op, Input input, B bb, ClassBuilder<String> cb, SpiTypesAndArgs spiArgs) {
+    private <C, B extends BlockBuilderBase<C, B, X>, X> String gatherInput(StructureShape in,
+            OperationShape op, Input input, B bb,
+            ClassBuilder<String> cb, SpiTypesAndArgs spiArgs) {
 
         if (in != null) {
             Obj<String> ret = Obj.create();
@@ -1087,15 +1089,17 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 scope.bindDirect(input.fqn(), "Input type for " + typeNameOf(op)
                         + " consumed by " + OperationNames.operationInterfaceName(op));
 
-                bb.invoke("withContent")
-                        .withClassArgument(inputType)
-                        .withArgument("context")
-                        .withLambdaArgument(lb -> {
-                            lb.withArgument("payload")
-                                    .body(lbb -> {
-                                        ret.set(assembleOperationInput(lbb, op, input, cb, "payload", spiArgs));
-                                    });
-                        }).inScope();
+                wrapInTryCatch("context", bb, tri -> {
+                    tri.invoke("withContent")
+                            .withClassArgument(inputType)
+                            .withArgument("context")
+                            .withLambdaArgument(lb -> {
+                                lb.withArgument("payload")
+                                        .body(lbb -> {
+                                            ret.set(assembleOperationInput(lbb, op, input, cb, "payload", spiArgs));
+                                        });
+                            }).inScope();
+                });
             } else {
                 ret.set(assembleOperationInput(bb, op, input, cb, "payload", spiArgs));
             }
@@ -1230,7 +1234,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     }
 
     static <C, X, B extends BlockBuilderBase<C, B, X>> void wrapInTryCatch(
-            String ctxVar, B bb, Consumer<TryBuilder<B>> consumer) {
+            String ctxVar, B bb, Consumer<? super TryBuilder<? extends B>> consumer) {
         TryBuilder<B> tri = bb.trying();
         consumer.accept(tri);
         tri.catching(cat -> {
