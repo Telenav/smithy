@@ -25,9 +25,14 @@ package com.telenav.smithy.vertx.probe;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Binder;
+import com.google.inject.Inject;
 import com.google.inject.Key;
 import com.google.inject.Provider;
+import com.google.inject.Scopes;
+import com.google.inject.TypeLiteral;
 import com.google.inject.util.Providers;
+import io.vertx.core.Handler;
+import io.vertx.core.Vertx;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -112,18 +117,48 @@ public final class VertxProbeModule<O extends Enum<O>> extends AbstractModule {
         Key<Probe<O>> key
                 = (Key<Probe<O>>) Key.get(new FakeProbeType<>(type));
         if (probes.isEmpty()) {
-            bind(key).toInstance(Probe.empty());
+            Probe<O> empty = Probe.empty();
+            bind(key).toInstance(empty);
+            bind(new TypeLiteral<Probe<?>>() {
+            }).toInstance(empty);
         } else {
-            bind(key).toProvider(new ProbeProvider<>(probes, async))
+            ProbeProvider<O> probeProvider = new ProbeProvider<>(probes, async);
+            bind(key).toProvider(probeProvider)
                     .asEagerSingleton();
+            bind(new TypeLiteral<Probe<?>>() {
+            }).toProvider(probeProvider).in(Scopes.SINGLETON);
+            // Don't bind this if we have no probes, or all exceptions go
+            // into a black hold
+            bind(Exceptions.class).asEagerSingleton();
         }
+
         initialized = true;
+    }
+
+    private static final class Exceptions implements Handler<Throwable> {
+
+        private final Provider<Probe> probe;
+
+        @Inject
+        Exceptions(Vertx vx, Provider<Probe> probe) {
+            // Set up the global vertx exception handler
+            this.probe = probe;
+            vx.exceptionHandler(this);
+        }
+
+        @Override
+        public void handle(Throwable event) {
+            String msg = event.getMessage();
+            probe.get().onNonOperationFailure(msg == null ? "unknown" : msg, event);
+        }
     }
 
     private static final class ProbeProvider<O extends Enum<O>> implements Provider<Probe<O>> {
 
         private final List<Provider<? extends ProbeImplementation<? super O>>> all;
         private final boolean async;
+        private Probe<O> probe;
+        private volatile boolean shutdown;
 
         ProbeProvider(List<Provider<? extends ProbeImplementation<? super O>>> all,
                 boolean async) {
@@ -131,19 +166,41 @@ public final class VertxProbeModule<O extends Enum<O>> extends AbstractModule {
             this.async = async;
         }
 
+        private void shutdown() {
+            shutdown = true;
+            Probe<O> pb;
+            synchronized (this) {
+                pb = probe;
+            }
+            if (pb != null) {
+                pb.onShutdown();
+                try {
+                    pb.shutdown();
+                } catch (InterruptedException ex) {
+                    ex.printStackTrace(System.err);
+                }
+            }
+        }
+
         @Override
-        public Probe<O> get() {
+        public synchronized Probe<O> get() {
+            if (probe != null) {
+                return probe;
+            }
             List<ProbeImplementation<? super O>> impls
                     = new ArrayList<>(all.size());
             for (Provider<? extends ProbeImplementation<? super O>> item : all) {
                 impls.add(item.get());
             }
             Probe<O> result = Probe.create(impls);
-            if (async) {
-                return result.async();
-            } else {
-                return result;
+            if (async && !shutdown) {
+                result = result.async();
+                Thread t = new Thread(this::shutdown, "async-probe-shutdown");
+                Runtime.getRuntime().addShutdownHook(t);
             }
+            probe = result;
+            result.onStartup();
+            return result;
         }
     }
 

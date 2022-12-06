@@ -26,7 +26,6 @@ package com.telenav.smithy.blog.server.spi.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.telenav.smithy.blog.demo.data.BlogStore;
 import com.google.inject.Inject;
-import com.google.inject.name.Named;
 import com.mastfrog.acteur.header.entities.CacheControl;
 import static com.mastfrog.smithy.http.HeaderTypes.headerTypes;
 import com.mastfrog.smithy.http.SmithyRequest;
@@ -39,7 +38,6 @@ import com.telenav.blog.model.ListBlogsOutput;
 import com.telenav.blog.spi.ListBlogsResponder;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
 
 /**
  *
@@ -60,8 +58,6 @@ public final class ListBlogsResponderImpl implements ListBlogsResponder {
     @Override
     public void respond(SmithyRequest request, Optional<AuthUser> authInfo,
             ListBlogsInput input, SmithyResponse<ListBlogsOutput> output) throws Exception {
-
-        System.out.println("INPUT:\n\n" + mapper.writeValueAsString(input) + "\n\n");
 
         BlogList blogList = blogs.list();
         if (input.since().isPresent() || input.tags().isPresent() || input.search().isPresent() || input.count().isPresent()) {

@@ -28,6 +28,7 @@ import com.mastfrog.function.state.Obj;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
+import com.mastfrog.java.vogon.ClassBuilder.ConstructorBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.ElseClauseBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.TryBuilder;
@@ -146,18 +147,26 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     private static final String BODY_PLACEHOLDER = "--body--";
     private final ScopeBindings scope = new ScopeBindings();
     private final boolean debug;
+    private final boolean generateProbeCode;
 
     VertxServerGenerator(ServiceShape shape, Model model, Path destSourceRoot,
             GenerationTarget target, LanguageWithVersion language,
             SmithyGenerationSettings settings, SmithyGenerationLogger logger) {
         super(shape, model, destSourceRoot, target, language);
         debug = settings.is(DEBUG);
+        generateProbeCode = !settings.getString("noprobe").map(Boolean::parseBoolean).orElse(false);
     }
 
     private void initDebug(ClassBuilder<?> cb) {
         applyGeneratedAnnotation(VertxServerGenerator.class, cb);
         if (debug) {
             cb.generateDebugLogCode();
+        }
+    }
+
+    private void ifProbe(Runnable r) {
+        if (generateProbeCode) {
+            r.run();
         }
     }
 
@@ -192,6 +201,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         generateStartMethod(cb);
 
         generateCustomizeVerticleFieldsAndMethods(cb);
+        generateProbeGuiceModuleMethods(cb);
 
         generateSendErrorResponseMethod(cb);
         generateErrorHandlingDisablementMethodAndField(cb);
@@ -204,6 +214,143 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         cb.sortMembers();
         addTo.accept(cb);
+    }
+
+    String probeHandlerClassName(OperationShape op) {
+        return escape(op.getId().getName() + "ProbeHandler");
+    }
+
+    String probeHandlerFqn(OperationShape op) {
+        return probeHandlerPackage() + "." + probeHandlerClassName(op);
+    }
+
+    private void generateProbeHandler(OperationShape op, List<String> handlers, Consumer<ClassBuilder<String>> c) {
+        ifProbe(() -> {
+            String implPackage = probeHandlerPackage();
+            String handlerType = probeHandlerClassName(op);
+            ClassBuilder<String> cb = ClassBuilder.forPackage(implPackage)
+                    .named(handlerType)
+                    .withModifier(PUBLIC, FINAL)
+                    .importing("io.vertx.ext.web.RoutingContext",
+                            "io.vertx.core.Handler",
+                            "javax.inject.Inject",
+                            "com.google.inject.Singleton",
+                            "com.telenav.vertx.guice.scope.RequestScope"
+                    )
+                    .implementing("Handler<RoutingContext>")
+                    .annotatedWith("Singleton").closeAnnotation()
+                    .docComment("Attaches listeners for response end so that probe methods are "
+                            + "called on lifecycle events for each request");
+
+            cb.field("scope").withModifier(PRIVATE, FINAL)
+                    .ofType("RequestScope");
+
+            handlers.add(cb.fqn());
+
+            cb.constructor(con -> {
+                con.annotatedWith("Inject").closeAnnotation();
+                con.addArgument("RequestScope", "scope");
+                con.body(bb -> {
+                    addProbeArgumentsAndFields(cb, con, bb);
+                    bb.assignField("scope").ofThis().toExpression("scope");
+                });
+            });
+
+            cb.overridePublic("handle", mth -> {
+                mth.addArgument("RoutingContext", "event");
+                mth.body(bb -> {
+                    String opEnum = operationEnumTypeName() + "." + operationEnumConstant(op);
+                    bb.invoke("attachTo")
+                            .withArgument("event")
+                            .withArgument(opEnum)
+                            .on("probe");
+                    bb.invoke("onEnterHandler")
+                            .withArgumentFromField(operationEnumConstant(op))
+                            .of(operationEnumTypeName())
+                            .withArgument("event")
+                            .withClassArgument(cb.className())
+                            .on("probe");
+                    bb.invoke("run")
+                            .withMethodReference("next")
+                            .on("event")
+                            .withArgument(opEnum)
+                            .on("scope");
+                });
+            });
+            c.accept(cb);
+        });
+    }
+
+    private void generateProbeGuiceModuleMethods(ClassBuilder<String> cb) {
+        ifProbe(() -> {
+            cb.importing("com.telenav.smithy.vertx.probe.VertxProbeModule",
+                    "com.telenav.smithy.vertx.probe.ProbeImplementation"
+            );
+            cb.field("probeModule", fld -> {
+                fld.withModifier(PRIVATE, FINAL)
+                        .initializedWithNew()
+                        .withClassArgument(operationEnumTypeName())
+                        .ofType("VertxProbeModule<>")
+                        .ofType("VertxProbeModule<" + operationEnumTypeName() + ">");
+            });
+            cb.method("asyncProbe", mth -> {
+                mth.returning(cb.className())
+                        .withModifier(PUBLIC)
+                        .docComment("Configures Probe instances (for logging and similar) to be "
+                                + "run out-of-band with the request/response cycle, on a background thread."
+                                + "\n@return this");
+                mth.body(bb -> {
+                    bb.invoke("async").on("probeModule").returningThis();
+                });
+            });
+            cb.method("withProbe", mth -> {
+                mth.addArgument("ProbeImplementation<? super " + operationEnumTypeName() + ">", "probe")
+                        .returning(cb.className())
+                        .withModifier(PUBLIC)
+                        .docComment("Provide a probe implementation (for logging or similar) which will "
+                                + "receive callbacks during various operations."
+                                + "\n@param probe A probe implementation"
+                                + "\n@return this")
+                        .body(bb -> {
+                            bb.invoke("withProbe")
+                                    .withArgument("probe")
+                                    .on("probeModule");
+                            bb.returningThis();
+                        });
+            });
+            cb.method("withProbe", mth -> {
+                mth.addArgument("Class<? extends ProbeImplementation<? super " + operationEnumTypeName() + ">>", "probe")
+                        .returning(cb.className())
+                        .withModifier(PUBLIC)
+                        .docComment("Provide a probe implementation (for logging or similar) which will "
+                                + "receive callbacks during various operations.\n"
+                                + "Note that the probe implementation type passed here is effectively a "
+                                + "singleton - it will be instantiated <b>once</b> on first use, and reused for the "
+                                + "lifetime of the application."
+                                + "\n@param probe A probe implementation type"
+                                + "\n@return this")
+                        .body(bb -> {
+                            bb.invoke("withProbe")
+                                    .withArgument("probe")
+                                    .on("probeModule");
+                            bb.returningThis();
+                        });
+            });
+        });
+    }
+
+    private void addProbeArgumentsAndFields(ClassBuilder<String> cb,
+            ConstructorBuilder<?> con, BlockBuilder<?> conBody) {
+        ifProbe(() -> {
+            cb.importing("com.telenav.smithy.vertx.probe.Probe");
+            maybeImport(cb, names().packageOf(shape) + "." + operationEnumTypeName());
+            cb.field("probe", fld -> {
+                fld.withModifier(PRIVATE, FINAL)
+                        .ofType("Probe<" + operationEnumTypeName() + ">");
+            });
+            con.addArgument("Probe<" + operationEnumTypeName() + ">", "probe");
+            conBody.assignField("probe").ofThis().toExpression("probe");
+        });
     }
 
     public void generateConfigureOverride(ClassBuilder<String> cb, Set<OperationShape> ops) {
@@ -220,6 +367,10 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         .inScope()
                         .as("VertxGuiceModule");
 
+                ifProbe(() -> bb.invoke("withModule")
+                        .withArgument("probeModule")
+                        .on(moduleVar));
+
                 if (!scope.isEmpty()) {
                     scope.generateBindingCode(binderVar, moduleVar, bb, cb);
                 } else {
@@ -229,8 +380,96 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 generateVertxModuleConfigurationStanzas(moduleVar, bb, cb);
 
                 generateModuleAdditionMethod(moduleVar, bb, cb);
+
                 bb.invoke("install").withArgument(moduleVar).on("binder");
+                ifProbe(() -> generateStartupHookBindings(cb, bb));
+
                 bb.statement("initialized = true");
+            });
+        });
+    }
+
+    private <C, X, B extends BlockBuilderBase<C, B, X>> void generateStartupHookBindings(
+            ClassBuilder<?> module, B b) {
+        String cn = escape(shape.getId().getName() + "LaunchHook");
+        b.blankLine().lineComment("Notifies the Probe of verticle launch");
+        b.invoke("asEagerSingleton")
+                .onInvocationOf("bind")
+                .withClassArgument(cn)
+                .on("binder");
+
+        module.innerClass(cn, cb -> {
+            cb.withModifier(PRIVATE, STATIC, FINAL)
+                    .importing("com.telenav.vertx.guice.LaunchHook",
+                            "io.vertx.core.DeploymentOptions",
+                            "com.google.inject.Inject",
+                            "com.google.inject.name.Named",
+                            "io.vertx.core.Future",
+                            "com.telenav.smithy.vertx.probe.Probe",
+                            "io.vertx.core.Verticle")
+                    .extending("LaunchHook");
+
+            cb.field("noExitOnFailure", fld -> {
+                fld.annotatedWith("Inject").addArgument("optional", true).closeAnnotation()
+                        .annotatedWith("Named", anno -> {
+                            anno.addArgument("value", "noExitOnFailure");
+                        }).withModifier(PRIVATE);
+                fld.ofType("boolean");
+            });
+            cb.field("probe", fld -> {
+                fld.withModifier(PRIVATE, FINAL)
+                        .ofType("Probe<?>");
+            });
+
+            cb.constructor(con -> {
+                con.annotatedWith("Inject").closeAnnotation()
+                        .addArgument("LaunchHook.LaunchHookRegistry", "registry")
+                        .addArgument("Probe<?>", "probe")
+                        .body(bb -> {
+                            bb.invoke("super")
+                                    .withArgument("registry")
+                                    .inScope();
+                            bb.assignField("probe").ofThis().toExpression("probe");
+                        });
+            });
+            cb.overrideProtected("onLaunch", mth -> {
+                mth.addArgument("int", "item")
+                        .addArgument("Verticle", "verticle")
+                        .addArgument("DeploymentOptions", "opts")
+                        .addArgument("Future<String>", "fut")
+                        .addArgument("int", "of");
+
+                mth.body(bb -> {
+                    bb.invoke("andThen")
+                            .withLambdaArgument(lb -> {
+                                lb.withArgument("res");
+                                lb.body(lbb -> {
+                                    ClassBuilder.IfBuilder<?> test = lbb.iff(invocationOf("cause").on("res").isNotNull());
+                                    test.invoke("onLaunchFailure")
+                                            .withArgument("verticle")
+                                            .withArgument("opts")
+                                            .withArgumentFromInvoking("cause")
+                                            .on("res")
+                                            .on("probe");
+                                    test = test.iff().booleanExpression("!noExitOnFailure")
+                                            .invoke("println")
+                                            .withStringLiteral("Exiting due to verticle launch failure")
+                                            .onField("err")
+                                            .of("System")
+                                            .invoke("exit")
+                                            .withArgument(1)
+                                            .on("System")
+                                            .endIf();
+                                    test.orElse()
+                                            .invoke("onLaunched")
+                                            .withArgument("verticle")
+                                            .withArgumentFromInvoking("result")
+                                            .on("res")
+                                            .on("probe")
+                                            .endIf();
+                                });
+                            }).on("fut");
+                });
             });
         });
     }
@@ -497,7 +736,9 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                     + "request body is complete, and then decode it and set it on the request before resuming "
                     + "it.  Vertx offers a number of options for this, including streaming the content to "
                     + "disk.  What is needed is likely to vary on a per-operation basis."
-                    + "\nThe passed function is passed the operation it is creating a body handler for.");
+                    + "\nThe passed function is passed the operation it is creating a body handler for."
+                    + "\n@param factory A function which returns a Handler (typically from one of Vertx's <code>BodyHandler</code>'s static methods)"
+                    + "\n@return this");
             mth.body(bb -> {
                 bb.invoke("checkInitialized").inScope();
                 bb.ifNull("factory")
@@ -728,6 +969,10 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         return packageOf(names().packageOf(op)) + ".impl";
     }
 
+    private String probeHandlerPackage() {
+        return names().packageOf(shape) + ".impl";
+    }
+
     private String generateOperationAuth(OperationShape op, ResourceGraph graph,
             String implPackage, AuthenticatedTrait auth, SpiTypesAndArgs spiArgs,
             List<String> handlers, Consumer<ClassBuilder<String>> addTo) {
@@ -740,6 +985,9 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         + "makes it available for injection in the request scope and invokes next() on the "
                         + "RoutingContext asynchronously.");
         initDebug(cb);
+        if (auth.isOptional()) {
+            cb.importing(Optional.class);
+        }
         handlers.add(cb.fqn());
         String authPackage = OperationNames.authPackage(shape, names());
         Shape authTarget = model.expectShape(auth.getPayload());
@@ -777,7 +1025,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 "javax.inject.Inject",
                 "io.vertx.core.Handler",
                 "io.vertx.ext.web.RoutingContext",
-                "java.util.Optional",
+                //                "java.util.Optional",
                 "com.mastfrog.smithy.http.AuthenticationResultConsumer",
                 "static com.telenav.smithy.vertx.adapter.VertxRequestAdapter.smithyRequest",
                 "com.telenav.vertx.guice.scope.RequestScope");
@@ -793,6 +1041,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             con.addArgument(authInterface, "authenticator")
                     .addArgument("RequestScope", "scope")
                     .body(bb -> {
+                        addProbeArgumentsAndFields(cb, con, bb);
                         bb.statement("this.authenticator = authenticator");
                         bb.statement("this.scope = scope");
                     });
@@ -801,15 +1050,22 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             mth.addArgument("RoutingContext", "event");
             mth
                     .body(bb -> {
-                        cb.importing(CompletableFuture.class
-                        );
+                        cb.importing(CompletableFuture.class);
+                        ifProbe(() -> {
+                            bb.invoke("onEnterHandler")
+                                    .withArgumentFromField(operationEnumConstant(op))
+                                    .of(operationEnumTypeName())
+                                    .withArgument("event")
+                                    .withClassArgument(cb.className())
+                                    .on("probe");
+                        });
+
                         bb.declare("fut")
                                 .initializedWithNew().ofType("CompletableFuture<>")
                                 .as("CompletableFuture<" + authTargetName + ">");
                         bb.invoke("whenCompleteAsync")
                                 .withLambdaArgument(lb -> {
-                                    lb.withArgument("user")
-                                            .withArgument("thrown");
+                                    lb.withArgument("user").withArgument("thrown");
                                     lb.body(lbb -> {
                                         wrapInTryCatch("event", lbb, tri -> {
                                             generateAuthFutureCompletion(tri, auth,
@@ -924,6 +1180,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                     .ofType("ObjectMapper");
         }
 
+        // Need the probe handler to be first in the handlers list
+        generateProbeHandler(op, handlers, others);
         op.getTrait(AuthenticatedTrait.class
         )
                 .map(auth -> {
@@ -946,6 +1204,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 con.addArgument("ObjectMapper", "mapper");
             }
             con.body(bb -> {
+                addProbeArgumentsAndFields(cb, con, bb);
                 bb.assignField("spi").ofThis().toExpression("spi");
                 bb.assignField("scope").ofThis().toExpression("scope");
 
@@ -958,6 +1217,15 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         cb.overridePublic("handle", mth -> {
             mth.addArgument("RoutingContext", "context")
                     .body(bb -> {
+                        ifProbe(() -> {
+                            bb.invoke("onEnterHandler")
+                                    .withArgumentFromField(operationEnumConstant(op))
+                                    .of(operationEnumTypeName())
+                                    .withArgument("context")
+                                    .withClassArgument(cb.className())
+                                    .on("probe");
+                        });
+
                         bb.declare("smithyRequest")
                                 .initializedByInvoking("smithyRequest")
                                 .withArgumentFromInvoking("request")
@@ -968,8 +1236,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         // XXX need to test something that has an empty response
 
                         if (!writesPayload) {
-                            int responseCode = op.getTrait(HttpTrait.class
-                            )
+                            int responseCode = op.getTrait(HttpTrait.class)
                                     .map(http -> http.getCode()).orElse(200);
                             bb.invoke("send")
                                     .onInvocationOf("setStatusCode")
@@ -985,7 +1252,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         }
         handlers.add(cb.fqn());
         if (readsPayload) {
-            generateWithContentMethod(cb);
+            generateWithContentMethod(cb, op);
         }
         if (writesPayload) {
             generateOutputWritingHandler(op, implPackage, input, spiArgs, handlers, others);
@@ -1024,6 +1291,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                     .addArgument(operationInterfaceName(op), "spi")
                     .addArgument(simpleNameOf(input.typeName()), "input")
                     .body(bb -> {
+                        addProbeArgumentsAndFields(cb, con, bb);
                         cb.field("input", inField -> {
                             inField.withModifier(PRIVATE, FINAL)
                                     .ofType(simpleNameOf(input.typeName()));
@@ -1059,6 +1327,15 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         cb.overridePublic("handle", mth -> {
             mth.addArgument("RoutingContext", "context");
             mth.body(bb -> {
+                ifProbe(() -> {
+                    bb.invoke("onEnterHandler")
+                            .withArgumentFromField(operationEnumConstant(op))
+                            .of(operationEnumTypeName())
+                            .withArgument("context")
+                            .withClassArgument(cb.className())
+                            .on("probe");
+                });
+
                 bb.declare("smithyRequest")
                         .initializedByInvoking("smithyRequest")
                         .withArgumentFromInvoking("request")
@@ -1069,7 +1346,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             });
         });
         if (writesPayload) {
-            generateWriteOutputMethod(cb);
+            generateWriteOutputMethod(cb, op);
         }
         addTo.accept(cb);
 
@@ -1244,7 +1521,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         }, "Exception", "Error");
     }
 
-    private <C> void generateWriteOutputMethod(ClassBuilder<C> cb) {
+    private <C> void generateWriteOutputMethod(ClassBuilder<C> cb, OperationShape op) {
         cb.importing(
                 "com.fasterxml.jackson.core.JsonProcessingException",
                 "io.vertx.core.Future",
@@ -1261,19 +1538,46 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                     .addArgument("RoutingContext", "context")
                     .returning("Future<Void>");
             mth.body(bb -> {
+                String ec = operationEnumTypeName() + "." + operationEnumConstant(op);
+                ifProbe(() -> {
+                    cb.importing(Optional.class);
+                    bb.invoke("onBeforeSendResponse")
+                            .withArgument(ec)
+                            .withArgument("context")
+                            .withArgumentFromInvoking("ofNullable")
+                            .withArgument("output")
+                            .on("Optional")
+                            .on("probe");
+                });
+
                 bb.ifNull("output")
                         .returningInvocationOf("send")
                         .onInvocationOf("response")
                         .on("context").endIf();
                 bb.trying(tri -> {
-                    tri.returningInvocationOf("send")
-                            .withArgumentFromInvoking("buffer")
-                            .withArgumentFromInvoking("writeValueAsBytes")
-                            .withArgument("output")
-                            .on("mapper")
-                            .inScope()
-                            .onInvocationOf("response")
-                            .on("context");
+                    if (this.generateProbeCode) {
+                        tri.returningInvocationOf("listen")
+                                .withArgument(ec)
+                                .withArgument("context")
+                                .withArgumentFromInvoking("send")
+                                .withArgumentFromInvoking("buffer")
+                                .withArgumentFromInvoking("writeValueAsBytes")
+                                .withArgument("output")
+                                .on("mapper")
+                                .inScope()
+                                .onInvocationOf("response")
+                                .on("context")
+                                .on("probe");
+                    } else {
+                        tri.returningInvocationOf("send")
+                                .withArgumentFromInvoking("buffer")
+                                .withArgumentFromInvoking("writeValueAsBytes")
+                                .withArgument("output")
+                                .on("mapper")
+                                .inScope()
+                                .onInvocationOf("response")
+                                .on("context");
+                    }
                     tri.catching(cat -> {
                         cat.invoke("fail")
                                 .withArgument("thrown")
@@ -1287,7 +1591,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         });
     }
 
-    private <C> void generateWithContentMethod(ClassBuilder<C> cb) {
+    private <C> void generateWithContentMethod(ClassBuilder<C> cb, OperationShape op) {
         cb.importing(
                 "io.netty.buffer.ByteBufInputStream",
                 validationExceptions().fqn(),
@@ -1302,23 +1606,52 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                     .addArgument("RoutingContext", "context")
                     .addArgument("Consumer<T>", "consumer");
             mth.body(bb -> {
-                bb.declare("input").as("T");
+                bb.declare("input")
+                        .initializedWith("null")
+                        .as("T");
                 bb.trying(tri -> {
+
+                    cb.importing("io.vertx.core.buffer.Buffer");
+                    tri.declare("buffer").initializedByInvoking("buffer")
+                            .onInvocationOf("body")
+                            .on("context")
+                            .as("Buffer");
+
+                    ifProbe(() -> {
+                        tri.invoke("onBeforePayloadRead")
+                                .withArgument(operationEnumTypeName() + "." + operationEnumConstant(op))
+                                .withArgument("context")
+                                .withClassArgument(cb.className())
+                                .withArgument("buffer")
+                                .on("probe");
+                    });
+
                     tri.declare("stream")
                             .initializedWithNew(nb -> {
                                 nb.withArgumentFromInvoking("getByteBuf")
-                                        .onInvocationOf("buffer")
-                                        .onInvocationOf("body")
-                                        .on("context")
+                                        .on("buffer")
                                         .ofType("ByteBufInputStream");
                             }).as("InputStream");
+
                     tri.trying(innerTry -> {
                         innerTry.assign("input")
                                 .toInvocation("readValue")
                                 .withArgument("stream")
                                 .withArgument("type")
                                 .onField("mapper").ofThis();
+
                         innerTry.fynalli(fi -> fi.invoke("close").on("stream"));
+                    });
+                    ifProbe(() -> {
+                        cb.importing(Optional.class);
+                        tri.invoke("onAfterPayloadRead")
+                                .withArgument(operationEnumTypeName() + "." + operationEnumConstant(op))
+                                .withArgument("context")
+                                .withClassArgument(cb.className())
+                                .withArgumentFromInvoking("ofNullable")
+                                .withArgument("input")
+                                .on("Optional")
+                                .on("probe");
                     });
                     tri.catching(cat -> {
                         cat.invoke("fail")
@@ -1349,7 +1682,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             }
         }
         InvocationBuilder<BlockBuilder<B>> inv = null;
-        if (handlers.size() == 1) {
+        if (handlers.size() == -1) {
             inv = bb.invoke("handledBy")
                     .withClassArgument(handlers.get(0));
         } else {
@@ -1359,6 +1692,12 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             // gets you first().middle().last().
             for (int i = handlers.size() - 1; i >= 0; i--) {
                 String handler = handlers.get(i);
+//                if (i == handlers.size() - 1 && this.generateProbeCode) {
+//                    inv = bb.invoke("withHandler")
+//                            .withArgumentFromInvoking("endHandler")
+//                            .withArgument(operationEnumTypeName() + "." + operationEnumConstant(op))
+//                            .on("probe");
+//                }
                 switch (handler) {
                     case BODY_PLACEHOLDER:
                         assert inv != null;
@@ -1368,7 +1707,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .on("bodyFactory");
                         break;
                     default:
-                        if (i == handlers.size() - 1) {
+                        if (i == handlers.size() - 1 && inv == null) {
                             inv = bb.invoke("terminatedBy")
                                     .withClassArgument(simpleNameOf(handler));
                         } else {

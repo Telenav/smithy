@@ -23,7 +23,9 @@
  */
 package com.telenav.smithy.vertx.probe;
 
+import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
+import io.vertx.core.Verticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
 import static java.util.Arrays.asList;
@@ -60,6 +62,8 @@ final class AsyncProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
     }
 
     boolean drain(LinkedList<? super OpRecord<Ops>> into) {
+        // Drain the contents of the trieber stack, removing its head and
+        // collecting its contents into the passed list.
         Cell<Ops> cell = head.getAndSet(null);
         if (cell != null) {
             cell.addTo(into);
@@ -69,6 +73,7 @@ final class AsyncProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
     }
 
     void push(OpRecord<Ops> op) {
+        // Push a new cell atomically onto the trieber stack
         Cell<Ops> prev = head.getAndUpdate(old -> new Cell<>(op, old));
         if (prev == null) {
             enqueue();
@@ -128,6 +133,7 @@ final class AsyncProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
         // If we switched into shutdown state, make SURE any remaining
         // items are emitted:
         emitOneBatch(drainAll(records));
+        System.err.println("emit loop exit");
     }
 
     @SuppressWarnings("empty-statement")
@@ -155,7 +161,12 @@ final class AsyncProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
         emitter.start();
     }
 
-    static class Cell<Ops extends Enum<Ops>> {
+    /**
+     * A simple trieber stack.
+     *
+     * @param <Ops> The operation type
+     */
+    private static final class Cell<Ops extends Enum<Ops>> {
 
         private final OpRecord<Ops> record;
         private final Cell<Ops> prev;
@@ -189,55 +200,141 @@ final class AsyncProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
     }
 
     @Override
-    public void onSendResponse(Ops op, RoutingContext event, int status, Optional<?> payload) {
-        push(new SendResponseRecord<>(op, event, status, payload));
+    public void onLaunched(Verticle verticle, String msg) {
+        push(new LaunchRecord<>(verticle, msg));
+    }
+
+    static final class LaunchRecord<Ops extends Enum<Ops>> extends OpRecord<Ops> {
+
+        private final Verticle verticle;
+        private final String msg;
+
+        public LaunchRecord(Verticle verticle, String msg) {
+            this.verticle = verticle;
+            this.msg = msg;
+        }
+
+        @Override
+        public void accept(ProbeImplementation<? super Ops> t) {
+            t.onLaunched(verticle, msg);
+        }
+    }
+
+    @Override
+    public void onLaunchFailure(Verticle verticle, DeploymentOptions opts, Throwable thrown) {
+        push(new LaunchFailureRecord<>(verticle, opts, thrown));
+    }
+
+    static final class LaunchFailureRecord<Ops extends Enum<Ops>> extends OpRecord<Ops> {
+
+        private final Verticle verticle;
+        private final DeploymentOptions opts;
+        private final Throwable thrown;
+
+        public LaunchFailureRecord(Verticle verticle, DeploymentOptions opts, Throwable thrown) {
+            this.verticle = verticle;
+            this.opts = opts;
+            this.thrown = thrown;
+        }
+
+        @Override
+        public void accept(ProbeImplementation<? super Ops> t) {
+            t.onLaunchFailure(verticle, opts, thrown);
+        }
+    }
+
+    @Override
+    public void onStartRequest(Ops op, RoutingContext event) {
+        push(new StartRequestRecord<>(op, event));
+    }
+
+    private static final class StartRequestRecord<Ops extends Enum<Ops>> extends OpRecord<Ops> {
+
+        private final Ops op;
+        private final RoutingContext event;
+
+        public StartRequestRecord(Ops op, RoutingContext event) {
+            this.op = op;
+            this.event = event;
+        }
+
+        @Override
+        public void accept(ProbeImplementation<? super Ops> t) {
+            t.onStartRequest(op, event);
+        }
+    }
+
+    @Override
+    public void onBeforeSendResponse(Ops op, RoutingContext event, Optional<?> payload) {
+        push(new SendResponseRecord<>(op, event, payload));
     }
 
     private static final class SendResponseRecord<Ops extends Enum<Ops>> extends OpRecord<Ops> {
 
         private final Ops op;
         private final RoutingContext event;
-        private final int status;
         private final Optional<?> payload;
 
-        public SendResponseRecord(Ops op, RoutingContext event, int status, Optional<?> payload) {
+        public SendResponseRecord(Ops op, RoutingContext event, Optional<?> payload) {
             this.op = op;
             this.event = event;
-            this.status = status;
             this.payload = payload;
         }
 
         @Override
         public void accept(ProbeImplementation<? super Ops> t) {
-            t.onSendResponse(op, event, status, payload);
+            t.onBeforeSendResponse(op, event, payload);
         }
     }
 
     @Override
-    public void onResponseCompleted(RoutingContext event, int status, Optional<?> payload) {
-        push(new ResponseCompletedRecord<>(event, status, payload));
+    public void onAfterSendResponse(Ops op, RoutingContext event, int status) {
+        push(new AfterSendResponseRecord<>(op, event, status));
+    }
+
+    private static final class AfterSendResponseRecord<Ops extends Enum<Ops>> extends OpRecord<Ops> {
+
+        private final Ops op;
+        private final RoutingContext event;
+        private final int status;
+
+        public AfterSendResponseRecord(Ops op, RoutingContext event, int status) {
+            this.op = op;
+            this.event = event;
+            this.status = status;
+        }
+
+        @Override
+        public void accept(ProbeImplementation<? super Ops> t) {
+            t.onAfterSendResponse(op, event, status);
+        }
+    }
+
+    @Override
+    public void onResponseCompleted(Ops op, RoutingContext event, int status) {
+        push(new ResponseCompletedRecord<>(op, event, status));
     }
 
     private static final class ResponseCompletedRecord<Ops extends Enum<Ops>> extends OpRecord<Ops> {
 
         private final RoutingContext event;
         private final int status;
-        private final Optional<?> payload;
+        private final Ops op;
 
-        public ResponseCompletedRecord(RoutingContext event, int status, Optional<?> payload) {
+        public ResponseCompletedRecord(Ops op, RoutingContext event, int status) {
             this.event = event;
             this.status = status;
-            this.payload = payload;
+            this.op = op;
         }
 
         @Override
         public void accept(ProbeImplementation<? super Ops> t) {
-            t.onResponseCompleted(event, status, payload);
+            t.onResponseCompleted(op, event, status);
         }
     }
 
     @Override
-    public void onPayloadRead(Ops op, RoutingContext event,
+    public void onBeforePayloadRead(Ops op, RoutingContext event,
             Class<? extends Handler<RoutingContext>> handler,
             Buffer buffer) {
         buffer = Buffer.buffer(buffer.getByteBuf().duplicate());
@@ -260,7 +357,32 @@ final class AsyncProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
 
         @Override
         public void accept(ProbeImplementation<? super Ops> t) {
-            t.onPayloadRead(op, event, handler, buffer);
+            t.onBeforePayloadRead(op, event, handler, buffer);
+        }
+    }
+
+    @Override
+    public void onAfterPayloadRead(Ops op, RoutingContext event, Class<? extends Handler<RoutingContext>> handler, Optional<?> payload) {
+        push(new AfterPayloadReadRecord<>(op, event, handler, payload));
+    }
+
+    private static final class AfterPayloadReadRecord<Ops extends Enum<Ops>> extends OpRecord<Ops> {
+
+        private final Ops op;
+        private final RoutingContext event;
+        private final Class<? extends Handler<RoutingContext>> handler;
+        private final Optional<?> buffer;
+
+        public AfterPayloadReadRecord(Ops op, RoutingContext event, Class<? extends Handler<RoutingContext>> handler, Optional<?> buffer) {
+            this.op = op;
+            this.event = event;
+            this.handler = handler;
+            this.buffer = buffer;
+        }
+
+        @Override
+        public void accept(ProbeImplementation<? super Ops> t) {
+            t.onAfterPayloadRead(op, event, handler, buffer);
         }
     }
 

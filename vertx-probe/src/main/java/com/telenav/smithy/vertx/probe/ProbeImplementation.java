@@ -23,14 +23,24 @@
  */
 package com.telenav.smithy.vertx.probe;
 
-import com.google.inject.Provider;
+import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
+import io.vertx.core.Verticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Optional;
 
 /**
- * Callback interface which can be used for logging or detailed debug info.
+ * Callback interface which can be used for logging or detailed debug info. A
+ * few things to note: Where practical, objects passed to a ProbeImplementation
+ * are copies of the originals; for some things, such as large buffers, that is
+ * not practical. Do not mutate things.
+ * <p>
+ * ProbeImplementation instances which are bound <i>by type</i> may have objects
+ * injected into them, but they will be instantiated exactly once and reused for
+ * the life of the application. If you need access to scoped types, request that
+ * Providers, not concrete instances, be injected.
+ * </p>
  *
  * @author Tim Boudreau
  */
@@ -55,19 +65,42 @@ public interface ProbeImplementation<Ops extends Enum<Ops>> extends Comparable<P
         // do nothing
     }
 
-    default void onEnterHandler(Ops op, RoutingContext event, Class<? extends Handler<RoutingContext>> handler) {
+    default void onLaunched(Verticle verticle, String msg) {
         // do nothing
     }
 
-    default void onPayloadRead(Ops op, RoutingContext event, Class<? extends Handler<RoutingContext>> handler, Buffer buffer) {
+    default void onLaunchFailure(Verticle verticle, DeploymentOptions opts, Throwable thrown) {
         // do nothing
     }
 
-    default void onSendResponse(Ops op, RoutingContext event, int status, Optional<?> payload) {
+    default void onStartRequest(Ops op, RoutingContext event) {
         // do nothing
     }
 
-    default void onResponseCompleted(RoutingContext event, int status, Optional<?> payload) {
+    default void onEnterHandler(Ops op, RoutingContext event,
+            Class<? extends Handler<RoutingContext>> handler) {
+        // do nothing
+    }
+
+    default void onBeforePayloadRead(Ops op, RoutingContext event,
+            Class<? extends Handler<RoutingContext>> handler, Buffer buffer) {
+        // do nothing
+    }
+
+    default void onAfterPayloadRead(Ops op, RoutingContext event,
+            Class<? extends Handler<RoutingContext>> handler, Optional<?> payload) {
+        // do nothing
+    }
+
+    default void onBeforeSendResponse(Ops op, RoutingContext event, Optional<?> payload) {
+        // do nothing
+    }
+
+    default void onAfterSendResponse(Ops op, RoutingContext event, int statusCode) {
+        // do nothing
+    }
+
+    default void onResponseCompleted(Ops op, RoutingContext event, int status) {
         // do nothing
     }
 

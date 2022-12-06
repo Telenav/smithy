@@ -23,7 +23,9 @@
  */
 package com.telenav.smithy.vertx.probe;
 
+import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
+import io.vertx.core.Verticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Collection;
@@ -57,13 +59,32 @@ final class DelegatingProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
     }
 
     @Override
-    public void onPayloadRead(Ops op, RoutingContext event, Class<? extends Handler<RoutingContext>> handler, Buffer buffer) {
-        eachDelegate(del -> del.onPayloadRead(op, event, handler, buffer));
+    public void onLaunched(Verticle verticle, String msg) {
+        eachDelegate(del -> del.onLaunched(verticle, msg));
     }
 
     @Override
-    public void onSendResponse(Ops op, RoutingContext event, int status, Optional<?> payload) {
-        eachDelegate(del -> del.onSendResponse(op, event, status, payload));
+    public void onLaunchFailure(Verticle verticle, DeploymentOptions opts, Throwable thrown) {
+        eachDelegate(del -> del.onLaunchFailure(verticle, opts, thrown));
+    }
+
+    @Override
+    public void onBeforePayloadRead(Ops op, RoutingContext event, Class<? extends Handler<RoutingContext>> handler, Buffer buffer) {
+        eachDelegate(del -> del.onBeforePayloadRead(op, event, handler, buffer));
+    }
+
+    @Override
+    public void onAfterPayloadRead(Ops op, RoutingContext event, Class<? extends Handler<RoutingContext>> handler, Optional<?> payload) {
+        eachDelegate(del -> del.onAfterPayloadRead(op, event, handler, payload));
+    }
+
+    @Override
+    public void onBeforeSendResponse(Ops op, RoutingContext event, Optional<?> payload) {
+        eachDelegate(del -> del.onBeforeSendResponse(op, event, payload));
+    }
+
+    public void onAfterSendResponse(Ops op, RoutingContext event, int status) {
+        eachDelegate(del -> del.onAfterSendResponse(op, event, status));
     }
 
     @Override
@@ -86,8 +107,13 @@ final class DelegatingProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
         eachDelegate(del -> del.onNonOperationFailure(message, thrown));
     }
 
-    public void onResponseCompleted(RoutingContext event, int status, Optional<?> payload) {
-        eachDelegate(del -> del.onResponseCompleted(event, status, payload));
+    public void onResponseCompleted(Ops op, RoutingContext event, int status) {
+        eachDelegate(del -> del.onResponseCompleted(op, event, status));
+    }
+
+    @Override
+    public void onStartRequest(Ops op, RoutingContext event) {
+        eachDelegate(del -> del.onStartRequest(op, event));
     }
 
     @Override

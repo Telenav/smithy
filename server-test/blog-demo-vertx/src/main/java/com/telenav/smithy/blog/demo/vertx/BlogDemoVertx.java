@@ -29,7 +29,9 @@ import com.telenav.smithy.blog.server.spi.impl.AuthImpl;
 import com.telenav.smithy.blog.server.spi.impl.ReadBlogResponderImpl;
 import com.google.inject.name.Names;
 import com.telenav.blog.BlogService;
+import com.telenav.smithy.vertx.probe.ProbeImplementation;
 import com.telenav.vertx.guice.VertxGuiceModule;
+import com.telenav.vertx.guice.verticle.VerticleBuilder;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -46,6 +48,9 @@ public class BlogDemoVertx {
                 .withListBlogsResponderType(ListBlogsResponderImpl.class)
                 .withListCommentsResponderType(ListCommentsResponderImpl.class)
                 .configuringVertxWith(BlogDemoVertx::configureVertx)
+                .configuringVerticleWith(BlogDemoVertx::configureVerticleBuilder)
+                .withProbe(ProbeImplementation.stderr())
+                .asyncProbe()
                 .withModule(binder -> {
                     binder.bind(Path.class)
                             .annotatedWith(Names.named("blogDir"))
@@ -54,11 +59,23 @@ public class BlogDemoVertx {
                 .start(8123);
     }
 
+    static void configureVerticleBuilder(VerticleBuilder<?> vb) {
+        vb.customizingHttpOptionsWith(opts
+                -> opts.setReuseAddress(false)
+                        .setReusePort(false)
+                        .setTcpFastOpen(true)
+                        .setTcpNoDelay(true)
+                        .setTcpCork(false)
+                        .setLogActivity(true)
+        );
+    }
+
     static void configureVertx(VertxGuiceModule mod) {
         mod.withVertxOptionsCustomizer(vx -> {
             // We have a single verticle - there is no point, only overhead,
             // in using elaborate classloading strategies
-            vx.setDisableTCCL(true);
+            vx.setDisableTCCL(true)
+                    .setHAEnabled(false);
             return vx;
         });
     }

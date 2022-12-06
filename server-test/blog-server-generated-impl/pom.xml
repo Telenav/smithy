@@ -15,28 +15,27 @@
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>acteur-annotation-processors</artifactId>
-            <version>${mastfrog.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.telenav.smithy</groupId>
+            <artifactId>vertx-probe</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>smithy-java-http-extensions</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>blog-service-model</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>blog-server-spi</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>smithy-acteur-adapter</artifactId>
-            <version>${project.version}</version>
         </dependency>
         
     </dependencies>

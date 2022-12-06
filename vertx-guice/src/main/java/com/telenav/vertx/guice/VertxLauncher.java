@@ -42,4 +42,5 @@ public interface VertxLauncher {
      * not already shut down)
      */
     boolean shutdown();
+    
 }
