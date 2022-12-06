@@ -7,6 +7,27 @@ Language for defining network APIs and generating servers and clients from
 Amazon.  Amazon uses it internally quite a bit, but the only public, open-source
 code generator available is a generator for NodeJS server.
 
+At a high level, what Smithy allows you to do is:
+
+ * Define the web/network API for a service in a simple, high-level language that
+   lets you specify details about the service, network operations it supports,
+   and arbitrarily complex nested JSON-like data types ("shapes", in Smithy's terminology)
+   that are the input and output of each operation
+ * Generate all the data types and everything but the business logic of both servers
+   and clients of that API
+   * Input "shapes" may specify that some fields are derived from HTTP headers,
+     some from query parameters or path elements, some from the HTTP payload
+     in the case of PUT or POST requests.
+
+The grounding idea behind it is that you do development API-first - so your API
+cannot change by accident, and the server cannot fail to implement it;  a pleasant
+side effect of that is that the task of writing a server is boiled down to implementing
+a few business-logic interfaces.
+
+
+What's Here
+-----------
+
 The tooling here is under development, but the basics work well - it is initially
 aimed at Java code generation, but other languages are planned (clients first).
 Currently there is:
@@ -21,6 +42,8 @@ is expressive and pleasant to work with
    * All non-collection model types are immutable
    * The `@builder` trait defined here can be used to simplify model object
      creaton by generating a "builder" class for the type
+   * Generated model classes have **no dependencies** outside of the JDK and
+     Jackson annotations
    * Generated types return valid JSON from `toString()` with no serialization
      framework needed; and all generated types correctly implement `equals()`,
      `hashCode()`, and, where applicable (numbers, timestamps, strings) `Comparable`.
@@ -46,7 +69,9 @@ interacting with the generated server
 the model; Acteur-based servers can optionally serve it.
  * Unit test generation for model classes - while mostly a sanity check of the
 generation code itself, the generated JUnit 5 tests also serve to prove that
-all generated types
+all generated types can be converted to JSON and back, returning an object which
+`equals()` the original, which is useful for confidence that the generated code
+does what it is supposed to.
 
 Server code generation will generate a set of interfaces for you to implement,
 one for each `OperationShape` in your Smithy model (and additional interfaces
@@ -118,6 +143,22 @@ Do note that *all child directories* of code generation destination folders are
 **deleted** when before code generation writes anything.  You do not want to put
 code you want to keep under those folders (by default, the plugin generates into
 `target/generated-sources/smithy` so you can do what you want in `src/main/java`).
+
+
+### Smithy Java HTTP Extensions
+
+The business logic interfaces you implement have no direct dependencies on the
+web framework you are using.  It *does* use a small library 
+called `smithy-java-http-extensions` to abstract out requests, responses, etc.,
+so you get called with a thin wrapper over the real request object
+(Vertx's `HttpServerRequest` or Acteur's `HttpEvent`), plus a thin wrapper over
+a JDK `CompletableFuture` to put your response data in.
+
+If you prefer to use the raw framework type, you can always call, e.g.
+`SmithyRequest.unwrap(HttpServerRequest.class)`;  in the case of Vertx, `SmithyRequest`
+adds a few niceties, such as the ability to parse common HTTP headers into
+appopriate types (dates, cache-control, x-frame-options and more), which 
+Vertx does not come with out-of-the-box.
 
 
 ### How It All Gets Built
@@ -230,16 +271,23 @@ We are using the parser for Smithy models from the Smithy project, which has som
 
  * Type names can be lower-cased when defining a simple type like
    `string Foo` - but the same type names must be capitalized when used in a structure
-   *member* like `structure MyStruct { foo : String }`
+   *member* like `structure MyStruct { foo : String }` or the Smithy parser will fail
 
-The `test/` project is not currently in the build of the main pom - an issue with the
-plugin not running in a Maven multi-module build, to be diagnosed.
+Smithy has a few limitations which it would be nice to relax - some are design choices
+Amazon made based on the kind of services Amazon writes, which are not the kind of services
+*everybody* writes:
 
+ * HTTP authentication is all-or-nothing at the service level (use our `@authenticated`
+   trait for per-operation authentication which can be optional
+ * Traits like `@httpLabel` or `@httpQuery` or `@httpHeader` which mark members of
+   input shapes cannot be inherited or indirect - i.e. you cannot have a child-object
+   one of whose fields is populated from an HTTP query param, or similar.  It would
+   be simple enough to support this sort of thing in code generation.
 
-What's here?
-============
+Specifics of What's Here
+========================
 
-Embryonic Smithy tooling, specifically:
+Smithy tooling, specifically:
 
  * `smithy-generators` - a generic framework for smithy generation with
    settings, sessions, and ways to look up generators that support specific
