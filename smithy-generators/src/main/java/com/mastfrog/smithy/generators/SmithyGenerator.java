@@ -25,7 +25,6 @@ package com.mastfrog.smithy.generators;
 
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Set;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 

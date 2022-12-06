@@ -23,12 +23,17 @@
  */
 package com.mastfrog.smithy.generators;
 
+import static com.mastfrog.smithy.generators.GenerationSwitches.DONT_GENERATE_WARNING_FILES;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DRY_RUN;
-import com.mastfrog.util.file.FileUtils;
 import static com.mastfrog.util.file.FileUtils.deltree;
 import java.io.IOException;
+import java.io.OutputStream;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -113,7 +118,31 @@ public final class GenerationResults {
                 paths.add(g.destination());
             }
         });
+        if (!ctx.settings().is(DONT_GENERATE_WARNING_FILES)) {
+            generateWarningFiles(paths);
+        }
         return paths;
+    }
+
+    private static void generateWarningFiles(Set<Path> paths) throws Exception {
+        Set<Path> parents = new HashSet<>();
+        for (Path p : paths) {
+            parents.add(p.toRealPath().getParent());
+        }
+        byte[] txt = ("GENERATED CODE\n==============\n\n"
+                + "This directory, and perhaps many of its parents) \n"
+                + "will be DELETED and recreated the next time code \n"
+                + "generation is run.\n\n"
+                + "Do not put ANYTHING here that you want to keep.\n").getBytes(UTF_8);
+        for (Path par : parents) {
+            Path important = par.resolve("000-IMPORTANT.txt");
+            if (!Files.exists(important)) {
+                try (OutputStream out = Files.newOutputStream(important,
+                        WRITE, TRUNCATE_EXISTING, CREATE)) {
+                    out.write(txt);
+                }
+            }
+        }
     }
 
 }

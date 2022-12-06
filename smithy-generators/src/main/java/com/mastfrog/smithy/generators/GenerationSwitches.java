@@ -49,5 +49,7 @@ public enum GenerationSwitches {
      * lines of generator code that caused the lines of generator code to be
      * emitted.
      */
-    DEBUG;
+    DEBUG,
+    
+    DONT_GENERATE_WARNING_FILES;
 }
