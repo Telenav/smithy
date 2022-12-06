@@ -43,6 +43,7 @@
         <module>smithy-utils</module>
         <module>smithy-vertx-adapter</module>
         <module>smithy-server-generation-common</module>
+        <module>vertx-probe</module>
     </modules>
 
     <properties>
