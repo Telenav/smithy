@@ -130,7 +130,7 @@ public final class GenerationResults {
             parents.add(p.toRealPath().getParent());
         }
         byte[] txt = ("GENERATED CODE\n==============\n\n"
-                + "This directory, and perhaps many of its parents) \n"
+                + "This directory, and perhaps many of its parents, \n"
                 + "will be DELETED and recreated the next time code \n"
                 + "generation is run.\n\n"
                 + "Do not put ANYTHING here that you want to keep.\n").getBytes(UTF_8);
