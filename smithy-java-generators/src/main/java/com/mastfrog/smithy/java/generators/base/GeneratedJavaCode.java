@@ -25,23 +25,27 @@ package com.mastfrog.smithy.java.generators.base;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.generators.ModelElementGenerator.GeneratedCode;
+import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import java.io.IOException;
 import static java.lang.System.out;
 import java.nio.file.Path;
 
 /**
+ * Holds a ClassBuilder and writes its output when the time comes.
  *
  * @author Tim Boudreau
  */
-final class ClassBuilderWrapper implements GeneratedCode {
+final class GeneratedJavaCode implements GeneratedCode {
 
     private final Path destDir;
 
     private final ClassBuilder<String> classBuilder;
+    private final SmithyGenerationLogger log;
 
-    ClassBuilderWrapper(Path destDir, ClassBuilder<String> classBuilder) {
+    GeneratedJavaCode(Path destDir, ClassBuilder<String> classBuilder, SmithyGenerationLogger log) {
         this.destDir = destDir;
         this.classBuilder = classBuilder;
+        this.log = log;
     }
 
     @Override
@@ -53,8 +57,10 @@ final class ClassBuilderWrapper implements GeneratedCode {
 
     @Override
     public void write(boolean dryRun) throws IOException {
-        out.println("Save " + destination());
-        classBuilder.save(destination().getParent());
+        log.debug((dryRun ? "(dry-run) " : "") + "Save " + destination());
+        if (!dryRun) {
+            classBuilder.save(destination().getParent());
+        }
     }
 
     @Override

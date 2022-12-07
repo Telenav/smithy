@@ -191,7 +191,6 @@ final class BigIntegerModelGenerator extends AbstractJavaGenerator<BigIntegerSha
     public void generateRangeFieldsIfShapeHasRangeTrait(ClassBuilder<String> cb) {
         shape.getTrait(RangeTrait.class)
                 .ifPresent(range -> {
-                    System.out.println("HAVE RANGE " + range);
                     range.getMin().ifPresent(min -> {
                         cb.field("MIN_VALUE")
                                 .withModifier(PUBLIC, STATIC, FINAL)

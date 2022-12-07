@@ -1,4 +1,3 @@
-
 package com.mastfrog.smithy.java.generators.base;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -133,7 +132,10 @@ public abstract class AbstractJavaGenerator<S extends Shape>
         this.log = log;
         Set<GeneratedCode> result = new HashSet<>();
         Consumer<ClassBuilder<String>> c = cb -> {
-            result.add(new ClassBuilderWrapper(destSourceRoot, cb));
+            GeneratedJavaCode gen = new GeneratedJavaCode(destSourceRoot, cb, log);
+            log.debug(() -> " " + getClass().getSimpleName() + " -> " + cb.fqn()
+                    + " -> " + gen.destination());
+            result.add(gen);
         };
         generate(c);
         return result;
@@ -320,7 +322,6 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     protected String lengthMethod(Shape shape) {
         if (shape.isMemberShape()) {
             shape = model.expectShape(shape.asMemberShape().get().getTarget());
-            System.out.println("  SHAPE NOW " + shape);
         }
         switch (shape.getType()) {
             case LIST:

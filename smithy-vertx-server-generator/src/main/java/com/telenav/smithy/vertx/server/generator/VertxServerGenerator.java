@@ -755,7 +755,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     public void generateCreateVertxModuleMethod(ClassBuilder<String> routerBuilder, ResourceGraph graph, Collection<? extends OperationShape> ops, Consumer<ClassBuilder<String>> addTo) {
         String operationsEnumName = createOperationsEnum(ops, addTo);
         generateBodyHandlerSupport(routerBuilder, operationsEnumName);
-
+        
         routerBuilder.method("createVertxModule", mth -> {
             mth.withModifier(PRIVATE, FINAL)
                     .returning("VertxGuiceModule")
@@ -793,7 +793,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             ClassBuilder<String> operationClass = generateOperation(op, graph, handlers, addTo);
                             bb.blankLine().lineComment("Operation " + op.getId());
                             invokeRoute(bb, verticleBuilderName, routerBuilder, handlers, op);
-                            System.out.println("GEN VX OP " + op + " -> " + operationClass.fqn());
                             addTo.accept(operationClass);
                         });
 

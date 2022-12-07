@@ -108,7 +108,7 @@
                             stack trace fragment comments into the sources
                             showing what line of what class caused given lines
                             of code to be generated. -->
-                            <debug>false</debug>
+                            <debug>true</debug>
                             <!-- Just to prove this works: -->
                             <settings>
                                 <foo>bar</foo>
@@ -119,8 +119,8 @@
 
                             <destinations>
                                 <client>${basedir}/../blog-client-demo/src/main/java</client>
-                                <docs>${basedir}/../blog-server-generated-impl/src/main/resources</docs>
                                 <server>${basedir}/../blog-server-generated-impl/src/main/java</server>
+                                <docs>${basedir}/../blog-server-generated-impl/src/main/resources</docs>
                                 <server-spi>${basedir}/../blog-server-spi/src/main/java/</server-spi>
                                 <vertx-server>${basedir}/../blog-server-vertx/src/main/java/</vertx-server>
                             </destinations>

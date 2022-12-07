@@ -368,10 +368,7 @@ final class DefaultStructureGenerators implements StructureExtensions {
             into.accept(ConversionMethodGenerator.INSTANCE);
         }
         if (SpanMethodsGenerator.isApplicable(helper)) {
-            System.out.println("HAVE A SPAN: " + helper.structure().getId().getName());
             into.accept(SpanMethodsGenerator.INSTANCE);
-        } else if (helper.structure().getId().getName().toLowerCase().contains("hours")) {
-            System.out.println("NOT A SPAN: " + helper.structure().getId());
         }
     }
 
@@ -505,9 +502,7 @@ final class DefaultStructureGenerators implements StructureExtensions {
         }
         if (helper.structure().getTrait(SpanTrait.class).isPresent()) {
             SpanTrait st = helper.structure().getTrait(SpanTrait.class).get();
-            System.out.println("COMPARE " + st.greater() + " and " + member.member().getMemberName());
             if (st.greater().equals(member.member().getMemberName())) {
-                System.out.println("GENERATE SPAN CHECK FOR " + member.member().getId());
                 into.accept(ConstructorArgumentCheckGenerator.SPAN_CHECK);
             }
         }

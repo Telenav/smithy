@@ -87,7 +87,6 @@ final class StructureMixinInterfaceGenerator extends AbstractStructureGenerator 
                 });
             });
 
-            System.out.println("ensure imported " + m.typeName());
             ensureImported(cb, m.target());
         }
 
