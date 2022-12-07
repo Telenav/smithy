@@ -98,8 +98,15 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
             }
 
             valids.append(invalids);
+
+            sizes().generateMemoryUsageJavadocStanza(shape, invalids);
+
             return valids.toString();
-        }).orElse(null);
+        }).orElseGet(() -> {
+            StringBuilder sb = new StringBuilder();
+            sizes().generateMemoryUsageJavadocStanza(shape, sb);
+            return sb.toString();
+        });
     }
 
     @Override
@@ -338,7 +345,7 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
                         });
             });
         }
-
+        sizes().addFields(shape, cb);
         addTo.accept(cb);
     }
 

@@ -206,7 +206,7 @@ final class BigDecimalModelGenerator extends AbstractJavaGenerator<BigDecimalSha
         generateNumberDelegationMethod("shortValueExact", "short", cb, false);
         generateNumberDelegationMethod("intValueExact", "int", cb, false);
         generateNumberDelegationMethod("longValueExact", "long", cb, false);
-
+        sizes().addFields(shape, cb);
         addTo.accept(cb);
     }
 

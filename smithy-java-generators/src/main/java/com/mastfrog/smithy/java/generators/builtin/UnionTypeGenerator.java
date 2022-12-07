@@ -155,6 +155,10 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
 
         generateSubtypesForMembers(cb);
         generateVariantNameMethod(cb);
+        
+        
+        sizes().addFields(shape, cb);
+        
         addTo.accept(cb);
     }
 

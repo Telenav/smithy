@@ -29,6 +29,7 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
+import com.mastfrog.smithy.java.generators.size.ObjectSizes;
 import com.telenav.validation.ValidationExceptionProvider;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -134,6 +135,14 @@ public interface StructureGenerationHelper extends Iterable<StructureMember<?>> 
      * is guaranteed not to conflict with fields on this type
      */
     <T, R> String generateInitialEqualsTest(ClassBuilder<R> cb, BlockBuilder<T> bb);
+
+    /**
+     * Get the tool which can estimate memory usage for generated instances of
+     * shape types.
+     *
+     * @return an ObjectSizes
+     */
+    ObjectSizes sizes();
 
     boolean isOmitted(MemberShape shape);
 

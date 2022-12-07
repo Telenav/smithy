@@ -541,6 +541,7 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
                     });
         });
 
+        sizes().addFields(shape, cb);
         cons.accept(cb);
 
     }

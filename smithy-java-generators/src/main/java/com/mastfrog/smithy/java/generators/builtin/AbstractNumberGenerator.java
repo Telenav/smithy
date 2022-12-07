@@ -86,6 +86,7 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
         generateScaleMethod(cb);
         generateNumberImplementation(cb);
         generateFormatMethod(cb);
+        sizes().addFields(shape, cb);
         addTo.accept(cb);
     }
 

@@ -65,6 +65,7 @@ import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import com.mastfrog.smithy.java.generators.size.ObjectSizes;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import static com.telenav.smithy.names.TypeNames.packageOf;
@@ -1244,6 +1245,11 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                 Shape target = model.expectShape(mem.getTarget());
                 members.add(StructureMember.create(mem, target, this));
             });
+        }
+
+        @Override
+        public ObjectSizes sizes() {
+            return AbstractJavaTestGenerator.this.sizes();
         }
 
         @Override

@@ -283,6 +283,15 @@ Amazon made based on the kind of services Amazon writes, which are not the kind 
    input shapes cannot be inherited or indirect - i.e. you cannot have a child-object
    one of whose fields is populated from an HTTP query param, or similar.  It would
    be simple enough to support this sort of thing in code generation.
+ * You cannot use a List, Map or Set shape directly as the output of an operation.
+   Amazon really, really wants you to paginate results and return a pagination
+   token in a fixed length page of results. While that actually *is* good advice in
+   many cases, consider cases such as streaming live log records.  The reality is,
+   in an async server using an async database driver, assuming you configure your cursor
+   with a small batch size, you can serve infinitely large sets of results using
+   a finite, and more importantly, *calculable* amount of memory.  Forcing output
+   types to always be a container makes such scenarios pointlessly difficult.
+
 
 Specifics of What's Here
 ========================

@@ -225,6 +225,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
         if (hasMemberChecks()) {
             generateMemberCheckMethod(cb);
         }
+        sizes().addFields(shape, cb);
         addTo.accept(cb);
     }
 
@@ -1018,6 +1019,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
             });
             sb.append("</ul>");
         }
+        sizes().generateMemoryUsageJavadocStanza(shape, sb);
         return sb.length() == 0 ? null : sb.toString();
     }
 

@@ -330,6 +330,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
             generateBuilder(keyType, valType, cb);
         }
 
+        sizes().addFields(shape, cb);
         addTo.accept(cb);
     }
 

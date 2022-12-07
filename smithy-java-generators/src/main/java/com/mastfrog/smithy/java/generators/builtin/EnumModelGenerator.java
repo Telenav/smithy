@@ -276,6 +276,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
         }
 
         generateUnitConversionMethods(cb);
+        sizes().addFields(shape, cb);
         cs.accept(cb);
     }
 

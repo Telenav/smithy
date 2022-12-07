@@ -32,6 +32,7 @@ import com.telenav.validation.ValidationExceptionProvider;
 import com.mastfrog.smithy.java.generators.builtin.struct.Namer;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
+import com.mastfrog.smithy.java.generators.size.ObjectSizes;
 import static com.telenav.smithy.names.JavaTypes.packageOf;
 import com.telenav.smithy.utils.ShapeUtils;
 import java.nio.file.Path;
@@ -86,6 +87,11 @@ public abstract class AbstractStructureGenerator extends AbstractJavaGenerator<S
                     it.remove();
                 }
             }
+        }
+
+        @Override
+        public ObjectSizes sizes() {
+            return AbstractStructureGenerator.this.sizes();
         }
 
         public Namer namer() {

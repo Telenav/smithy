@@ -35,10 +35,12 @@ import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
+import com.mastfrog.smithy.generators.SettingsKey;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import static com.mastfrog.smithy.java.generators.builtin.SmithyJavaGenerators.TYPE_NAMES;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import com.mastfrog.smithy.java.generators.size.ObjectSizes;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Path;
@@ -75,6 +77,7 @@ import software.amazon.smithy.model.traits.UniqueItemsTrait;
 public abstract class AbstractJavaGenerator<S extends Shape>
         implements ModelElementGenerator {
 
+    static final SettingsKey<ObjectSizes> OBJECT_SIZE_KEY = SettingsKey.key(ObjectSizes.class, "sizes");
     private SmithyGenerationContext ctx;
     protected SmithyGenerationLogger log;
     protected final S shape;
@@ -114,6 +117,10 @@ public abstract class AbstractJavaGenerator<S extends Shape>
         this.destSourceRoot = destSourceRoot;
         this.target = target;
         this.language = language;
+    }
+
+    protected ObjectSizes sizes() {
+        return SmithyGenerationContext.get().computeIfAbsent(OBJECT_SIZE_KEY, () -> new ObjectSizes(model));
     }
 
     public S shape() {

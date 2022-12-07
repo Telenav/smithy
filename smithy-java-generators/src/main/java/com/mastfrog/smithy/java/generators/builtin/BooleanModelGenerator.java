@@ -89,6 +89,7 @@ final class BooleanModelGenerator extends AbstractJavaGenerator<BooleanShape> {
         generateToString(cb);
         generateConditionalMethods(cb);
         generateEquals(cb);
+        sizes().addFields(shape, cb);
         addTo.accept(cb);
     }
 

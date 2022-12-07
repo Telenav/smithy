@@ -1,4 +1,3 @@
-
 package com.mastfrog.smithy.java.generators.builtin.struct;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -90,7 +89,7 @@ public final class StructureGenerator extends AbstractStructureGenerator {
         for (StructureContributor c : all) {
             c.generate(helper, cb);
         }
-
+        sizes().addFields(shape, cb);
         addTo.accept(cb);
     }
 

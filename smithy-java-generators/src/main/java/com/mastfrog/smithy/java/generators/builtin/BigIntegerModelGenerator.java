@@ -1,4 +1,3 @@
-
 package com.mastfrog.smithy.java.generators.builtin;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -105,12 +104,12 @@ final class BigIntegerModelGenerator extends AbstractJavaGenerator<BigIntegerSha
         generateNumberDelegationMethod("shortValueExact", "short", cb, false);
         generateNumberDelegationMethod("intValueExact", "int", cb, false);
         generateNumberDelegationMethod("longValueExact", "long", cb, false);
-
+        sizes().addFields(shape, cb);
         addTo.accept(cb);
     }
 
     private void generateNumberDelegationMethod(String name, String type, ClassBuilder<String> cb,
-             boolean isOverride) {
+            boolean isOverride) {
         cb.method(name, mth -> {
             if (isOverride) {
                 mth.annotatedWith("Override").closeAnnotation();
