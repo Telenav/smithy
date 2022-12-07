@@ -28,10 +28,11 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaTestGenerator;
+import com.mastfrog.smithy.simple.extensions.UnitsTrait;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
-import com.mastfrog.smithy.simple.extensions.UnitsTrait;
 import com.telenav.smithy.utils.ShapeUtils;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
@@ -77,7 +78,7 @@ final class StructureTestGenerator extends AbstractJavaTestGenerator<StructureSh
                 boolean enumFirst) -> {
             testMethod("Amount", currentClassBuilder, bb -> {
                 String[] fqns = new String[]{names().packageOf(enu) + "." + typeNameOf(enu)};
-                ShapeUtils.maybeImport(currentClassBuilder, fqns);
+                maybeImport(currentClassBuilder, fqns);
 
                 String minVal = instantiateMinimalValue(numberMember, numberShape, bb);
                 if (minVal == null) {

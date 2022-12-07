@@ -1,29 +1,6 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+
 package com.mastfrog.smithy.java.generators.builtin;
 
-import com.telenav.validation.ValidationExceptionProvider;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
@@ -35,14 +12,16 @@ import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.telenav.smithy.names.JavaSymbolProvider;
-import static com.telenav.smithy.names.JavaSymbolProvider.escape;
-import com.mastfrog.util.strings.Strings;
+import static com.mastfrog.util.strings.Strings.camelCaseToDelimited;
 import static com.mastfrog.util.strings.Strings.decapitalize;
+import static com.telenav.smithy.names.JavaSymbolProvider.escape;
+import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.generateNullCheck;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
+import static java.util.Collections.sort;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -100,7 +79,7 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
 
         applyDocumentation(cb);
 
-        ValidationExceptionProvider prov = ValidationExceptionProvider.validationExceptions();
+        ValidationExceptionProvider prov = validationExceptions();
 
         cb.field("value").withModifier(PRIVATE, FINAL)
                 .ofType("int");
@@ -156,7 +135,7 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
             f.initializedWithNew().withArgument(value).ofType(cb.className()).ofType(cb.className());
         });
 
-        String allField = "EVERY_" + Strings.camelCaseToDelimited(cb.className(), '_').toUpperCase();
+        String allField = "EVERY_" + camelCaseToDelimited(cb.className(), '_').toUpperCase();
         cb.field(allField, fld -> {
             InvocationBuilder<?> inv = fld.withModifier(PUBLIC, STATIC, FINAL)
                     .initializedFromInvocationOf("asList");
@@ -231,10 +210,10 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
                     .addArgument("boolean", "forwardBias")
                     .returning(cb.className())
                     .body(bb -> {
-                        ValidationExceptionProvider.generateNullCheck("number", bb, cb);
+                        generateNullCheck("number", bb, cb);
                         List<Map.Entry<String, Integer>> items = new ArrayList<>(shape.getEnumValues().entrySet());
                         if (items.size() == 1) {
-                            bb.returning(JavaSymbolProvider.escape(items.get(0).getKey()));
+                            bb.returning(escape(items.get(0).getKey()));
                             return;
                         }
                         items.sort((a, b) -> {
@@ -254,7 +233,7 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
                         ifsw.switchingOn("number.intValue()", sw -> {
                             items.forEach(item -> {
                                 sw.inCase(item.getValue(), cs -> {
-                                    cs.returning(JavaSymbolProvider.escape(item.getKey()));
+                                    cs.returning(escape(item.getKey()));
                                 });
                             });
                         }).endIf();
@@ -300,7 +279,7 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
                                     .endIf();
                             bb.lineComment("If we are equidistant between " + prev.getKey()
                                     + " and " + curr.getKey()
-                                    + ", use the bias value to determine the result.");;
+                                    + ", use the bias value to determine the result.");
                             bb.iff(btest).iff().booleanExpression("forwardBias")
                                     .returning(escape(curr.getKey()))
                                     .orElse()
@@ -428,7 +407,7 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
         StringBuilder byNameJavadoc = new StringBuilder("Get an instance by name, if possible. "
                 + "Valid values are:<ul>");
         List<String> names = new ArrayList<>(shape.getEnumValues().keySet());
-        Collections.sort(names);
+        sort(names);
         for (String nm : names) {
             byNameJavadoc.append("\n<li>").append(nm).append("</li>");
         }
@@ -517,7 +496,7 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
                                 errorMessage.append(", ");
                             }
                             errorMessage.append(name).append("=").append(value);
-                            String nm = JavaSymbolProvider.escape(name);
+                            String nm = escape(name);
                             sw.inCase(value, cs -> cs.returning(nm));
                         });
                         sw.inDefaultCase((cs) -> {

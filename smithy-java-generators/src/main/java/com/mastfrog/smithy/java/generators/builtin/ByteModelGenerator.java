@@ -25,10 +25,12 @@ package com.mastfrog.smithy.java.generators.builtin;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
+import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import static com.mastfrog.smithy.java.generators.builtin.AbstractNumberGenerator.VALUE_FIELD;
 import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
@@ -50,7 +52,7 @@ final class ByteModelGenerator extends AbstractNumberGenerator<ByteShape> {
     protected <T, R> void generateHashCodeComputation(ClassBuilder<T> cb,
             ClassBuilder.BlockBuilder<R> bb) {
         int p = (int) prime(cb.fqn());
-        bb.returning(ClassBuilder.variable(VALUE_FIELD).times(p).toString());
+        bb.returning(variable(VALUE_FIELD).times(p).toString());
     }
 
     @Override
@@ -64,7 +66,7 @@ final class ByteModelGenerator extends AbstractNumberGenerator<ByteShape> {
                     bb.lineComment("in the convenience constructor.");
                     IfBuilder<?> ifb = bb.iff().booleanExpression("intValue < Byte.MIN_VALUE"
                             + " || intValue > Byte.MAX_VALUE");
-                    ValidationExceptionProvider.validationExceptions().createThrow(cb, ifb, "Value outside the bounds of Byte: ", "intValue");
+                    validationExceptions().createThrow(cb, ifb, "Value outside the bounds of Byte: ", "intValue");
                     ifb.endIf();
                     bb.returning("(byte) intValue");
                 });
@@ -74,7 +76,7 @@ final class ByteModelGenerator extends AbstractNumberGenerator<ByteShape> {
                     .addArgument("int", "intValue")
                     .docComment("Convenience constructor which takes an int."
                             + "\n@param intValue an integer value, which must fit within the range this class accepts\n"
-                            + "@throws " + ValidationExceptionProvider.validationExceptions().name() + " if the value is out of range")
+                            + "@throws " + validationExceptions().name() + " if the value is out of range")
                     .body(bb -> {
                         bb.invoke("this")
                                 .withArgumentFromInvoking("__checkIntValue")

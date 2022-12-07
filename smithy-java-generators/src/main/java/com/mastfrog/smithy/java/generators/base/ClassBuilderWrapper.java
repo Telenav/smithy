@@ -26,6 +26,7 @@ package com.mastfrog.smithy.java.generators.base;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.generators.ModelElementGenerator.GeneratedCode;
 import java.io.IOException;
+import static java.lang.System.out;
 import java.nio.file.Path;
 
 /**
@@ -38,7 +39,7 @@ final class ClassBuilderWrapper implements GeneratedCode {
 
     private final ClassBuilder<String> classBuilder;
 
-    public ClassBuilderWrapper(Path destDir, ClassBuilder<String> classBuilder) {
+    ClassBuilderWrapper(Path destDir, ClassBuilder<String> classBuilder) {
         this.destDir = destDir;
         this.classBuilder = classBuilder;
     }
@@ -52,7 +53,7 @@ final class ClassBuilderWrapper implements GeneratedCode {
 
     @Override
     public void write(boolean dryRun) throws IOException {
-        System.out.println("Save " + destination());
+        out.println("Save " + destination());
         classBuilder.save(destination().getParent());
     }
 

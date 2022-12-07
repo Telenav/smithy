@@ -35,12 +35,21 @@ import static com.mastfrog.java.vogon.ClassBuilder.number;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.telenav.smithy.names.NumberKind;
-import com.telenav.smithy.names.TypeNames;
+import static com.mastfrog.smithy.java.generators.builtin.MapModelGenerator.CheckGenerator.NONE;
 import com.mastfrog.util.strings.Escaper;
+import static com.mastfrog.util.strings.Escaper.BASIC_HTML;
 import com.mastfrog.util.strings.Strings;
+import static com.mastfrog.util.strings.Strings.escape;
+import com.telenav.smithy.names.NumberKind;
+import static com.telenav.smithy.names.NumberKind.DOUBLE;
+import static com.telenav.smithy.names.NumberKind.LONG;
+import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.telenav.smithy.utils.ShapeUtils;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.generateNullCheck;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -137,19 +146,19 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
         if ("smithy.api".equals(realKey.getId().getNamespace())) {
             keyType = names().typeNameOf(cb, realKey, false);
         } else {
-            keyType = TypeNames.typeNameOf(realKey);
+            keyType = typeNameOf(realKey);
         }
         if ("smithy.api".equals(realVal.getId().getNamespace())) {
             valType = names().typeNameOf(cb, realVal, false);
         } else {
-            valType = TypeNames.typeNameOf(realVal);
+            valType = typeNameOf(realVal);
         }
 
         String keyFqn = names().packageOf(shape.getKey()) + "." + keyType;
         String valFqn = names().packageOf(shape.getValue()) + "." + keyType;
 
         String[] fqns = new String[]{keyFqn, valFqn};
-        ShapeUtils.maybeImport(cb, fqns);
+        maybeImport(cb, fqns);
 
         cb.extending("AbstractMap<" + keyType + ", " + valType + ">");
         String mapType = "Map<" + keyType + ", " + valType + ">";
@@ -476,7 +485,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
     private void overrideClearToThrow(ClassBuilder<String> cb, int minSize) {
         cb.overridePublic("clear", clear -> {
             clear.body(bb -> {
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, bb,
+                validationExceptions().createThrow(cb, bb,
                         "Clearing would result in a " + cb.className()
                         + " with fewer key/value pairs than the minimum "
                         + "supported number of " + minSize + ".", null);
@@ -492,9 +501,9 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                             + ", ? extends " + valType + ">", "merger")
                     .returning(valType);
             mth.body(bb -> {
-                ValidationExceptionProvider.generateNullCheck("key", bb, cb);
-                ValidationExceptionProvider.generateNullCheck("valueToMerge", bb, cb);
-                ValidationExceptionProvider.generateNullCheck("merger", bb, cb);
+                generateNullCheck("key", bb, cb);
+                generateNullCheck("valueToMerge", bb, cb);
+                generateNullCheck("merger", bb, cb);
                 if (hasMaxSize() || needCheckKeys()) {
                     bb.declare("hasKey")
                             .initializedByInvoking("containsKey")
@@ -505,7 +514,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                 if (hasMaxSize()) {
                     IfBuilder<?> iff = bb.iff().booleanExpression(
                             "size() == MAX_SIZE && !hasKey");
-                    ValidationExceptionProvider.validationExceptions().createThrow(cb, iff,
+                    validationExceptions().createThrow(cb, iff,
                             "Key is not present, and adding it would pass the maximum size: ", "key");
                     iff.endIf();
                 }
@@ -606,7 +615,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
             mth.body(bb -> {
                 if (hasMaxSize()) {
                     IfBuilder<?> test = bb.iff().booleanExpression("size() == MAX_SIZE && !containsKey(key)");
-                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test, "Key is not present, and adding it "
+                    validationExceptions().createThrow(cb, test, "Key is not present, and adding it "
                             + "would increase the size beyond the maximum.", null);
                     test.endIf();
                 }
@@ -717,12 +726,12 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                 mth.docComment("Validates proposed keys against constraints from the schema for "
                         + cb.className() + "."
                         + "\n@param key a proposed key"
-                        + "\n@throws " + ValidationExceptionProvider.validationExceptions().name() + " if a null or invalid value is passed");
+                        + "\n@throws " + validationExceptions().name() + " if a null or invalid value is passed");
                 mth.addArgument(keyType, "key")
                         .withModifier(PRIVATE, STATIC)
                         .body(bb -> {
 
-                            ValidationExceptionProvider.generateNullCheck("key", bb, cb);
+                            generateNullCheck("key", bb, cb);
                             keyPatternTrait().ifPresent(keyPattern -> {
                                 cb.importing(Pattern.class, Matcher.class);
                                 cb.field("KEY_PATTERN", kp -> {
@@ -741,7 +750,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                         .as("Matcher");
 
                                 IfBuilder<?> test = bb.iff().booleanExpression("!keyMatcher.find()");
-                                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                validationExceptions().createThrow(cb, test,
                                         "Key does not match the pattern " + keyPattern.getValue() + ": ", "key");
                                 test.endIf();
                             });
@@ -750,14 +759,14 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                 keyLength.getMin().ifPresent(min -> {
                                     IfBuilder<?> test = bb.iff().booleanExpression("key." + klm + "() < " + min
                                             .intValue());
-                                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                    validationExceptions().createThrow(cb, test,
                                             "Key is shorter than the minimum length " + min + ": ", "key");
                                     test.endIf();
                                 });
                                 keyLength.getMax().ifPresent(max -> {
                                     IfBuilder<?> test = bb.iff().booleanExpression("key." + klm + "() > " + max
                                             .intValue());
-                                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                    validationExceptions().createThrow(cb, test,
                                             "Key is longer than the maximum length " + max + ": ", "key");
                                     test.endIf();
                                 });
@@ -767,7 +776,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                     IfBuilder<?> test
                                             = generateRangeTest("key", "<", shape.getMember("value").get(), bb,
                                                     keyMin);
-                                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                    validationExceptions().createThrow(cb, test,
                                             "Key below minimum " + keyMin + ": ", "key");
                                     test.endIf();
                                 });
@@ -776,7 +785,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                     IfBuilder<?> test
                                             = generateRangeTest("key", ">", shape.getMember("value").get(), bb,
                                                     keyMax);
-                                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                    validationExceptions().createThrow(cb, test,
                                             "Key above maximum " + keyMax + ": ", "key");
                                     test.endIf();
                                 });
@@ -794,11 +803,11 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                 mth.docComment("Validates proposed values against constraints from the schema for "
                         + cb.className() + "."
                         + "\n@param value a proposed value"
-                        + "\n@throws " + ValidationExceptionProvider.validationExceptions().name() + " if a null or invalid value is passed");
+                        + "\n@throws " + validationExceptions().name() + " if a null or invalid value is passed");
                 mth.addArgument(valType, "value")
                         .withModifier(PRIVATE, STATIC)
                         .body(bb -> {
-                            ValidationExceptionProvider.generateNullCheck("value", bb, cb);
+                            generateNullCheck("value", bb, cb);
                             valuePatternTrait().ifPresent(valuePattern -> {
                                 cb.importing(Pattern.class, Matcher.class);
                                 cb.field("VALUE_PATTERN", kp -> {
@@ -815,7 +824,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                         .as("Matcher");
 
                                 IfBuilder<?> test = bb.iff().booleanExpression("!valueMatcher.find()");
-                                ValidationExceptionProvider.validationExceptions().createThrow(cb, test, "Value does not match "
+                                validationExceptions().createThrow(cb, test, "Value does not match "
                                         + "the pattern " + valuePattern.getValue() + ": ", "value");
                                 test.endIf();
                             });
@@ -824,7 +833,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                 valueLength.getMin().ifPresent(min -> {
                                     IfBuilder<?> test = bb.iff().booleanExpression("value." + vlm
                                             + "() < " + min.intValue());
-                                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                    validationExceptions().createThrow(cb, test,
                                             "Value is shorter than the minimum length " + min
                                             + ": ", "value");
                                     test.endIf();
@@ -832,7 +841,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                 valueLength.getMax().ifPresent(max -> {
                                     IfBuilder<?> test = bb.iff().booleanExpression("value." + vlm
                                             + "() < " + max.intValue());
-                                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                    validationExceptions().createThrow(cb, test,
                                             "Value is longer than the maximum length " + max
                                             + ": ", "value");
                                     test.endIf();
@@ -843,7 +852,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                     IfBuilder<?> test
                                             = generateRangeTest("value", "<",
                                                     shape.getMember("value").get(), bb, valMin);
-                                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                    validationExceptions().createThrow(cb, test,
                                             "Value below minimum " + valMin + ": ", "value");
                                     test.endIf();
                                 });
@@ -852,7 +861,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                     IfBuilder<?> test
                                             = generateRangeTest("value", ">",
                                                     shape.getMember("value").get(), bb, valMax);
-                                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                    validationExceptions().createThrow(cb, test,
                                             "Value above maximum " + valMax + ": ", "value");
                                     test.endIf();
                                 });
@@ -872,11 +881,11 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
             case FLOAT:
                 return bb.iff()
                         .booleanExpression(var + " " + op
-                                + NumberKind.DOUBLE.formatNumber(n.doubleValue()));
+                                + DOUBLE.formatNumber(n.doubleValue()));
             default:
                 return bb.iff()
                         .booleanExpression(var + " " + op
-                                + NumberKind.LONG.formatNumber(n.longValue()));
+                                + LONG.formatNumber(n.longValue()));
         }
     }
 
@@ -976,8 +985,8 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                 for (int i = 0; i < minSize; i++) {
                     String kn = "key" + i;
                     String vn = "val" + i;
-                    ValidationExceptionProvider.generateNullCheck(kn, bb, cb);
-                    ValidationExceptionProvider.generateNullCheck(vn, bb, cb);
+                    generateNullCheck(kn, bb, cb);
+                    generateNullCheck(vn, bb, cb);
                     invokeCheckKeys(kn, cb, bb);
                     invokeCheckValue(vn, cb, bb);
                     bb.invoke("put")
@@ -990,7 +999,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                 bb.lineComment("instance smaller than the minimum, so check that.");
                 IfBuilder<?> ifb = bb.iff().booleanExpression(CONTENTS_FIELD
                         + ".size() < " + minSize);
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, ifb,
+                validationExceptions().createThrow(cb, ifb,
                         "Minimum size of a " + cb.className() + " is " + minSize
                         + " but due to duplicate keys, the size of the "
                         + "instance being created "
@@ -1009,15 +1018,15 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                             + " pair."
                             + "\n@param key The key"
                             + "\n@param val The value"
-                            + "\n@throws " + ValidationExceptionProvider.validationExceptions().name()
+                            + "\n@throws " + validationExceptions().name()
                             + " if either value is null."
                     )
                     .addArgument(keyType, "key")
                     .addArgument(valType, "val")
                     .body(bb -> {
                         cb.importing(Collections.class);
-                        ValidationExceptionProvider.generateNullCheck("key", bb, cb);
-                        ValidationExceptionProvider.generateNullCheck("val", bb, cb);
+                        generateNullCheck("key", bb, cb);
+                        generateNullCheck("val", bb, cb);
                         invokeCheckKeys("key", cb, bb);
                         invokeCheckValue("val", cb, bb);
                         bb.assign(CONTENTS_FIELD)
@@ -1052,15 +1061,15 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
             con.addArgument(mapType, "map");
             con.docComment("Creates a new " + cb.className()
                     + " from an existing "
-                    + Strings.escape(mapType, Escaper.BASIC_HTML) + "."
+                    + escape(mapType, BASIC_HTML) + "."
                     + "\n@param map A compatible map");
             con.body(bb -> {
                 length.ifPresent(len -> {
-                    ValidationExceptionProvider.generateNullCheck("map", bb, cb);
+                    generateNullCheck("map", bb, cb);
                     len.getMin().ifPresent(min -> {
                         IfBuilder<?> test = bb.iff().booleanExpression(
                                 "map.size() < " + min.intValue());
-                        ValidationExceptionProvider.validationExceptions()
+                        validationExceptions()
                                 .createThrow(cb, test, "Instances of "
                                         + cb.className() + " must be at least "
                                         + min + " in size, but got ",
@@ -1070,7 +1079,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                     len.getMax().ifPresent(max -> {
                         IfBuilder<?> test = bb.iff().booleanExpression(
                                 "map.size() > " + max.intValue());
-                        ValidationExceptionProvider.validationExceptions()
+                        validationExceptions()
                                 .createThrow(cb, test, "Instances of "
                                         + cb.className()
                                         + " must be no larger than "
@@ -1143,7 +1152,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                 + CONTENTS_FIELD + ".containsKey("
                                 + keyVariable + ")");
 
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, t,
+                validationExceptions().createThrow(cb, t,
                         "Key is not present and adding it would "
                         + "increase the size of this " + cb.className()
                         + " beyond the maximum.", null);
@@ -1204,7 +1213,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
             if (needCheckKeys() || needCheckValues()) {
                 return sizeCheck(false, contentChecker);
             } else {
-                return CheckGenerator.NONE;
+                return NONE;
             }
         }
     }
@@ -1227,13 +1236,13 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                 IfBuilder<?> t = bb.iff()
                         .booleanExpression("MIN_SIZE == size() && containsKey("
                                 + keyVariable + ")");
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, t,
+                validationExceptions().createThrow(cb, t,
                         "Removing this element would reduce the size of this "
                         + cb.className() + " below the minimum", keyVariable);
                 t.endIf();
             };
         } else {
-            return CheckGenerator.NONE;
+            return NONE;
         }
     }
 
@@ -1247,13 +1256,13 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                         .booleanExpression("MIN_SIZE == size() && Objects.equals("
                                 + valVariable + ", " + CONTENTS_FIELD + ".get("
                                 + keyVariable + "))");
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, t, "Removing this element "
+                validationExceptions().createThrow(cb, t, "Removing this element "
                         + "would reduce the size of this " + cb.className()
                         + " below the minimum", keyVariable);
                 t.endIf();
             };
         } else {
-            return CheckGenerator.NONE;
+            return NONE;
         }
     }
 
@@ -1268,7 +1277,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                         .inScope();
             });
         } else {
-            return CheckGenerator.NONE;
+            return NONE;
         }
     }
 
@@ -1324,7 +1333,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                 min.ifPresent(minSz -> {
                                     IfBuilder<?> test = bb.iff()
                                             .booleanExpression("newSize < MIN_SIZE");
-                                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                    validationExceptions().createThrow(cb, test,
                                             "This call would result in a " + cb.className()
                                             + " below the minimum allowable size for it, " + minSz + ": ", "newSize");
                                     test.endIf();
@@ -1332,7 +1341,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                                 max.ifPresent(minSz -> {
                                     IfBuilder<?> test = bb.iff()
                                             .booleanExpression("newSize > MAX_SIZE");
-                                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                    validationExceptions().createThrow(cb, test,
                                             "This call would result in a " + cb.className()
                                             + " above the maximum allowable size for it, " + minSz + ": ", "newSize");
                                     test.endIf();
@@ -1478,7 +1487,7 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
             con.setModifier(PRIVATE)
                     .addArgument("Map<" + keyType + ", " + valType + ">", "map")
                     .body(bb -> {
-                        ValidationExceptionProvider.generateNullCheck("map", bb, cb);
+                        generateNullCheck("map", bb, cb);
                         bb.invoke("putAll")
                                 .withArgument("map")
                                 .on("contents");
@@ -1529,13 +1538,13 @@ final class MapModelGenerator extends AbstractJavaGenerator<MapShape> {
                     .addArgument(valType, "value")
                     .returning(bldr.className());
             mth.body(bb -> {
-                ValidationExceptionProvider.generateNullCheck("key", bb, cb);
-                ValidationExceptionProvider.generateNullCheck("value", bb, cb);
+                generateNullCheck("key", bb, cb);
+                generateNullCheck("value", bb, cb);
                 if (hasMaxSize()) {
                     IfBuilder<?> test
                             = bb.iff().booleanExpression("contents.size() + 1 "
                                     + "> MAX_SIZE");
-                    ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                    validationExceptions().createThrow(cb, test,
                             "Size of built " + cb.className()
                             + " would be above the maximum in the schema",
                             null);

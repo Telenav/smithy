@@ -14,6 +14,11 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.mastfrog.util.strings.Strings.decapitalize;
+import static com.telenav.smithy.names.JavaTypes.forShapeType;
+import com.telenav.smithy.names.NumberKind;
+import static com.telenav.smithy.names.NumberKind.forShape;
+import static com.telenav.validation.ValidationExceptionProvider.generateNullCheck;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import java.text.NumberFormat;
 import java.util.function.Consumer;
@@ -22,13 +27,10 @@ import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
-
-import com.telenav.smithy.names.JavaTypes;
-import com.telenav.smithy.names.NumberKind;
-import com.telenav.validation.ValidationExceptionProvider;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.shapes.ShapeType;
+import static software.amazon.smithy.model.shapes.ShapeType.DOUBLE;
+import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
 import software.amazon.smithy.model.traits.DefaultTrait;
 import software.amazon.smithy.model.traits.RangeTrait;
 
@@ -45,7 +47,7 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
     protected AbstractNumberGenerator(S shape, Model model, Path destSourceRoot, GenerationTarget target,
             LanguageWithVersion language) {
         super(shape, model, destSourceRoot, target, language);
-        this.kind = NumberKind.forShape(shape);
+        this.kind = forShape(shape);
     }
 
     @Override
@@ -61,7 +63,7 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
     @Override
     protected String additionalDocumentation() {
         return "This class is a wrapper around a primitive <code>"
-                + JavaTypes.forShapeType(shape.getType()).name().toLowerCase()
+                + forShapeType(shape.getType()).name().toLowerCase()
                 + "</code>, applying any constraints or defaults "
                 + "defined in the Smithy model.";
     }
@@ -113,7 +115,7 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
                 switch (kind) {
                     case BYTE:
                         IfBuilder<?> test = bb.iff().booleanExpression("value < Byte.MIN_VALUE || value > Byte.MAX_VALUE");
-                        ValidationExceptionProvider.validationExceptions().createThrow(cb, test, "Value out of range of byte", "value");
+                        validationExceptions().createThrow(cb, test, "Value out of range of byte", "value");
                         test.endIf();
                         bb.returningNew(nb -> {
                             nb.withArgument(variable("value").castToByte())
@@ -122,7 +124,7 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
                         break;
                     case SHORT:
                         IfBuilder<?> test2 = bb.iff().booleanExpression("value < Short.MIN_VALUE || value > Short.MAX_VALUE");
-                        ValidationExceptionProvider.validationExceptions().createThrow(cb, test2, "Value out of range of short", "value");
+                        validationExceptions().createThrow(cb, test2, "Value out of range of short", "value");
                         test2.endIf();
                         bb.returningNew(nb -> {
                             nb.withArgument(variable("value").castToShort())
@@ -131,7 +133,7 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
                         break;
                     case FLOAT:
                         IfBuilder<?> test3 = bb.iff().booleanExpression("value < -Float.MAX_VALUE || value > Float.MAX_VALUE");
-                        ValidationExceptionProvider.validationExceptions().createThrow(cb, test3, "Value out of range of float", "value");
+                        validationExceptions().createThrow(cb, test3, "Value out of range of float", "value");
                         test3.endIf();
                         bb.returningNew(nb -> {
                             nb.withArgument(variable("value").castToFloat())
@@ -159,12 +161,11 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
                     .addArgument("NumberFormat", "formatter")
                     .returning("String")
                     .body(bb -> {
-                        ValidationExceptionProvider.generateNullCheck("formatter", bb, cb);
+                        generateNullCheck("formatter", bb, cb);
                         bb.returningInvocationOf("format")
                                 .withArgument(VALUE_FIELD)
                                 .on("formatter");
                     });
-            ;
         });
     }
 
@@ -219,15 +220,15 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
     }
 
     protected <T> void validateConstructorArg(String argName, ClassBuilder<T> cb, BlockBuilder<ClassBuilder<T>> bb) {
-        if (shape.getType() == ShapeType.DOUBLE) {
+        if (shape.getType() == DOUBLE) {
             bb.lineComment("By default, we reject infinity and NaN values");
             IfBuilder<BlockBuilder<ClassBuilder<T>>> test = bb.iff().booleanExpression("!Double.isFinite(" + argName + ")");
-            ValidationExceptionProvider.validationExceptions().createThrow(cb, test, argName + " is not a finite number: ", argName);
+            validationExceptions().createThrow(cb, test, argName + " is not a finite number: ", argName);
             test.endIf();
-        } else if (shape.getType() == ShapeType.FLOAT) {
+        } else if (shape.getType() == FLOAT) {
             bb.lineComment("By default, we reject infinity and NaN values");
             IfBuilder<BlockBuilder<ClassBuilder<T>>> test = bb.iff().booleanExpression("!Float.isFinite(" + argName + ")");
-            ValidationExceptionProvider.validationExceptions().createThrow(cb, test, argName + " is not a finite number: ", argName);
+            validationExceptions().createThrow(cb, test, argName + " is not a finite number: ", argName);
             test.endIf();
         }
         shape.getTrait(RangeTrait.class).ifPresent(rng -> {
@@ -235,7 +236,7 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
                 String val = kind.formatNumber(min);
                 Value vt = variable(argName).isLessThan(number(min.longValue()));
                 IfBuilder<BlockBuilder<ClassBuilder<T>>> test = bb.iff(vt);
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                validationExceptions().createThrow(cb, test,
                         "Value must be greater than or equal to " + min + " but got ", argName);
                 test.endIf();
             });
@@ -243,7 +244,7 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
                 String val = kind.formatNumber(max);
                 Value vt = variable(argName).isGreaterThan(number(max.longValue()));
                 IfBuilder<BlockBuilder<ClassBuilder<T>>> test = bb.iff(vt);//.booleanExpression(argName + " > " + val);
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, test, "Value must be less than or equal to than " + max + " but got ", argName);
+                validationExceptions().createThrow(cb, test, "Value must be less than or equal to than " + max + " but got ", argName);
                 test.endIf();
             });
         });

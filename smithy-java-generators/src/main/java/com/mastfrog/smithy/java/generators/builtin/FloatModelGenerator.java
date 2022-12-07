@@ -29,6 +29,9 @@ import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
+import static java.lang.Double.doubleToLongBits;
+import static java.lang.Float.floatToIntBits;
 import java.nio.file.Path;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
@@ -57,14 +60,14 @@ final class FloatModelGenerator extends AbstractNumberGenerator<FloatShape> {
     protected <T, R> void generateHashCodeComputation( ClassBuilder<T> cb,
             BlockBuilder<R> bb ) {
         int p = (int) prime( cb.fqn() );
-        Float.floatToIntBits( 0 );
+        floatToIntBits( 0 );
         bb.returning( p + " * Float.floatToIntBits(" + VALUE_FIELD + ")" );
     }
 
     @Override
     protected <T, R, B extends ClassBuilder.BlockBuilderBase<R, B, ?>> void generateEqualsComparison( String other,
             ClassBuilder<?> cb, B bb ) {
-        Double.doubleToLongBits( 3 );
+        doubleToLongBits( 3 );
         bb.returning( "Float.floatToIntBits(" + VALUE_FIELD + ") == "
                 + "Float.floatToIntBits(" + other + "." + VALUE_FIELD + ")" );
     }
@@ -78,7 +81,7 @@ final class FloatModelGenerator extends AbstractNumberGenerator<FloatShape> {
                     .body(bb -> {
                         IfBuilder<?> test = bb.iff().booleanExpression(
                                 "doubleValue < -Float.MAX_VALUE || doubleValue > Float.MAX_VALUE" );
-                        ValidationExceptionProvider.validationExceptions().createThrow( cb, test,
+                        validationExceptions().createThrow( cb, test,
                                 "Value must be within the bounds of Float but is", "doubleValue" );
                         test.endIf();
                         bb.returningValue().castTo( "float" ).expression( "doubleValue" );
@@ -88,7 +91,7 @@ final class FloatModelGenerator extends AbstractNumberGenerator<FloatShape> {
         cb.constructor(con -> {
             con.docComment("Convenience constructor which takes a <code>double</code>."
                     + "\n@param doubleValue A double, which must be within the bounds that that class requires and those of <code>float</code>."
-                    + "\n@throws " + ValidationExceptionProvider.validationExceptions().name() + " if the value is out of the range Float.MIN_VALUE to Float.MAX_VALUE" )
+                    + "\n@throws " + validationExceptions().name() + " if the value is out of the range Float.MIN_VALUE to Float.MAX_VALUE" )
                     .addArgument( "double", "doubleValue" )
                     .setModifier( PUBLIC )
                     .body( bb -> {

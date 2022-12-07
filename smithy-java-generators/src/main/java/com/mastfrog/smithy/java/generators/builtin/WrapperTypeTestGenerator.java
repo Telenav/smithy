@@ -1,26 +1,4 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+
 package com.mastfrog.smithy.java.generators.builtin;
 
 import com.mastfrog.function.state.Int;
@@ -28,18 +6,19 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.NewBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.TryBuilder;
+import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
 import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaTestGenerator;
-import com.telenav.smithy.names.NumberKind;
 import com.mastfrog.smithy.simple.extensions.SamplesTrait;
-import com.mastfrog.util.strings.Escaper;
-import com.mastfrog.util.strings.Strings;
+import static com.mastfrog.util.strings.Escaper.JAVA_IDENTIFIER_CAMEL_CASE;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import static com.mastfrog.util.strings.Strings.decapitalize;
-import com.telenav.validation.ValidationExceptionProvider;
+import static com.mastfrog.util.strings.Strings.escape;
+import static com.telenav.smithy.names.NumberKind.forShape;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
@@ -48,11 +27,10 @@ import java.nio.file.Path;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.shapes.ShapeType;
-
+import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
 import static software.amazon.smithy.model.shapes.ShapeType.MEMBER;
 import static software.amazon.smithy.model.shapes.ShapeType.STRING;
-
+import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 import software.amazon.smithy.model.traits.SensitiveTrait;
 
 /**
@@ -67,7 +45,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
 
     @Override
     protected void generate(ClassBuilder<String> cb, String typeName) {
-        if (shape.getType() == ShapeType.BOOLEAN) {
+        if (shape.getType() == BOOLEAN) {
             generateBooleanFactoryMethodTest();
         } else {
             generateEqualityTest();
@@ -77,12 +55,12 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
         generateGetterTest();
         generateToStringTest();
 
-        if (shape.getType() == ShapeType.STRING) {
+        if (shape.getType() == STRING) {
             invalidStringSamples().forEach(inv -> generateInvalidValueTest(inv));
             if (shape.getTrait(SamplesTrait.class).isPresent()) {
                 generateValidSampleTests();
             }
-        } else if (NumberKind.forShape(shape) != null) {
+        } else if (forShape(shape) != null) {
             generateInvalidNumberTests();
         }
     }
@@ -91,7 +69,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
         for (String sample : validStringSamples()) {
             String mname = "Valid_"
                     + (sample.isEmpty() ? "EmptyString"
-                    : Strings.escape(sample, Escaper.JAVA_IDENTIFIER_CAMEL_CASE));
+                    : escape(sample, JAVA_IDENTIFIER_CAMEL_CASE));
             testMethod(mname, currentClassBuilder, bb -> {
                 bb.lineComment("If an exception is thrown, either the sample")
                         .lineComment("or the pattern or length constraint is broken.");
@@ -103,7 +81,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                                 nb.withStringLiteral(sample)
                                         .ofType(currentTypeName);
                             }).as(currentTypeName);
-                    currentClassBuilder.importing(ValidationExceptionProvider.validationExceptions().fqn());
+                    currentClassBuilder.importing(validationExceptions().fqn());
                     tri.catching(cat -> {
                         cat.andThrow(nb -> {
                             nb.withStringConcatentationArgument("The string '")
@@ -117,7 +95,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                                     .withArgument("thrown")
                                     .ofType("AssertionError");
                         });
-                    }, ValidationExceptionProvider.validationExceptions().name());
+                    }, validationExceptions().name());
                 });
 
             });
@@ -154,7 +132,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                     .on(inst.instanceVar)
                     .asString();
 
-            bb.iff(ClassBuilder.invocationOf("length")
+            bb.iff(invocationOf("length")
                     .on("stringValue").isEqualTo(number(0)))
                     .statement("return").endIf();
 
@@ -260,7 +238,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
 
     private void expectFailMethod(int index, Number num, Consumer<NewBuilder<?>> c) {
         String mname = "Invalid" + index + "_"
-                + Strings.escape(num.toString(), Escaper.JAVA_IDENTIFIER_CAMEL_CASE);
+                + escape(num.toString(), JAVA_IDENTIFIER_CAMEL_CASE);
         testMethod(mname, currentClassBuilder, bb -> {
             bb.trying((TryBuilder<?> tri) -> {
                 tri.declare("invalid")
@@ -268,7 +246,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                             c.accept(nb);
                             nb.ofType(currentTypeName);
                         }).as(currentTypeName);
-                currentClassBuilder.importing(ValidationExceptionProvider.validationExceptions().fqn());
+                currentClassBuilder.importing(validationExceptions().fqn());
                 tri.invoke("fail")
                         .withStringLiteral(num + " is an out-of-range value for "
                                 + shape.getId() + " - an exception should have been thrown "
@@ -276,13 +254,13 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                         .inScope();
                 tri.catching(cat -> {
                     cat.lineComment("Exception is expected");
-                }, ValidationExceptionProvider.validationExceptions().name());
+                }, validationExceptions().name());
             });
         });
     }
 
     private void generateInvalidValueTest(String val) {
-        String elided = val.isEmpty() ? "EmptyString" : Strings.escape(val, Escaper.JAVA_IDENTIFIER_CAMEL_CASE);
+        String elided = val.isEmpty() ? "EmptyString" : escape(val, JAVA_IDENTIFIER_CAMEL_CASE);
         testMethod("Invalid_" + elided, currentClassBuilder, bb -> {
             bb.debugLog("Equality and hash code test of " + currentTypeName + " in " + currentClassBuilder.className()
                     + " with '" + val + "'");
@@ -303,10 +281,10 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                         .append("', which is an invalid "
                                 + "value according to the @samples trait in its schema")
                         .endConcatenation().inScope();
-                currentClassBuilder.importing(ValidationExceptionProvider.validationExceptions().fqn());
+                currentClassBuilder.importing(validationExceptions().fqn());
                 tri.catching(cat -> {
                     cat.lineComment("Exception is expected - do nothing.");
-                }, ValidationExceptionProvider.validationExceptions().name());
+                }, validationExceptions().name());
             });
         });
     }
@@ -445,7 +423,7 @@ final class WrapperTypeTestGenerator extends AbstractJavaTestGenerator<Shape> {
                 nb.ofType("ObjectMapper");
             }).as("ObjectMapper");
 
-            if (shape.getType().equals(ShapeType.TIMESTAMP)) {
+            if (shape.getType().equals(TIMESTAMP)) {
                 currentClassBuilder.importing("com.mastfrog.jackson.configuration.JacksonConfigurer");
                 bb.invoke("configureFromMetaInfServices")
                         .withArgument("mapper")

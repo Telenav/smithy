@@ -1,38 +1,18 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+
 package com.mastfrog.smithy.java.generators.builtin;
 
 import com.mastfrog.java.vogon.ClassBuilder;
+import static com.mastfrog.java.vogon.ClassBuilder.forPackage;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
-import com.telenav.smithy.names.TypeNames;
-import com.mastfrog.util.strings.Strings;
-import com.telenav.smithy.utils.ShapeUtils;
-import com.telenav.validation.ValidationExceptionProvider;
+import static com.mastfrog.util.strings.Strings.join;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
+import static com.telenav.validation.ValidationExceptionProvider.generateNullCheck;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -88,7 +68,7 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
     private void init() {
         for (MemberShape ms : shape.members()) {
             Shape tgt = model.expectShape(ms.getTarget());
-            String typeName = TypeNames.typeNameOf(tgt.getId(), false);
+            String typeName = typeNameOf(tgt.getId(), false);
             String pkg = names().packageOf(model.expectShape(tgt.getId()));
             allTypes.add(pkg + "." + typeName);
             shapes.put(tgt, typeName);
@@ -98,8 +78,8 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
         init();
-        ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
-                .named(TypeNames.typeNameOf(shape))
+        ClassBuilder<String> cb = forPackage(names().packageOf(shape))
+                .named(typeNameOf(shape))
                 .withModifier(PUBLIC, ABSTRACT);
         applyGeneratedAnnotation(getClass(), cb);
         if (ctx().settings().is(DEBUG)) {
@@ -107,7 +87,7 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
         }
         applyDocumentation(cb);
         String[] fqns = allTypes.toArray(String[]::new);
-        ShapeUtils.maybeImport(cb, fqns);
+        maybeImport(cb, fqns);
         cb.importing(Supplier.class, Optional.class)
                 .importing(
                         "java.io.Serializable",
@@ -117,11 +97,11 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
                         "com.fasterxml.jackson.annotation.JsonSubTypes")
                 .annotatedWith("JsonSubTypes",
                         anno -> anno.addArrayArgument("value", arr -> shape.members().forEach(mem -> arr.annotation("JsonSubTypes.Type", sub -> {
-                    String tn = TypeNames.typeNameOf(mem.getTarget(), false);
+                    String tn = typeNameOf(mem.getTarget(), false);
                     String name = mem.getMemberName();
                     String subtypeName = cb.className() + "With" + tn;
                     String[] fqns1 = new String[]{tn};
-                    ShapeUtils.maybeImport(cb, fqns1);
+                    maybeImport(cb, fqns1);
                     cb.importing(cb.fqn() + "." + subtypeName);
                     sub.addArgument("name", name)
                             .addClassArgument("value", subtypeName);
@@ -131,7 +111,7 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
                             .docComment("Create a new " + cb.className() + "&lt;" + tn + "&gt;."
                                     + "\n@param value a " + tn
                                     + "\n@return a " + subtypeName
-                                    + "\n@throws " + ValidationExceptionProvider.validationExceptions().name()
+                                    + "\n@throws " + validationExceptions().name()
                                     + " if the passed object is null or invalid"
                             )
                             .returning(cb.className() + "<" + tn + ">")
@@ -172,7 +152,7 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
                                 + "specification for this union type. This is needed to "
                                 + "generate correct JSON for union types."
                                 + "\n@return The name of this member - one of "
-                                + Strings.join(", ", new TreeSet<>(shape.getAllMembers().keySet())))
+                                + join(", ", new TreeSet<>(shape.getAllMembers().keySet())))
                         .annotatedWith("JsonIgnore").closeAnnotation();
             });
         }
@@ -180,7 +160,7 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
 
     public void generateSubtypesForMembers(ClassBuilder<String> cb) {
         shape.members().forEach(mem -> {
-            String tn = TypeNames.typeNameOf(mem.getTarget(), false);
+            String tn = typeNameOf(mem.getTarget(), false);
             String name = mem.getMemberName();
             generateOneSubtype(cb, tn, name, mem);
         });
@@ -207,7 +187,7 @@ final class UnionTypeGenerator extends AbstractJavaGenerator<UnionShape> {
                                         .ofType(tn)
                                         .named("value"));
                         con.body(bb -> {
-                            ValidationExceptionProvider.generateNullCheck("value", bb, cb);
+                            generateNullCheck("value", bb, cb);
                             bb.assign(name).toExpression("value");
                         });
                     });

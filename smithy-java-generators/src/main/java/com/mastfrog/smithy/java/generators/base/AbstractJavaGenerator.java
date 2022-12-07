@@ -1,26 +1,4 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+
 package com.mastfrog.smithy.java.generators.base;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -36,11 +14,15 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
 import com.mastfrog.smithy.generators.SettingsKey;
+import static com.mastfrog.smithy.generators.SettingsKey.key;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import static com.mastfrog.smithy.java.generators.builtin.SmithyJavaGenerators.TYPE_NAMES;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import com.mastfrog.smithy.java.generators.size.ObjectSizes;
+import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import static java.lang.Math.abs;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Path;
@@ -58,8 +40,6 @@ import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
-
-import com.telenav.smithy.names.TypeNames;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -77,7 +57,7 @@ import software.amazon.smithy.model.traits.UniqueItemsTrait;
 public abstract class AbstractJavaGenerator<S extends Shape>
         implements ModelElementGenerator {
 
-    static final SettingsKey<ObjectSizes> OBJECT_SIZE_KEY = SettingsKey.key(ObjectSizes.class, "sizes");
+    static final SettingsKey<ObjectSizes> OBJECT_SIZE_KEY = key(ObjectSizes.class, "sizes");
     private SmithyGenerationContext ctx;
     protected SmithyGenerationLogger log;
     protected final S shape;
@@ -88,27 +68,8 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     // An intentionally non-sequential, shuffled array of primes for use
     // in hash-code generation
     private static final int[] PRIMES = {
-        83299, 60223, 95621, 57587, 93949, 22907, 5233, 50891, 34127, 71971, 76667,
-        55291, 7993, 80141, 64877, 8863, 3181, 41491, 75367, 42227, 98533, 26119,
-        19867, 26861, 49477, 19541, 97499, 103889, 103903, 14407, 72911, 21377, 103067,
-        18313, 53051, 9619, 58337, 94111, 30911, 43261, 46199, 102871, 53657, 14057,
-        929, 67369, 70199, 78721, 10993, 101929, 46477, 91513, 16231, 4733, 79697,
-        71597, 65957, 99733, 48313, 33343, 17257, 61603, 33377, 72959, 45763, 77141,
-        5659, 7283, 14843, 87427, 503, 7001, 7867, 77489, 103231, 42727, 100103, 30803,
-        58031, 36559, 51719, 78877, 25457, 99103, 18743, 64567, 66629, 8807, 2633,
-        84229, 59009, 45631, 1777, 44207, 42487, 74149, 103867, 81203, 39047, 63103,
-        89449, 76963, 30187, 104033, 44543, 42331, 21943, 48109, 60271, 2381, 67129,
-        5881, 52289, 79579, 95441, 86923, 8647, 58151, 59417, 48481, 50111, 28643,
-        76163, 53441, 78893, 10601, 38653, 76673, 79537, 57073, 58111, 74521, 77951,
-        90527, 17623, 91939, 80963, 101, 82021, 46061, 62801, 191, 92801, 19813, 47807,
-        22481, 74381, 75997, 20611, 29191, 98123, 10531, 82171, 5563, 16063, 85247,
-        22027, 21319, 37307, 37039, 43969, 84239, 87149, 87433, 35449, 100151, 10861,
-        89137, 41201, 41953, 46399, 59069, 89867, 56239, 55469, 47459, 73141, 24421,
-        25943, 7741, 100207, 22853, 33199, 37273, 30631, 86201, 83273, 41897, 63487,
-        71861, 29599, 82241, 27271, 36919, 77171, 12641, 59359, 29641, 86711, 57089,
-        30491, 43411, 61379, 74489, 87509, 90373, 19289, 85237, 103, 70111, 29443,
-        98387, 12203, 1153, 40849, 80621, 14107, 98443, 53939, 86069
-    };
+        83_299, 60_223, 95_621, 57_587, 93_949, 22_907, 5_233, 50_891, 34_127, 71_971, 76_667, 55_291, 7_993, 80_141, 64_877, 8_863, 3_181, 41_491, 75_367, 42_227, 98_533, 26_119, 19_867, 26_861, 49_477, 19_541, 97_499, 103_889, 103_903, 14_407, 72_911, 21_377, 103_067, 18_313, 53_051, 9_619, 58_337, 94_111, 30_911, 43_261, 46_199, 102_871, 53_657, 14_057,
+        929, 67_369, 70_199, 78_721, 10_993, 101_929, 46_477, 91_513, 16_231, 4_733, 79_697, 71_597, 65_957, 99_733, 48_313, 33_343, 17_257, 61_603, 33_377, 72_959, 45_763, 77_141, 5_659, 7_283, 14_843, 87_427, 503, 7_001, 7_867, 77_489, 103_231, 42_727, 100_103, 30_803, 58_031, 36_559, 51_719, 78_877, 25_457, 99_103, 18_743, 64_567, 66_629, 8_807, 2_633, 84_229, 59_009, 45_631, 1_777, 44_207, 42_487, 74_149, 103_867, 81_203, 39_047, 63_103, 89_449, 76_963, 30_187, 104_033, 44_543, 42_331, 21_943, 48_109, 60_271, 2_381, 67_129, 5_881, 52_289, 79_579, 95_441, 86_923, 8_647, 58_151, 59_417, 48_481, 50_111, 28_643, 76_163, 53_441, 78_893, 10_601, 38_653, 76_673, 79_537, 57_073, 58_111, 74_521, 77_951, 90_527, 17_623, 91_939, 80_963, 101, 82_021, 46_061, 62_801, 191, 92_801, 19_813, 47_807, 22_481, 74_381, 75_997, 20_611, 29_191, 98_123, 10_531, 82_171, 5_563, 16_063, 85_247, 22_027, 21_319, 37_307, 37_039, 43_969, 84_239, 87_149, 87_433, 35_449, 100_151, 10_861, 89_137, 41_201, 41_953, 46_399, 59_069, 89_867, 56_239, 55_469, 47_459, 73_141, 24_421, 25_943, 7_741, 100_207, 22_853, 33_199, 37_273, 30_631, 86_201, 83_273, 41_897, 63_487, 71_861, 29_599, 82_241, 27_271, 36_919, 77_171, 12_641, 59_359, 29_641, 86_711, 57_089, 30_491, 43_411, 61_379, 74_489, 87_509, 90_373, 19_289, 85_237, 103, 70_111, 29_443, 98_387, 12_203, 1_153, 40_849, 80_621, 14_107, 98_443, 53_939, 86_069};
 
     protected AbstractJavaGenerator(S shape, Model model, Path destSourceRoot,
             GenerationTarget target, LanguageWithVersion language) {
@@ -150,7 +111,7 @@ public abstract class AbstractJavaGenerator<S extends Shape>
      * @return A prime
      */
     public static long prime(Object what) {
-        return PRIMES[Math.abs(Objects.toString(what).hashCode()) % PRIMES.length];
+        return PRIMES[abs(Objects.toString(what).hashCode()) % PRIMES.length];
     }
 
     public final SmithyGenerationContext ctx() {
@@ -316,7 +277,7 @@ public abstract class AbstractJavaGenerator<S extends Shape>
      */
     protected ClassBuilder<String> classHead() {
         ClassBuilder<String> result = ClassBuilder.forPackage(names().packageOf(shape))
-                .named(TypeNames.typeNameOf(shape))
+                .named(typeNameOf(shape))
                 .importing(
                         "java.io.Serializable"
                 )
@@ -446,7 +407,7 @@ public abstract class AbstractJavaGenerator<S extends Shape>
             return;
         }
         String pk = names().packageOf(shape);
-        String tn = TypeNames.typeNameOf(shape);
+        String tn = typeNameOf(shape);
         if (!pk.equals(currentClassBuilder.packageName())) {
             currentClassBuilder.importing(pk + "." + tn);
         }

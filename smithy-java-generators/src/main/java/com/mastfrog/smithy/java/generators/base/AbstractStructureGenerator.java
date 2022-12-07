@@ -1,26 +1,4 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+
 package com.mastfrog.smithy.java.generators.base;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -28,16 +6,17 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.Problems;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
-import com.telenav.validation.ValidationExceptionProvider;
 import com.mastfrog.smithy.java.generators.builtin.struct.Namer;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
 import com.mastfrog.smithy.java.generators.size.ObjectSizes;
 import static com.telenav.smithy.names.JavaTypes.packageOf;
 import com.telenav.smithy.utils.ShapeUtils;
+import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
+import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import java.util.Iterator;
 import java.util.List;
@@ -94,6 +73,7 @@ public abstract class AbstractStructureGenerator extends AbstractJavaGenerator<S
             return AbstractStructureGenerator.this.sizes();
         }
 
+        @Override
         public Namer namer() {
             return namer;
         }
@@ -135,7 +115,7 @@ public abstract class AbstractStructureGenerator extends AbstractJavaGenerator<S
 
         @Override
         public ValidationExceptionProvider validation() {
-            return ValidationExceptionProvider.validationExceptions();
+            return validationExceptions();
         }
 
         @Override
@@ -145,7 +125,7 @@ public abstract class AbstractStructureGenerator extends AbstractJavaGenerator<S
 
         @Override
         public void maybeImport(ClassBuilder<?> cb, String... fqns) {
-            List<String> fq = new ArrayList<>(Arrays.asList(fqns));
+            List<String> fq = new ArrayList<>(asList(fqns));
             // Prune imports from the same package
             for (Iterator<String> it = fq.iterator(); it.hasNext();) {
                 String s = it.next();

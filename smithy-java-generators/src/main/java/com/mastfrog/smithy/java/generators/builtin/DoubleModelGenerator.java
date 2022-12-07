@@ -27,6 +27,7 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
+import static java.lang.Double.doubleToLongBits;
 import java.nio.file.Path;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.DoubleShape;
@@ -47,7 +48,7 @@ final class DoubleModelGenerator extends AbstractNumberGenerator<DoubleShape> {
     @Override
     protected <T, R, B extends ClassBuilder.BlockBuilderBase<R, B, ?>> void generateEqualsComparison( String other,
             ClassBuilder<?> cb, B bb ) {
-        Double.doubleToLongBits( 3 );
+        doubleToLongBits( 3 );
         bb.returning( "Double.doubleToLongBits(" + VALUE_FIELD + ") == "
                 + "Double.doubleToLongBits(" + other + "." + VALUE_FIELD + ")" );
     }

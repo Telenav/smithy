@@ -27,17 +27,20 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import static com.mastfrog.smithy.generators.GenerationTarget.MODEL;
 import static com.mastfrog.smithy.generators.GenerationTarget.MODEL_TEST;
 import com.mastfrog.smithy.generators.Language;
+import static com.mastfrog.smithy.generators.Language.language;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
 import com.mastfrog.smithy.generators.Problems;
 import com.mastfrog.smithy.generators.SettingsKey;
+import static com.mastfrog.smithy.generators.SettingsKey.key;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.generators.SmithyGenerator;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerator;
-import com.telenav.smithy.names.TypeNames;
+import static com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerator.create;
 import com.mastfrog.util.service.ServiceProvider;
+import com.telenav.smithy.names.TypeNames;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashSet;
@@ -56,12 +59,12 @@ import software.amazon.smithy.model.traits.UniqueItemsTrait;
 @ServiceProvider(SmithyGenerator.class)
 public class SmithyJavaGenerators implements SmithyGenerator {
 
-    private static final Language JAVA = Language.language("java");
+    private static final Language JAVA = language("java");
     private static final LanguageWithVersion JAVA_11
             = JAVA.withVersion(11);
 
     public static final SettingsKey<TypeNames> TYPE_NAMES
-            = SettingsKey.key(TypeNames.class);
+            = key(TypeNames.class);
 
     @Override
     public void prepare(Model model, SmithyGenerationContext ctx, Problems problems) {
@@ -103,7 +106,7 @@ public class SmithyJavaGenerators implements SmithyGenerator {
             Set<ModelElementGenerator> result) {
         switch (shape.getType()) {
             case STRUCTURE:
-                result.add(StructureGenerator.create(shape.asStructureShape().get(),
+                result.add(create(shape.asStructureShape().get(),
                         model, destSourceRoot, MODEL, language));
                 break;
             case INT_ENUM:

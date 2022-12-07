@@ -30,9 +30,12 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.util.strings.Escaper;
+import static com.mastfrog.util.strings.Escaper.BASIC_HTML;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.generateNullCheck;
 import java.io.IOException;
+import static java.lang.Character.isUpperCase;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
@@ -347,7 +350,7 @@ final class DocumentGenerator extends AbstractJavaGenerator<DocumentShape> {
                     .returning(outerType.className() + "<" + outputType + ">")
                     .addArgument(inputType, "value")
                     .docComment("Create a new <code>" + outerType.className()
-                            + "<code> from a <code>" + Escaper.BASIC_HTML.escape(inputType)
+                            + "<code> from a <code>" + BASIC_HTML.escape(inputType)
                             + "</code>."
                             + "\n@param value a " + inputType
                             + "\n@return a " + outerType.className());
@@ -380,7 +383,7 @@ final class DocumentGenerator extends AbstractJavaGenerator<DocumentShape> {
             con.addArgument(inputType, "value")
                     .body(bb -> {
                         if (inputType.equals(outputType)) {
-                            ValidationExceptionProvider.generateNullCheck("value", bb, cb);
+                            generateNullCheck("value", bb, cb);
                         }
                         bb.assignField("value").ofThis()
                                 .toExpression("value");
@@ -398,7 +401,7 @@ final class DocumentGenerator extends AbstractJavaGenerator<DocumentShape> {
                     .returning("boolean")
                     .body(bb -> {
                         String v = generateInitialEqualsTest(cb, bb);
-                        if (!Character.isUpperCase(inputType.charAt(0))) {
+                        if (!isUpperCase(inputType.charAt(0))) {
                             if ("double".equals(inputType)) {
 
                                 bb.returning(invocationOf("doubleToLongBits")

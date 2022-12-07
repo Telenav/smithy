@@ -60,6 +60,7 @@ public interface DeclarationClose<B extends ClassBuilder.BlockBuilderBase<Tr, B,
                 return cl.closing(ir, cb);
             }
 
+            @Override
             public String toString() {
                 return nm;
             }

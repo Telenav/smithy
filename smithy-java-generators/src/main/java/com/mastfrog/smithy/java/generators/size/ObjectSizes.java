@@ -168,11 +168,9 @@ public class ObjectSizes {
     }
 
     private void computeCollectionSize(ObjectSize onto, MemberShape base, Shape collectionShape, MemberShape collectionMembers) {
-        long shal = shallowSizeOf(base, collectionShape);
         Shape collectionTarget = model.expectShape(collectionMembers.getTarget());
         ObjectSize elementSize = computeDeepSizeOf(collectionMembers, collectionTarget);
         Optional<LengthTrait> len = collectionShape.getTrait(LengthTrait.class).or(() -> collectionMembers.getMemberTrait(model, LengthTrait.class));
-        boolean reliable = len.isPresent() && len.get().getMax().isPresent();
         long min, max;
         if (len.isPresent()) {
             min = len.get().getMin().map(m -> m).orElse(0L);

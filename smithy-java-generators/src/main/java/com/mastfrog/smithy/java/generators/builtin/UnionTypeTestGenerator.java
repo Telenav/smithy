@@ -29,7 +29,8 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaTestGenerator;
 import com.telenav.smithy.names.JavaTypes;
-import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.JavaTypes.forShapeType;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import java.nio.file.Path;
 import java.util.Optional;
 import static javax.lang.model.element.Modifier.FINAL;
@@ -66,7 +67,7 @@ final class UnionTypeTestGenerator extends AbstractJavaTestGenerator<UnionShape>
     private void generateUnionMemberTest(ClassBuilder<String> cb,
             String typeName, String memberName, MemberShape member) {
         Shape memberShape = model.expectShape(member.getTarget());
-        String memberTypeName = TypeNames.typeNameOf(memberShape.getId(), false);
+        String memberTypeName = typeNameOf(memberShape.getId(), false);
 
         String mname = "As" + memberTypeName;
         String factoryMethodName = "new" + typeName;
@@ -80,7 +81,7 @@ final class UnionTypeTestGenerator extends AbstractJavaTestGenerator<UnionShape>
                     memberShape, bb, memberTypeName, member);
 
             if ("smithy.api".equals(memberShape.getId().getNamespace())) {
-                JavaTypes jt = JavaTypes.forShapeType(memberShape.getType());
+                JavaTypes jt = forShapeType(memberShape.getType());
                 if (jt != null) {
                     String asObject = inst.instanceVar + "AsObject";
                     bb.lineComment("Need an object instance to call toString() on below");

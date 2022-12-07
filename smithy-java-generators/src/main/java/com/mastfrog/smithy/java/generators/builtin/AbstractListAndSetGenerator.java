@@ -34,12 +34,18 @@ import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.mastfrog.smithy.java.generators.builtin.AbstractListAndSetGenerator.ConstraintCheck.empty;
 import com.telenav.smithy.names.JavaTypes;
 import static com.telenav.smithy.names.JavaTypes.find;
+import static com.telenav.smithy.names.JavaTypes.forShapeType;
 import com.telenav.smithy.names.NumberKind;
 import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.telenav.smithy.utils.ShapeUtils;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.generateNullCheck;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import static java.util.Arrays.asList;
 import java.util.Collections;
@@ -60,7 +66,10 @@ import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
 import static software.amazon.smithy.model.shapes.ShapeType.DOUBLE;
+import static software.amazon.smithy.model.shapes.ShapeType.ENUM;
 import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
+import static software.amazon.smithy.model.shapes.ShapeType.STRING;
+import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 import software.amazon.smithy.model.traits.LengthTrait;
 import software.amazon.smithy.model.traits.PatternTrait;
 import software.amazon.smithy.model.traits.RangeTrait;
@@ -201,7 +210,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                 .implementing("Supplier<" + typeSignature() + ">").extending(abstractTypeSignature());
         cb.importing(Collections.class, Consumer.class);
         String[] fqns = new String[]{memberFqn};
-        ShapeUtils.maybeImport(cb, fqns);
+        maybeImport(cb, fqns);
         importRequiredTypes(cb);
         cb.field(CONTENT_FIELD).withModifier(PRIVATE, FINAL).ofType(typeSignature());
         applyDocumentation(cb);
@@ -318,7 +327,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
     }
 
     protected void generatePrimitiveArrayConversionMethod(ClassBuilder<String> cb) {
-        JavaTypes type = JavaTypes.find(realMember);
+        JavaTypes type = find(realMember);
         if (type != null && type.isPrimitiveCapable()) {
             cb.method("toPrimitiveArray", mth -> {
                 mth.docComment("Convenience method to convert to a primitive array."
@@ -371,12 +380,11 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
 
     private void generateJsonLikeToString(ClassBuilder<String> cb) {
         cb.overridePublic("toString", mth -> {
-            mth.returning("String").body(
-                    bb -> {
+            mth.returning("String").body(bb -> {
                         cb.importing(Iterator.class);
                         bb.declare("result")
                                 .initializedWithNew(nb -> {
-                                    nb.withArgument(ClassBuilder.invocationOf("size").inScope().times(64))
+                                    nb.withArgument(invocationOf("size").inScope().times(64))
                                             .ofType("StringBuilder");
                                 }).as("StringBuilder");
 
@@ -388,9 +396,9 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                         bb.invoke("append").withArgument('[').on("result");
 
                         bb.whileLoop(wh -> {
-                            boolean needQuotes = realMember.getType() == ShapeType.STRING
-                                    || realMember.getType() == ShapeType.ENUM
-                                    || realMember.getType() == ShapeType.TIMESTAMP;
+                            boolean needQuotes = realMember.getType() == STRING
+                                    || realMember.getType() == ENUM
+                                    || realMember.getType() == TIMESTAMP;
 
                             if (needQuotes) {
                                 wh.invoke("append")
@@ -458,7 +466,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                                 .withModifier(PUBLIC, STATIC, FINAL).initializedWith(min
                                 .intValue());
                         IfBuilder<?> test = bb.iff().booleanExpression("size < MIN_SIZE");
-                        ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                        validationExceptions().createThrow(cb, test,
                                 "Size would be below the minimum of ", min);
                         test.endIf();
                     });
@@ -468,7 +476,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                                 .withModifier(PUBLIC, STATIC, FINAL).initializedWith(max
                                 .intValue());
                         IfBuilder<?> test = bb.iff().booleanExpression("size > MAX_SIZE");
-                        ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                        validationExceptions().createThrow(cb, test,
                                 "Size would be below the minimum of ", max);
                         test.endIf();
                     });
@@ -507,7 +515,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                 bb.iff().booleanExpression("toRemove.isEmpty()")
                         .returning("false").endIf();
                 IfBuilder<?> test = bb.iff().booleanExpression("size() - toRemove.size() < MIN_SIZE");
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                validationExceptions().createThrow(cb, test,
                         "Removing these items would push the size "
                         + "of this instance below the minimum of "
                         + minSize + " specified in the schema. "
@@ -522,7 +530,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
     protected void generateThrowingOverrideOfClear(ClassBuilder<String> cb) {
         cb.overridePublic("clear", mth -> {
             // Ensure it's imported
-            ValidationExceptionProvider.validationExceptions().prepareImport(cb);
+            validationExceptions().prepareImport(cb);
             mth.body(bb -> {
                 bb.andThrow(nb -> {
                     nb.withStringConcatentationArgument(cb.className())
@@ -532,7 +540,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                             .append(
                                     " Clearing an instance would create an invalid instance.")
                             .endConcatenation();
-                    nb.ofType(ValidationExceptionProvider.validationExceptions().name());
+                    nb.ofType(validationExceptions().name());
                 });
             });
         });
@@ -541,7 +549,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
     protected ConstraintCheck retainAllCheck(String varName) {
         return (cb, bb) -> {
             if (hasMinSize()) {
-                ValidationExceptionProvider.generateNullCheck(varName, bb, cb);
+                generateNullCheck(varName, bb, cb);
                 bb.iff().booleanExpression(varName + ".isEmpty()")
                         .iff().booleanExpression(CONTENT_FIELD + ".isEmpty()")
                         .returning(false)
@@ -556,7 +564,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                 bb.lineComment("to be sure we cannot have a false-positive.");
                 IfBuilder<?> test = bb.iff().booleanExpression(
                         varName + ".size() < MIN_SIZE && (" + varName + " instanceof Set<?> || new HashSet<>(" + varName + ").size() < MIN_SIZE)");
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                validationExceptions().createThrow(cb, test,
                         "Cannot only retain a number of "
                         + "objects that could cause the size of the instance to be "
                         + "below the minimum specified by the schema, of "
@@ -572,7 +580,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
             if (hasMinSize()) {
                 IfBuilder<?> test = bb.iff().booleanExpression(
                         "!isEmpty() && size() == MIN_SIZE && contains(" + removeName + ")");
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                validationExceptions().createThrow(cb, test,
                         "By removing this object, the size will be "
                         + "below the minimum specified by the schema of "
                         + minSize + ": ",
@@ -586,7 +594,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
         return (cb, bb) -> {
             if (hasMaxSize()) {
                 IfBuilder<?> test = bb.iff().booleanExpression("size() == MAX_SIZE");
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                validationExceptions().createThrow(cb, test,
                         "By adding this object, the size will be "
                         + "above the maximum specified by the schema of "
                         + maxSize + ": ",
@@ -602,7 +610,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
             if (hasMaxSize()) {
                 IfBuilder<?> test = bb.iff().booleanExpression(
                         "size() + " + varName + ".size() > MAX_SIZE");
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                validationExceptions().createThrow(cb, test,
                         "By adding these objects, the size will be "
                         + "above the maximum specified by the schema of "
                         + maxSize + ": ",
@@ -622,7 +630,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
         return (cb, bb) -> {
             if (hasMinSize()) {
                 IfBuilder<?> test = bb.iff().booleanExpression("size() == MIN_SIZE");
-                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                validationExceptions().createThrow(cb, test,
                         "By removing this object, the size will be "
                         + "below the minimum specified by the schema of " + minSize, null);
                 test.endIf();
@@ -632,7 +640,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
 
     protected void generateOverride(String name, String returnType,
             ClassBuilder<String> cb, String... argTypes) {
-        generateOverride(ConstraintCheck.empty, name, returnType, cb, argTypes);
+        generateOverride(empty, name, returnType, cb, argTypes);
     }
 
     protected void generateOverride(ConstraintCheck check, String name,
@@ -689,7 +697,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
             mth.withModifier(PRIVATE, STATIC)
                     .addArgument(memberType, "member")
                     .body(bb -> {
-                        ValidationExceptionProvider.generateNullCheck("member", bb, cb);
+                        generateNullCheck("member", bb, cb);
                         memberLength.ifPresent(len -> {
                             String lenMethod = lengthMethod(realMember);
                             len.getMin().ifPresent(min -> {
@@ -704,7 +712,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                                 IfBuilder<?> test = bb.iff()
                                         .booleanExpression("member." + lenMethod
                                                 + "() < MIN_MEMBER_SIZE");
-                                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                validationExceptions().createThrow(cb, test,
                                         "Value is below the minimum size of " + min
                                         + " in the specification for members of "
                                         + cb.className() + ": ", "member");
@@ -722,7 +730,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                                 IfBuilder<?> test = bb.iff()
                                         .booleanExpression("member." + lenMethod
                                                 + "() > MAX_MEMBER_SIZE");
-                                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                validationExceptions().createThrow(cb, test,
                                         "Value is below the minimum size of " + max
                                         + " in the specification for members of "
                                         + cb.className() + ": ", "member");
@@ -744,7 +752,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                             IfBuilder<?> test = bb.iff().invocationOf("find")
                                     .on("memberMatcher").isFalse()
                                     .endCondition();
-                            ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                            validationExceptions().createThrow(cb, test,
                                     "Value does not match the pattern "
                                     + pat.getValue(), "member");
                             test.endIf();
@@ -762,7 +770,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                                 });
                                 IfBuilder<?> test = bb.iff()
                                         .booleanExpression("member < MEMBER_MIN_VALUE");
-                                ValidationExceptionProvider.validationExceptions().createThrow(cb, test,
+                                validationExceptions().createThrow(cb, test,
                                         "Value is less than the minimum value ",
                                         "MEMBER_MIN_VALUE");
                                 test.endIf();
@@ -775,7 +783,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                                 });
                                 IfBuilder<?> test = bb.iff()
                                         .booleanExpression("member > MEMBER_MAX_VALUE");
-                                ValidationExceptionProvider.validationExceptions()
+                                validationExceptions()
                                         .createThrow(cb, test,
                                                 "Value is greater than the maximum value ",
                                                 "MEMBER_MAX_VALUE");
@@ -804,16 +812,16 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
         if (realMember.getId().getNamespace().equals("smithy.api")) {
             return;
         }
-        String member = TypeNames.typeNameOf(realMember);
+        String member = typeNameOf(realMember);
         ShapeType memberType = realMember.getType();
-        JavaTypes javaType = JavaTypes.forShapeType(memberType);
+        JavaTypes javaType = forShapeType(memberType);
 //        System.out.println("MEMBER TYPE " + memberType + " for " + member + " JT " + javaType);
         if (javaType != null) {
             String returnMemberName = javaType.javaType().getSimpleName();
             String returnTypeName = type() + "<" + returnMemberName + ">";
 
             String[] fqns = new String[]{javaType.javaType().getName()};
-            ShapeUtils.maybeImport(cb, fqns);
+            maybeImport(cb, fqns);
 
             cb.method("unwrapAs" + type() + "Of" + javaType.javaType().getSimpleName() + "s", mth -> {
                 mth.withModifier(PUBLIC)
@@ -851,7 +859,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                     + "\n@param original The original collection")
                     .annotatedWith("JsonCreator").closeAnnotation().addArgument(typeSignature(),
                     "original").body(bb -> {
-                                ValidationExceptionProvider.generateNullCheck("original", bb, cb);
+                                generateNullCheck("original", bb, cb);
                                 invokeSizeCheck("original.size()", bb);
                                 if (hasMemberChecks()) {
                                     bb.invoke("forEach").withLambdaArgument(lb -> {
@@ -875,7 +883,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                         .addArgument(argType,
                                 "singleMember").body(bb -> {
                             if (!isPrimitive) {
-                                ValidationExceptionProvider.generateNullCheck("singleMember", bb, cb);
+                                generateNullCheck("singleMember", bb, cb);
                             }
                             if (hasMemberChecks()) {
                                 invokeMemberCheck("singleMember", bb);
@@ -905,7 +913,7 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                     + "\n@param initialItems an array of collection members (which must be within "
                     + "any constraints of the size or member characteristics of the schema of "
                     + cb.className()).addArgument(argType + "...", "initialItems").body(bb -> {
-                ValidationExceptionProvider.generateNullCheck("initialItems", bb, cb);
+                generateNullCheck("initialItems", bb, cb);
                 if (needSizeCheck()) {
                     invokeSizeCheck("initialItems.length", bb);
                 }

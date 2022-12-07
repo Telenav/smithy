@@ -25,12 +25,12 @@ package com.mastfrog.smithy.server.common;
 
 import com.mastfrog.function.TriConsumer;
 import com.mastfrog.java.vogon.ClassBuilder;
-import com.telenav.smithy.names.TypeNames;
-import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import static com.mastfrog.util.strings.Escaper.JAVA_IDENTIFIER_CAMEL_CASE;
 import static com.mastfrog.util.strings.Strings.decapitalize;
+import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.simpleNameOf;
-import com.telenav.smithy.utils.ShapeUtils;
+import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import java.util.Set;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -86,7 +86,7 @@ public final class InputMemberObtentionStrategy {
 
     public void decorateClass(ClassBuilder<?> cb) {
         requiredArguments(type -> {
-            ShapeUtils.maybeImport(cb, type);
+            maybeImport(cb, type);
         });
         origin.decorateClass(cb, memberTarget);
     }

@@ -28,12 +28,14 @@ import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.telenav.smithy.names.JavaSymbolProvider;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
 import com.mastfrog.smithy.simple.extensions.SamplesTrait;
 import static com.mastfrog.util.strings.Escaper.BASIC_HTML;
 import static com.mastfrog.util.strings.Strings.capitalize;
+import com.telenav.smithy.names.JavaSymbolProvider;
+import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -111,7 +113,7 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
-        String typeName = JavaSymbolProvider.escape(capitalize(shape.getId().getName()));
+        String typeName = escape(capitalize(shape.getId().getName()));
         ClassBuilder<String> cb = classHead();
         applyDocumentation(cb);
         cb.importing(
@@ -155,12 +157,12 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
                 con.addArgument("String", "value");
             }
 
-            con.setModifier(Modifier.PUBLIC)
+            con.setModifier(PUBLIC)
                     .annotatedWith("JsonCreator")
                     .closeAnnotation();
             con.body(bb -> {
                 ClassBuilder.IfBuilder<?> ib = bb.ifNull("value");
-                ValidationExceptionProvider.validationExceptions()
+                validationExceptions()
                         .createThrow(cb, ib, shape.getId().getName()
                                 + " value may not be null - it is required.", null);
                 ib.endIf();
@@ -169,7 +171,7 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
                         ClassBuilder.IfBuilder<?> th = bb.iff().invocationOf("length")
                                 .on("value")
                                 .isLessThan(min.intValue());
-                        ValidationExceptionProvider.validationExceptions().createThrow(cb, th, "Length must be >= " + min + "; passed string is ",
+                        validationExceptions().createThrow(cb, th, "Length must be >= " + min + "; passed string is ",
                                 "value.length()");
                         th.endIf();
                     });
@@ -177,7 +179,7 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
                         ClassBuilder.IfBuilder<?> th = bb.iff().invocationOf("length")
                                 .on("value")
                                 .isGreaterThan(max.intValue());
-                        ValidationExceptionProvider.validationExceptions().createThrow(cb, th, "Length must be <= " + max + "; passed string is ",
+                        validationExceptions().createThrow(cb, th, "Length must be <= " + max + "; passed string is ",
                                 "value.length()");
                         th.endIf();
                     });
@@ -201,7 +203,7 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
                                         .append(": '").appendExpression("value")
                                         .append('\'')
                                         .endConcatenation()
-                                        .ofType(ValidationExceptionProvider.validationExceptions().name());
+                                        .ofType(validationExceptions().name());
                             }
                             ).endIf();
                 }
@@ -209,7 +211,7 @@ final class StringModelGenerator extends AbstractJavaGenerator<StringShape> {
                 bb.assign("this.value").toExpression("value");
             });
         });
-        cb.field("value").withModifier(Modifier.PRIVATE, Modifier.FINAL)
+        cb.field("value").withModifier(PRIVATE, FINAL)
                 .ofType("String");
 
         Optional<SensitiveTrait> sensitive

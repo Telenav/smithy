@@ -30,8 +30,8 @@ import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.NewBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
+import static com.mastfrog.util.strings.Escaper.JAVA_IDENTIFIER_CAMEL_CASE;
 import com.telenav.smithy.names.TypeNames;
-import com.mastfrog.util.strings.Escaper;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
@@ -53,8 +53,7 @@ public interface Declarer<B extends BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir exte
                     doInit(OriginType origin, String name, ClassBuilder<?> cb, B bb, DeclarationBuilder<B> decl) {
 
                 Ir di = Declarer.this.doInit(origin, name, cb, bb, decl);
-                InvocationBuilder<TypeAssignment<B>> result = xform.transform(origin, cb, name, di);
-                return result;
+                return xform.transform(origin, cb, name, di);
             }
 
             @Override
@@ -368,7 +367,7 @@ public interface Declarer<B extends BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir exte
         return new Declarer<B, Tr, Rr, NewBuilder<TypeAssignment<B>>>() {
             @Override
             public <I extends InvocationBuilderBase<TypeAssignment<B>, I>> NewBuilder<TypeAssignment<B>> doInit(OriginType origin, String name, ClassBuilder<?> cb, B bb, DeclarationBuilder<B> decl) {
-                String arg = "inputFor" + Escaper.JAVA_IDENTIFIER_CAMEL_CASE.escape(name);
+                String arg = "inputFor" + JAVA_IDENTIFIER_CAMEL_CASE.escape(name);
                 DeclarationBuilder<B> d2 = bb.declare(arg);
                 Ir wrapped = Declarer.this.doInit(origin, name, cb, bb, d2);
                 c.accept(wrapped);

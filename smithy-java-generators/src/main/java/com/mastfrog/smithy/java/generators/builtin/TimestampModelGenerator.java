@@ -1,26 +1,4 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+
 package com.mastfrog.smithy.java.generators.builtin;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -28,15 +6,19 @@ import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.telenav.smithy.names.JavaSymbolProvider;
 import static com.mastfrog.util.strings.Strings.capitalize;
-import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.smithy.names.JavaSymbolProvider.escape;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import static java.time.Instant.now;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import static java.time.ZonedDateTime.ofInstant;
 import java.time.temporal.ChronoField;
+import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
+import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import java.time.temporal.Temporal;
 import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalUnit;
@@ -67,7 +49,7 @@ final class TimestampModelGenerator extends AbstractJavaGenerator<TimestampShape
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
-        String typeName = JavaSymbolProvider.escape(capitalize(shape.getId().getName()));
+        String typeName = escape(capitalize(shape.getId().getName()));
         ClassBuilder<String> cb = classHead();
 
         cb.importing(
@@ -106,11 +88,11 @@ final class TimestampModelGenerator extends AbstractJavaGenerator<TimestampShape
     }
 
     void generateDateTimeConversionMethods(ClassBuilder<String> cb) {
-        Instant inst = Instant.now();
-        ZonedDateTime.ofInstant(Instant.now(), ZoneId.of("GMT"));
+        Instant inst = now();
+        ofInstant(now(), ZoneId.of("GMT"));
 
-        inst.with(ChronoField.NANO_OF_SECOND, 0)
-                .with(ChronoField.MILLI_OF_SECOND, 0);
+        inst.with(NANO_OF_SECOND, 0)
+                .with(MILLI_OF_SECOND, 0);
         cb.importing(ZonedDateTime.class, ZoneId.class);
         cb.method("toZonedDateTime", mth -> {
             mth.withModifier(PUBLIC)
@@ -347,7 +329,7 @@ final class TimestampModelGenerator extends AbstractJavaGenerator<TimestampShape
                     .body(bb -> {
                         bb.lineComment("Null check for date constructor.");
                         IfBuilder<?> ib = bb.ifNull("t");
-                        ValidationExceptionProvider.validationExceptions().createThrow(cb, ib, "May not be null: ", "message");
+                        validationExceptions().createThrow(cb, ib, "May not be null: ", "message");
                         ib.endIf();
                         bb.returning("t");
                     });
@@ -379,7 +361,7 @@ final class TimestampModelGenerator extends AbstractJavaGenerator<TimestampShape
                     .addArgument("Instant", "instant")
                     .setModifier(PUBLIC)
                     .body(bb -> {
-                        ValidationExceptionProvider.validationExceptions().createNullCheck("instant", cb, bb);
+                        validationExceptions().createNullCheck("instant", cb, bb);
                         bb.assign("this.value").toExpression("instant");
                     });
         });

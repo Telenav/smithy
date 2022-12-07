@@ -28,10 +28,13 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
+import static com.mastfrog.smithy.server.common.OriginType.HTTP_HEADER;
+import static com.mastfrog.smithy.server.common.OriginType.URI_PATH;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
+import static java.lang.Integer.parseInt;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -92,8 +95,8 @@ public interface InvocationBuilderTransform {
             @Override
             public <B extends BlockBuilderBase<T, B, ?>, T, I extends InvocationBuilderBase<TypeAssignment<B>, I>> InvocationBuilder<TypeAssignment<B>>
                     transform(OriginType origin, ClassBuilder<?> cb, String name, I inv) {
-                if (origin == OriginType.URI_PATH) {
-                    return inv.onInvocationOf(origin.method()).withArgument(Integer.parseInt(name));
+                if (origin == URI_PATH) {
+                    return inv.onInvocationOf(origin.method()).withArgument(parseInt(name));
                 }
                 return inv.onInvocationOf(origin.method()).withStringLiteral(name);
             }
@@ -182,6 +185,7 @@ public interface InvocationBuilderTransform {
         // PENDING: Use Declaration
         return new InvocationBuilderTransform() {
 
+            @Override
             public String toString() {
                 return "splitToMappedCollection set=" + isSet + " member " + memberTarget
                         + " modelDefined=" + isModelDefined;
@@ -337,7 +341,7 @@ public interface InvocationBuilderTransform {
                     cb.importing(Instant.class, DateTimeParseException.class);
                     cb.importing(validationExceptions().fqn());
                     lb.withArgument("item").body(lbb -> {
-                        if (origin == OriginType.HTTP_HEADER) {
+                        if (origin == HTTP_HEADER) {
                             lbb.lineComment("Use the logic in HeaderTypes to parse an ISO 2822 http date header");
                             cb.importing("static com.mastfrog.smithy.http.HeaderTypes.headerTypes");
                             ClassBuilder.TryBuilder<?> tri = lbb.trying();

@@ -64,6 +64,7 @@ public enum OriginType {
         return Escaper.JAVA_IDENTIFIER_CAMEL_CASE.escape(name().toLowerCase());
     }
 
+    @Override
     public String toString() {
         // used in doc generation
         switch (this) {

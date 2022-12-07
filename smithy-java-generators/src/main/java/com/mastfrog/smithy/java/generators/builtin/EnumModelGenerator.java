@@ -1,26 +1,4 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+
 package com.mastfrog.smithy.java.generators.builtin;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -30,14 +8,17 @@ import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.mastfrog.smithy.java.generators.builtin.EnumModelGenerator.StringDefaultStatus.ALL;
+import static com.mastfrog.smithy.java.generators.builtin.EnumModelGenerator.StringDefaultStatus.NONE;
+import static com.mastfrog.smithy.java.generators.builtin.EnumModelGenerator.StringDefaultStatus.SOME;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
-import com.telenav.smithy.names.JavaSymbolProvider;
-import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.mastfrog.smithy.simple.extensions.FuzzyNameMatchingTrait;
 import com.mastfrog.smithy.simple.extensions.UnitsTrait;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import static com.mastfrog.util.strings.Strings.decapitalize;
-import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.smithy.names.JavaSymbolProvider.escape;
+import static com.telenav.validation.ValidationExceptionProvider.generateNullCheck;
+import static java.lang.Double.doubleToLongBits;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -90,9 +71,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
             if (units.isEmpty()) {
                 return;
             }
-            sb.append("\nThis enum is decorated with the @units trait, and supports unit-conversion using "
-                    + " the <code>convert(number, toUnit)</code> methods, according to the following multipliers "
-                    + "of the base unit, <code>" + baseUnit + "</code>:<ul>");
+            sb.append("\nThis enum is decorated with the @units trait, and supports unit-conversion using  the <code>convert(number, toUnit)</code> methods, according to the following multipliers of the base unit, <code>").append(baseUnit).append("</code>:<ul>");
             units.forEach((unit, multiplier) -> {
                 if (unit.equals(baseUnit)) {
                     return;
@@ -106,7 +85,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
     @Override
     protected void generate(Consumer<ClassBuilder<String>> cs) {
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
-                .named(JavaSymbolProvider.escape(shape.getId().getName()))
+                .named(escape(shape.getId().getName()))
                 .withModifier(PUBLIC);
 
         applyGeneratedAnnotation(EnumModelGenerator.class, cb);
@@ -130,7 +109,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
         cb.enumConstants(ecb -> {
 
             shape.getAllMembers().forEach((name, mem) -> {
-                String javaName = JavaSymbolProvider.escape(name);
+                String javaName = escape(name);
                 mem.getTrait(DocumentationTrait.class).ifPresentOrElse(docs -> {
                     ecb.add(javaName, docs.getValue());
                 }, () -> {
@@ -158,7 +137,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
                         bb.iff(invocationOf("isEmpty").on("value")).returning(false).endIf();
                         bb.switchingOn("this", sw -> {
                             for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
-                                String javaEnumConstantName = JavaSymbolProvider.escape(e.getKey());
+                                String javaEnumConstantName = escape(e.getKey());
                                 Set<String> permutations = hyphenAndCaseVariants(javaEnumConstantName);
                                 Optional<DefaultTrait> def = e.getValue().getTrait(DefaultTrait.class);
                                 def.ifPresent(dt -> {
@@ -204,7 +183,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
                     .returning("Optional<" + cb.className() + ">")
                     .body(bb -> {
                         for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
-                            String javaEnumConstantName = JavaSymbolProvider.escape(e.getKey());
+                            String javaEnumConstantName = escape(e.getKey());
                             bb.iff(invocationOf("matches").withArgument("what").on(javaEnumConstantName))
                                     .returningInvocationOf("of").withArgument(javaEnumConstantName)
                                     .on("Optional").endIf();
@@ -244,7 +223,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
                     .body(bb -> {
                         bb.switchingOn("this", sw -> {
                             for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
-                                String javaName = JavaSymbolProvider.escape(e.getKey());
+                                String javaName = escape(e.getKey());
                                 sw.inCase(javaName, cas -> {
                                     cas.lineComment(e.getValue().toString());
                                     Optional<DefaultTrait> def = e.getValue().getTrait(DefaultTrait.class);
@@ -309,11 +288,11 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
             memberCount++;
         }
         if (membersWithDefaults == 0) {
-            return StringDefaultStatus.NONE;
+            return NONE;
         } else if (membersWithDefaults == memberCount) {
-            return StringDefaultStatus.ALL;
+            return ALL;
         } else {
-            return StringDefaultStatus.SOME;
+            return SOME;
         }
     }
 
@@ -337,7 +316,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
                     oneSeen++;
                 }
                 units.put(e.getKey(), ut.getValue());
-                values.add(Double.doubleToLongBits(ut.getValue()));
+                values.add(doubleToLongBits(ut.getValue()));
             }
         }
         if (!units.isEmpty()) {
@@ -425,7 +404,7 @@ final class EnumModelGenerator extends AbstractJavaGenerator<EnumShape> {
                         .addArgument(cb.className(), "to")
                         .returning("double");
                 mth.body(bb -> {
-                    ValidationExceptionProvider.generateNullCheck("to", bb, cb);
+                    generateNullCheck("to", bb, cb);
                     bb.iff(variable("to").isEqualTo("this"))
                             .returning("value")
                             .endIf();

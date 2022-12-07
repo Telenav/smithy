@@ -24,8 +24,11 @@
 package com.mastfrog.smithy.server.common;
 
 import com.mastfrog.java.vogon.ClassBuilder;
+import static com.mastfrog.smithy.server.common.OriginType.HTTP_PAYLOAD;
 import com.mastfrog.util.strings.Strings;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.simpleNameOf;
 import java.util.Set;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.shapes.MemberShape;
@@ -40,7 +43,7 @@ public final class PayloadOrigin extends Origin {
     final String qualifiedType;
 
     public PayloadOrigin(String qualifiedType) {
-        super(OriginType.HTTP_PAYLOAD);
+        super(HTTP_PAYLOAD);
         this.qualifiedType = qualifiedType;
     }
 
@@ -74,13 +77,13 @@ public final class PayloadOrigin extends Origin {
     }
 
     private String varName() {
-        return "_" + Strings.decapitalize(TypeNames.simpleNameOf(qualifiedType));
+        return "_" + decapitalize(simpleNameOf(qualifiedType));
     }
 
     @Override
     protected void decorateConstructor(ClassBuilder.ConstructorBuilder<?> con, Set<String> typesAdded) {
         if (!typesAdded.add(qualifiedType)) {
-            con.addArgument(TypeNames.simpleNameOf(qualifiedType), varName());
+            con.addArgument(simpleNameOf(qualifiedType), varName());
         }
     }
 

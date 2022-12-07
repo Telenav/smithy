@@ -42,6 +42,12 @@ import java.util.Map;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.DocumentShape;
 import software.amazon.smithy.model.shapes.ShapeType;
+import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
+import static software.amazon.smithy.model.shapes.ShapeType.DOUBLE;
+import static software.amazon.smithy.model.shapes.ShapeType.LIST;
+import static software.amazon.smithy.model.shapes.ShapeType.LONG;
+import static software.amazon.smithy.model.shapes.ShapeType.MAP;
+import static software.amazon.smithy.model.shapes.ShapeType.STRING;
 
 /**
  *
@@ -59,12 +65,12 @@ final class DocumentTestGenerator extends AbstractJavaTestGenerator<DocumentShap
     @Override
     protected void generate(ClassBuilder<String> cb, String typeName) {
         String factoryMethodName = "new" + typeName;
-        generateOneTestMethod(factoryMethodName, ShapeType.LONG, "long", "Long");
-        generateOneTestMethod(factoryMethodName, ShapeType.DOUBLE, "double", "Double");
-        generateOneTestMethod(factoryMethodName, ShapeType.BOOLEAN, "boolean", "Boolean");
-        generateOneTestMethod(factoryMethodName, ShapeType.STRING, "String", "String");
-        generateOneTestMethod(factoryMethodName, ShapeType.MAP, "Map<String, Integer>", "Map<String, Integer>");
-        generateOneTestMethod(factoryMethodName, ShapeType.LIST, "List<String>", "List<String>");
+        generateOneTestMethod(factoryMethodName, LONG, "long", "Long");
+        generateOneTestMethod(factoryMethodName, DOUBLE, "double", "Double");
+        generateOneTestMethod(factoryMethodName, BOOLEAN, "boolean", "Boolean");
+        generateOneTestMethod(factoryMethodName, STRING, "String", "String");
+        generateOneTestMethod(factoryMethodName, MAP, "Map<String, Integer>", "Map<String, Integer>");
+        generateOneTestMethod(factoryMethodName, LIST, "List<String>", "List<String>");
     }
 
     @Override
@@ -229,7 +235,7 @@ final class DocumentTestGenerator extends AbstractJavaTestGenerator<DocumentShap
                     .on("instance")
                     .inScope();
 
-            if (shapeType == ShapeType.STRING) {
+            if (shapeType == STRING) {
                 bb.invoke("assertTrue")
                         .withArgumentFromInvoking("isPresent")
                         .onInvocationOf("as")

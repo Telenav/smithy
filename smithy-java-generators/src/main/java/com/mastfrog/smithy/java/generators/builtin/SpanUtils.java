@@ -27,8 +27,9 @@ import com.mastfrog.function.TriConsumer;
 import com.mastfrog.function.TriFunction;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureGenerationHelper;
 import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
-import com.telenav.smithy.names.NumberKind;
 import com.mastfrog.smithy.simple.extensions.SpanTrait;
+import com.telenav.smithy.names.NumberKind;
+import static com.telenav.smithy.names.NumberKind.forShape;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
@@ -92,7 +93,7 @@ public final class SpanUtils {
                     + moreType, help.structure());
         }
 
-        NumberKind lessKind = NumberKind.forShape(lessMember.target());
+        NumberKind lessKind = forShape(lessMember.target());
         if (lessKind == null) {
             throw new ExpectationNotMetException("Members named in a @span trait must be numbers, "
                     + "but " + lesser + " is a " + lessMember.target().getType(), help.structure());

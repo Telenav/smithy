@@ -25,6 +25,7 @@ package com.mastfrog.smithy.java.generators.builtin;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
+import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import java.nio.file.Path;
@@ -45,6 +46,6 @@ final class IntegerModelGenerator extends AbstractNumberGenerator<IntegerShape> 
     protected <T, R> void generateHashCodeComputation(ClassBuilder<T> cb,
             BlockBuilder<R> bb) {
         int p = (int) prime(cb.fqn());
-        bb.returning(ClassBuilder.variable(VALUE_FIELD).times(p).toString());
+        bb.returning(variable(VALUE_FIELD).times(p).toString());
     }
 }

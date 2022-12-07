@@ -6,8 +6,11 @@ import com.mastfrog.java.vogon.ClassBuilder.IfBuilder;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.names.JavaTypes;
+import static com.telenav.smithy.names.JavaTypes.find;
 import com.telenav.smithy.names.NumberKind;
+import static com.telenav.smithy.names.NumberKind.forShape;
 import com.telenav.validation.ValidationExceptionProvider;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import java.util.AbstractSet;
 import java.util.ArrayList;
@@ -41,8 +44,8 @@ final class SetModelGenerator<S extends ListShape> extends AbstractListAndSetGen
     }
 
     private boolean canUseTreeSet() {
-        JavaTypes tp = JavaTypes.find( realMember );
-        return tp != null && tp.isPrimitiveCapable() && NumberKind.forShape( realMember ) != null;
+        JavaTypes tp = find( realMember );
+        return tp != null && tp.isPrimitiveCapable() && forShape( realMember ) != null;
     }
 
     @Override
@@ -154,7 +157,7 @@ final class SetModelGenerator<S extends ListShape> extends AbstractListAndSetGen
                             bb.lineComment( "We need to ensure we do not go below the size constraint," );
                             bb.lineComment( "which is the reason this class exists at all." );
                             IfBuilder<?> test = bb.iff().booleanExpression( "size() == MIN_SIZE" );
-                            ValidationExceptionProvider.validationExceptions().createThrow( iter, test,
+                            validationExceptions().createThrow( iter, test,
                                     "Removing an element would cause the iterated " + cb.className()
                                     + "to be below the minimum size in its schema of ", "MIN_SIZE" );
                             test.endIf();

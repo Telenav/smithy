@@ -1,26 +1,4 @@
-/*
- * The MIT License
- *
- * Copyright 2022 Mastfrog Technologies.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+
 package com.mastfrog.smithy.java.generators.base;
 
 import com.mastfrog.function.ByteConsumer;
@@ -28,6 +6,7 @@ import com.mastfrog.function.ShortConsumer;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;
+import static com.mastfrog.java.vogon.ClassBuilder.forPackage;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
@@ -38,10 +17,7 @@ import com.mastfrog.smithy.java.generators.builtin.struct.StructureMember;
 import com.mastfrog.smithy.simple.extensions.SamplesTrait;
 import com.mastfrog.smithy.simple.extensions.SpanTrait;
 import com.mastfrog.util.strings.RandomStrings;
-import com.mastfrog.util.strings.Strings;
-import com.telenav.smithy.names.JavaSymbolProvider;
 import com.telenav.smithy.names.JavaTypes;
-import com.telenav.smithy.names.TypeNames;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.StringNode;
 import software.amazon.smithy.model.shapes.*;
@@ -64,17 +40,31 @@ import java.util.function.LongConsumer;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
+import static com.mastfrog.smithy.java.generators.base.AbstractJavaTestGenerator.MemberInstantiation.memberInstantiation;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import com.mastfrog.smithy.java.generators.size.ObjectSizes;
 import static com.mastfrog.util.preconditions.Checks.notNull;
+import static com.mastfrog.util.strings.Strings.capitalize;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
+import static com.telenav.smithy.names.JavaTypes.forShapeType;
 import static com.telenav.smithy.names.TypeNames.packageOf;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.telenav.smithy.utils.ShapeUtils;
+import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import static java.lang.Math.ceil;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+import static java.lang.System.currentTimeMillis;
+import static java.time.Instant.EPOCH;
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.shuffle;
 import static java.util.Collections.unmodifiableList;
+import static java.util.Optional.empty;
 import static javax.lang.model.element.Modifier.*;
+import static software.amazon.smithy.model.shapes.ShapeType.MEMBER;
+import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 
 /**
  *
@@ -124,7 +114,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
     }
 
     protected ClassBuilder<String> testClassHead() {
-        ClassBuilder<String> result = ClassBuilder.forPackage(names().packageOf(shape))
+        ClassBuilder<String> result = forPackage(names().packageOf(shape))
                 .named(typeNameOf(shape) + "Test")
                 .importing(
                         "com.fasterxml.jackson.databind.ObjectMapper",
@@ -155,7 +145,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         return result;
     }
 
-    private Map<String, Integer> usedVars = new HashMap<>();
+    private final Map<String, Integer> usedVars = new HashMap<>();
 
 //    protected String newVarName() {
 //        return newVarName("testValue");
@@ -168,9 +158,9 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
             return old + 1;
         });
         if (suffix == 0) {
-            return escape(Strings.decapitalize(prefix));
+            return escape(decapitalize(prefix));
         }
-        return escape(Strings.decapitalize(prefix) + Strings.capitalize(Integer.toHexString(suffix)));
+        return escape(decapitalize(prefix) + capitalize(Integer.toHexString(suffix)));
     }
 
     protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> void assertEquals(String exp, String got, String msg, B bb) {
@@ -252,7 +242,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                 if (!vals.isEmpty()) { // possible?
                     int value = vals.get(rnd.nextInt(vals.size()));
                     bb.declare(val)
-                            .initializedByInvoking(Strings.decapitalize(typeNameOf(shape)))
+                            .initializedByInvoking(decapitalize(typeNameOf(shape)))
                             .withArgument(value)
                             .on(typeNameOf(shape))
                             .as(typeNameOf(shape));
@@ -311,7 +301,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
     protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T>
             String declarePrimitive(String name, Shape shape, B bb) {
         String vn = newVarName(name);
-        if (shape.getType() == ShapeType.MEMBER) {
+        if (shape.getType() == MEMBER) {
             Shape nue = model.expectShape(shape.asMemberShape().get().getTarget());
             return declarePrimitiveFor(vn, bb, nue, shape);
         }
@@ -611,8 +601,8 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                 }).as("BigInteger");
                 break;
             case TIMESTAMP:
-                long millisSinceEpoch = System.currentTimeMillis();
-                Instant when = Instant.EPOCH
+                long millisSinceEpoch = currentTimeMillis();
+                Instant when = EPOCH
                         .plus(Duration.ofMillis((long) ceil(rnd.nextDouble() * millisSinceEpoch)));
                 currentClassBuilder.importing(Instant.class);
                 bb.declare(vn).initializedByInvoking("parse")
@@ -634,7 +624,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                 break;
             case ENUM:
                 List<Map.Entry<String, MemberShape>> entries = new ArrayList<>(shape.asEnumShape().get().getAllMembers().entrySet());
-                Collections.shuffle(entries, rnd);
+                shuffle(entries, rnd);
                 Map.Entry<String, MemberShape> memberEntry = entries.get(rnd.nextInt(entries.size()));
                 bb.declare(vn)
                         .initializedFromField(escape(memberEntry.getKey()))
@@ -666,12 +656,12 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         int targetSize = rnd.nextInt(5) + 3;
         Optional<LengthTrait> len = length(memberShape, shape);
         if (len.isPresent() && len.get().getMin().isPresent()) {
-            targetSize = Math.max(targetSize, len.get().getMin().get().intValue()
+            targetSize = max(targetSize, len.get().getMin().get().intValue()
                     + 1);
         }
         if (len.isPresent() && len.get().getMax().isPresent()) {
             int max = len.get().getMax().get().intValue();
-            targetSize = Math.min(max, targetSize);
+            targetSize = min(max, targetSize);
         }
         return targetSize;
     }
@@ -800,14 +790,14 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         if (len.isPresent()) {
             int min = len.get().getMin().orElse(0L).intValue();
             int max = len.get().getMax().orElse(0L).intValue();
-            int targetLength = Math.min(256, max - min) + 1;
+            int targetLength = min(256, max - min) + 1;
             if (targetLength < 0) {
                 // min is specified, max is not:
                 max = min + rnd.nextInt(12);
                 targetLength = max - min;
             }
             if (targetLength <= 0) {
-                targetLength = Math.max(1, Math.min(min, max - 1));
+                targetLength = max(1, min(min, max - 1));
             }
             return rs.get(min + rnd.nextInt(targetLength))
                     .toLowerCase();
@@ -819,7 +809,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         if (shape.isMemberShape()) {
             shape = model.expectShape(shape.asMemberShape().get().getTarget());
         }
-        JavaTypes jt = JavaTypes.forShapeType(shape.getType());
+        JavaTypes jt = forShapeType(shape.getType());
         String result = jt == null ? null : jt
                 .primitiveTypeName();
         if (result == null) {
@@ -1095,11 +1085,11 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                     .inScope()
                     .as(origLesserMemberInstantiation.member.typeName());
             lesserMemberInstantiation
-                    = MemberInstantiation.memberInstantiation(
+                    = memberInstantiation(
                             origLesserMemberInstantiation.member,
                             origLesserMemberInstantiation.contentsVar, lesserVar);
             greaterMemberInstantiation
-                    = MemberInstantiation.memberInstantiation(
+                    = memberInstantiation(
                             origGreaterMemberInstantiation.member,
                             origGreaterMemberInstantiation.contentsVar, greaterVar);
         } else {
@@ -1129,7 +1119,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
 
                         members.add(m);
                         Optional<JavaTypes> tp = m.member == null
-                                ? Optional.empty() : m.member.javaType();
+                                ? empty() : m.member.javaType();
                         nb.withArgument(m.memberVar);
                         /*
                         tp.ifPresentOrElse(jt -> {
@@ -1168,7 +1158,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
             currentClassBuilder.importing(qtn);
         }
 
-        String memberVar = newVarName(JavaSymbolProvider.escape(member.getMemberName()));
+        String memberVar = newVarName(escape(member.getMemberName()));
         String contentsVar = null;
         if (target.isStructureShape()) {
             bb.lineComment("instantiate " + m.typeName() + " for " + m.member().getId());
@@ -1191,7 +1181,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         public final List<MemberInstantiation<?>> members;
         public final String name;
 
-        public StructureInstantiation(String name, StructureShape shape, List<MemberInstantiation<?>> members) {
+        StructureInstantiation(String name, StructureShape shape, List<MemberInstantiation<?>> members) {
             this.shape = shape;
             this.members = members;
             this.name = name;
@@ -1214,7 +1204,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         public final String memberVar;
         public final StructureMember<S> member;
 
-        public MemberInstantiation(StructureMember<S> member, String contentsVar, String memberVar) {
+        MemberInstantiation(StructureMember<S> member, String contentsVar, String memberVar) {
             this.member = member;
             this.contentsVar = contentsVar;
             this.memberVar = memberVar;
@@ -1257,6 +1247,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
             return false;
         }
 
+        @Override
         public Namer namer() {
             return namer;
         }
@@ -1293,7 +1284,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
 
         @Override
         public ValidationExceptionProvider validation() {
-            return ValidationExceptionProvider.validationExceptions();
+            return validationExceptions();
         }
 
         @Override
@@ -1303,7 +1294,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
 
         @Override
         public void maybeImport(ClassBuilder<?> cb, String... fqns) {
-            List<String> fq = new ArrayList<>(Arrays.asList(fqns));
+            List<String> fq = new ArrayList<>(asList(fqns));
             // Prune imports from the same package
             for (Iterator<String> it = fq.iterator(); it.hasNext();) {
                 String s = it.next();
@@ -1329,7 +1320,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
             return false;
         }
         seen.add(shape.getId());
-        if (shape.getType() == ShapeType.TIMESTAMP) {
+        if (shape.getType() == TIMESTAMP) {
             return true;
         }
         for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {

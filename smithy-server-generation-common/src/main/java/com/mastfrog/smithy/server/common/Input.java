@@ -26,7 +26,9 @@ package com.mastfrog.smithy.server.common;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.ConstructorBuilder;
+import static com.mastfrog.smithy.server.common.OriginType.HTTP_PAYLOAD;
 import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.TypeNames.simpleNameOf;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
@@ -76,7 +78,7 @@ public class Input implements Iterable<InputMemberObtentionStrategy> {
 
     public boolean entireInputIsHttpPayload() {
         return isEmpty() || (strategies.size() == 1
-                && strategies.get(0).type() == OriginType.HTTP_PAYLOAD);
+                && strategies.get(0).type() == HTTP_PAYLOAD);
     }
 
     @Override
@@ -87,9 +89,9 @@ public class Input implements Iterable<InputMemberObtentionStrategy> {
         if (!isEmpty()) {
             sb.append(':');
         }
-        for (InputMemberObtentionStrategy ob : strategies) {
+        strategies.forEach(ob -> {
             sb.append("\n * ").append(ob);
-        }
+        });
         sb.append("\n entireInputIsHttpPayload? ").append(entireInputIsHttpPayload());
         return sb.append(")").toString();
     }
@@ -144,7 +146,7 @@ public class Input implements Iterable<InputMemberObtentionStrategy> {
                     ab.addArrayArgument("scopeTypes", arr -> {
                         neededBindings.forEach(fqn -> {
                             maybeImport(cb, fqn);
-                            arr.expression(TypeNames.simpleNameOf(fqn) + ".class");
+                            arr.expression(simpleNameOf(fqn) + ".class");
                         });
                     });
                 }

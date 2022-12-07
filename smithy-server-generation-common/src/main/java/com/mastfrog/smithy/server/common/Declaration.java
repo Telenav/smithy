@@ -54,6 +54,7 @@ public final class Declaration<B extends ClassBuilder.BlockBuilderBase<Tr, B, Rr
         return varName;
     }
 
+    @Override
     public String toString() {
         return declarer + " closed by " + closer;
     }
