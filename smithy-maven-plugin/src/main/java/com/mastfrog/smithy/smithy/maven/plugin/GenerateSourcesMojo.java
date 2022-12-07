@@ -35,6 +35,7 @@ import com.mastfrog.smithy.generators.SmithyDestinations;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.generators.SmithyGenerationSession;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
+import com.mastfrog.util.strings.Strings;
 import com.telenav.cactus.maven.log.BuildLog;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -59,7 +60,15 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.loader.ModelAssembler;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import static software.amazon.smithy.model.shapes.ShapeType.OPERATION;
+import static software.amazon.smithy.model.shapes.ShapeType.RESOURCE;
+import static software.amazon.smithy.model.shapes.ShapeType.SERVICE;
 import software.amazon.smithy.model.validation.Severity;
+import static software.amazon.smithy.model.validation.Severity.DANGER;
+import static software.amazon.smithy.model.validation.Severity.ERROR;
+import static software.amazon.smithy.model.validation.Severity.NOTE;
+import static software.amazon.smithy.model.validation.Severity.SUPPRESSED;
+import static software.amazon.smithy.model.validation.Severity.WARNING;
 import software.amazon.smithy.model.validation.ValidatedResult;
 
 /**
@@ -273,18 +282,36 @@ public class GenerateSourcesMojo extends AbstractMojo {
 
         @Override
         public Path sourceRootFor(GenerationTarget generationTarget,
-                Shape shape, LanguageWithVersion ver,
+                Shape shape, LanguageWithVersion language,
                 SmithyGenerationSettings settings) {
             Path root = project.getBasedir().toPath();
-            if (GenerationTarget.MODEL_TEST.equals(generationTarget)) {
-                return root.resolve("src/test/java");
-            }
-            String suff = typeSuffix(shape);
-            String dest = destinations.getOrDefault(
-                    generationTarget.name() + "." + suff,
-                    destinations.getOrDefault(generationTarget.name(),
-                            destinations.getOrDefault(suff, DEFAULT_DEST)));
+            String dest = destination(generationTarget, shape, language);
             return root.resolve(dest);
+        }
+
+        private String destination(GenerationTarget generationTarget, Shape shape, 
+                LanguageWithVersion language) {
+            String[] dests = destinations(generationTarget, shape, language);
+            for (String d : dests) {
+                String result = destinations.get(d);
+                if (result != null) {
+                    return result;
+                }
+            }
+            if (GenerationTarget.MODEL_TEST.equals(generationTarget) && language.isLanguage("java")) {
+                return project.getBasedir().toPath().resolve("src/test/java").toString();
+            }
+            return DEFAULT_DEST;
+        }
+
+        private String[] destinations(GenerationTarget target, Shape shape, LanguageWithVersion lang) {
+            String suff = typeSuffix(shape);
+            return new String[]{
+                Strings.join('.', lang.language().name(), lang.version(), target.name(), suff).toString(),
+                Strings.join('.', lang.language().name(), target.name(), suff),
+                Strings.join('.', lang.language().name(), target.name()),
+                Strings.join('.', target.name(), suff),
+                Strings.join('.', target.name()),};
         }
     }
 
