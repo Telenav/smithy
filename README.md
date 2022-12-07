@@ -476,3 +476,24 @@ generate easier-to-use model classes:
    need to implement in your server project, one for each distinct string.  If unspecified,
    `"basic"` is assumed, for HTTP basic authentication (but you can implement the interface
    to do whatever you want)
+
+Generated Code Style
+====================
+
+A mini FAQ, anticipating a few questions:
+
+Q: Why are all the generated classes final? I want to subclass things!
+A: First, this is concurrent programming - async programming always is. Immutable objects are thread-safe.
+Second, `final` is the most powerful tool in the Java language for making entire *classes* of bug into
+impossibilities.  Whenever you code a non-final field in Java, you should feel like you're walking around
+with your zipper down and your shoes untied - **because you are**.  Third, generated types are work-animals, 
+not pets - if they could be subclassed, that creates a whole new category of ways for things to break when
+you change your model.  It's not worth it.
+
+Q: You could generate supertypes for your classes and share some logic, or use *library X* that has
+fabulous support for *Y*.
+A: The goal of the generated code - particularly model types - is **clarity** - as in, you can look at
+it and immediately see exactly what it's doing, with as little indirection as possible.  Introducing
+dependencies - local or library - makes that harder to do, and introduces new ways things can break.
+Yes, a little memory for bytecode could be saved, but bytecode size in not where memory usage
+problems come from.
