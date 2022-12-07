@@ -13,10 +13,10 @@ import io.vertx.core.http.HttpServerOptions;
 import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.BodyHandler;
 import java.util.ArrayList;
 import static java.util.Collections.singletonList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -152,6 +152,15 @@ public final class VerticleBuilder<T> {
         public FinishableMultiHandlerRouteFinisher<B> withHandler(Class<? extends Handler<RoutingContext>> type) {
             RouteHandlerFromTypeCreator curr = new RouteHandlerFromTypeCreator(type);
             all.add(curr);
+            return this;
+        }
+
+        public FinishableMultiHandlerRouteFinisher<B> withHandler(Optional<Class<? extends Handler<RoutingContext>>> typeOpt) {
+            if (typeOpt.isPresent()) {
+                Class<? extends Handler<RoutingContext>> type = typeOpt.get();
+                RouteHandlerFromTypeCreator curr = new RouteHandlerFromTypeCreator(type);
+                all.add(curr);
+            }
             return this;
         }
 

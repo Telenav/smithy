@@ -336,6 +336,38 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             bb.returningThis();
                         });
             });
+
+            // We can only pass Optional<Class> to the SECOND
+            // handler passed to the VerticleBuilder, so we can only
+            // support pre-handlers if the probe handler is guaranteed
+            // to be the first
+            cb.importing("io.vertx.ext.web.RoutingContext",
+                    "io.vertx.core.Handler");
+            cb.field("preHandler", fld -> {
+                fld.withModifier(PRIVATE)
+                        .ofType("Class<? extends Handler<RoutingContext>>");
+            });
+
+            cb.method("withPreHandler", mth -> {
+                mth.withModifier(PUBLIC)
+                        .addArgument("Class<? extends Handler<RoutingContext>>", "preHandlerType")
+                        .returning(cb.className());
+                mth.docComment("Add a Handler which should be instantiated and invoked for "
+                        + "every request (e.g. to set up headers present on all requests)."
+                        + "The " + operationEnumTypeName() + " for the operation being invoked "
+                        + "will be available for injection as a constructor argument."
+                        + "\n@param preHandlerType"
+                        + "\n@return this");
+                mth.body(bb -> {
+                    bb.ifNotNull("preHandler")
+                            .andThrow().withStringLiteral("pre handler already set")
+                            .ofType("IllegalStateException");
+                    bb.assignField("preHandler")
+                            .ofThis()
+                            .toExpression("preHandlerType");
+                    bb.returningThis();
+                });
+            });
         });
     }
 
@@ -755,7 +787,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     public void generateCreateVertxModuleMethod(ClassBuilder<String> routerBuilder, ResourceGraph graph, Collection<? extends OperationShape> ops, Consumer<ClassBuilder<String>> addTo) {
         String operationsEnumName = createOperationsEnum(ops, addTo);
         generateBodyHandlerSupport(routerBuilder, operationsEnumName);
-        
+
         routerBuilder.method("createVertxModule", mth -> {
             mth.withModifier(PRIVATE, FINAL)
                     .returning("VertxGuiceModule")
@@ -1697,6 +1729,12 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 //                            .withArgument(operationEnumTypeName() + "." + operationEnumConstant(op))
 //                            .on("probe");
 //                }
+                if (i == 0 && generateProbeCode) {
+                    inv = inv.onInvocationOf("withHandler")
+                            .withArgumentFromInvoking("ofNullable")
+                            .withArgument("preHandler")
+                            .on("Optional");
+                }
                 switch (handler) {
                     case BODY_PLACEHOLDER:
                         assert inv != null;

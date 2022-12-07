@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @ServiceProvider(RequestDecorator.class)
 public class RequestIDDecorator implements RequestDecorator {
 
-    private static final String REQ_ID_HEADER = "X-Telenav-Req-Id";
+    public static final String REQ_ID_HEADER = "x-tn-req-id";
     private static final AtomicLong INDEX = new AtomicLong(ThreadLocalRandom.current().nextLong());
 
     @Override

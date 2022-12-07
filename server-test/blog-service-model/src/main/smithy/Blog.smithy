@@ -10,7 +10,7 @@ use com.telenav.smithy#genericRestProtocol
 
 /// A service for blogs
 @genericRestProtocol
-@cors(additionalAllowedHeaders:["x-telenav-req-id"], additionalExposedHeaders: ["x-telenav-req-id"])
+@cors(additionalAllowedHeaders:["x-tn-req-id"], additionalExposedHeaders: ["x-tn-req-id"])
 service BlogService {
     version : "1.0"
     resources : [Blogs]
