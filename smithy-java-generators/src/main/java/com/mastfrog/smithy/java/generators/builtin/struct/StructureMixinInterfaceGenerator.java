@@ -40,12 +40,12 @@ final class StructureMixinInterfaceGenerator extends AbstractStructureGenerator 
                 usedBy.append("<li>").append(TypeNames.typeNameOf(shape)).append("</li>\n");
             }
         }
-        if (usedBy.length() == 0) {
-            usedBy.insert(0, "Used by\n<ul>");
+        if (usedBy.length() != 0) {
+            usedBy.insert(0, ", used by\n<ul>");
             usedBy.append("</ul>");
         }
 
-        usedBy.insert(0, "This is a mixin interface. ");
+        usedBy.insert(0, "This is a mixin interface");
         return usedBy.toString();
     }
 
