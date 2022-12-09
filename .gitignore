@@ -17,6 +17,9 @@ nb-configuration.xml
 ^hs_err_pid*
 *.orig$
 target/
+node_modules/
+build/
+package-lock.json
 
 # System Files
 Thumbs.db
@@ -64,3 +67,7 @@ Thumbs.db
 /server-test/blog-server-vertx/src/main/resources
 /server-test/blog-server-vertx/src/test/java
 /server-test/blog-demo-backend/nbproject/
+/server-test/blog-model-typescript/src/
+/server-test/blog-model-typescript/build/
+/server-test/blog-model-typescript/dist/
+/server-test/blog-web-ui

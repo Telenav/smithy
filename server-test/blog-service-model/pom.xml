@@ -86,6 +86,11 @@
                     </dependency>
                     <dependency>
                         <groupId>${project.groupId}</groupId>
+                        <artifactId>smithy-ts-generator</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
                         <artifactId>smithy-openapi-wrapper</artifactId>
                         <version>${project.version}</version>
                     </dependency>
@@ -116,8 +121,10 @@
                             <targets>model,modeltest,server,server-spi,client,docs,vertx-server</targets>
                             <!--<targets>model,server</targets>-->
                             <namespaces>com.telenav.blog</namespaces>
+                            <languages>java,typescript</languages>
 
                             <destinations>
+                                <typescript.model>${basedir}/../blog-model-typescript/src</typescript.model>
                                 <client>${basedir}/../blog-client-demo/src/main/java</client>
                                 <server>${basedir}/../blog-server-generated-impl/src/main/java</server>
                                 <docs>${basedir}/../blog-server-generated-impl/src/main/resources</docs>

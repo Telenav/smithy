@@ -1,0 +1,29 @@
+{
+  "name": "blog-model-typescript",
+  "version": "1.0.2",
+  "description": "Generated model types for the blog demo in typescript",
+  "main": "test/test.js",
+  "scripts": {
+    "build": "rimraf ./build && tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/Telenav/smithy.git"
+  },
+  "keywords": [
+    "blog",
+    "smithy",
+    "typescript"
+  ],
+  "author": "Tim Boudreau",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Telenav/smithy/issues"
+  },
+  "homepage": "https://github.com/Telenav/smithy#readme",
+  "devDependencies": {
+    "rimraf": "^3.0.2",
+    "typescript": "^4.9.4"
+  }
+}
