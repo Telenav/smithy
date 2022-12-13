@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Web UI</title>
+        <meta charset="UTF-8">
+        <style>
+            .caps {
+                font-variant: small-caps;
+            }
+            .red {
+                border: 1px solid red;
+            }
+            body {
+                font-family: 'Helvetica';
+                background: #222223;
+                color: #cecdcc;
+                height: 100%;
+            }
+            input {
+                background: #333335;
+                color: white;
+            }
+            select {
+                background: #333335;
+                color: white;
+            }
+            option {
+                background: #333335;
+                color: white;
+            }
+            .row {
+                padding-bottom: 0.75em;
+                padding-top: 0.75em;
+                border-bottom: solid 1px #aaaaaa;
+                width: 100%;
+                display: flex;
+                flex-direction: row;
+                flex-wrap: nowrap;
+                /*display: block;*/
+            }
+            .column {
+                /*margin-left: 1em;*/
+                margin-right: 1em;
+                display: flex;
+                flex-direction: row;
+                /*flex-direction: column;*/
+                flex-basis: 100%;
+                flex: 1;
+            }
+            .column > label {
+                display: initial;
+            }
+            .column > input {
+                margin-left: 1em;
+                display: initial;
+                flex: 1;
+            }
+            .column > select {
+                margin-left: 1em;
+                display: initial;
+                flex: 1;
+            }
+            .column > input[type=checkbox] {
+                flex: 0;
+            }
+            .row-even {
+                background: #3F3F4F;
+            }
+            .err {
+                border-color: #FF3333;
+                color: #FFCCCC;
+            }
+            .sel {
+                font-weight: bold;
+            }
+            .nav {
+                height: 100%;
+                width: 20%;
+                float: left;
+            }
+            .nav-item {
+                display: block;
+                cursor: pointer;
+            }
+            .nav-active {
+                font-weight: bold;
+            }
+            #navholder {
+                display: block;
+            }
+            .main {
+            }
+            .mainpane {
+                width: 80%;
+                display: block;
+            }
+            #content {
+                margin: 1em;
+                display: flow-root;
+            }
+            .list-panel {
+                display: block;
+            }
+            .list-item {
+                display: block;
+            }
+            .list-item > input {
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Stuff</h1>
+        <div class="main">
+            <div id="mainpane">
+                <div id="navholder">
+
+                </div>
+                <div>
+                    Stuff goes here.
+                </div>
+                <div id="content">
+                </div>
+            </div>
+        </div>
+        <script src="./testit.js"></script>
+    </body>
+
+</html>

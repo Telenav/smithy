@@ -64,7 +64,7 @@ public class SmithyTsGenerator implements SmithyGenerator {
         if (GenerationTarget.MODEL.equals(targets)) {
             return modelGeneratorsFor(shape, model, destSourceRoot, targets, language, settings, logger);
         } else if (GenerationTarget.CLIENT.equals(targets)) {
-            
+
         }
         return emptyList();
     }
@@ -73,6 +73,12 @@ public class SmithyTsGenerator implements SmithyGenerator {
             Path destSourceRoot, GenerationTarget target, LanguageWithVersion language, SmithyGenerationSettings settings, SmithyGenerationLogger logger) {
         List<ModelElementGenerator> result = new ArrayList<>();
         switch (shape.getType()) {
+            case SERVICE:
+                result.add(new BrowserSDKGenerator(shape.asServiceShape().get(),
+                        model, language, destSourceRoot, target));
+                result.add(new BrowserUIDomGenerator(shape.asServiceShape().get(),
+                        model, language, destSourceRoot, target));
+                break;
             case BOOLEAN:
                 break;
             case STRING:

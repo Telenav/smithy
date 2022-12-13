@@ -65,11 +65,23 @@ class NumberWrapperGenerator extends AbstractTypescriptGenerator<NumberShape> {
                     bb.returningInvocationOf("toString").on("this.value");
                 });
             });
-            generateJsonValue(cb);
-            generateAddTo(cb);
             generateToJson(cb);
+            generateAddTo(cb);
+            generateToJsonString(cb);
         });
 
         c.accept(tb);
     }
+
+    @Override
+    public void generateToJsonString(TypescriptSource.ClassBuilder<?> cb) {
+        cb.method(TO_JSON_STRING, mth -> {
+            mth.returning("string", bb -> {
+                bb.returningInvocationOf("toString")
+                        .onField("value")
+                        .ofThis();
+            });
+        });
+    }
+
 }

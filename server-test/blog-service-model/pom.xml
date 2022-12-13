@@ -124,7 +124,7 @@
                             <languages>java,typescript</languages>
 
                             <destinations>
-                                <typescript.model>${basedir}/../blog-model-typescript/src</typescript.model>
+                                <typescript.model>${basedir}/../blog-model-typescript/src/model</typescript.model>
                                 <client>${basedir}/../blog-client-demo/src/main/java</client>
                                 <server>${basedir}/../blog-server-generated-impl/src/main/java</server>
                                 <docs>${basedir}/../blog-server-generated-impl/src/main/resources</docs>

@@ -25,7 +25,6 @@ package com.telenav.smithy.utils.path;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

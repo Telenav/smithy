@@ -37,7 +37,7 @@ import software.amazon.smithy.model.shapes.StringShape;
  */
 class StringWrapperGenerator extends AbstractTypescriptGenerator<StringShape> {
 
-    StringWrapperGenerator(StringShape shape, Model model, 
+    StringWrapperGenerator(StringShape shape, Model model,
             LanguageWithVersion ver, Path dest, GenerationTarget target) {
         super(shape, model, ver, dest, target);
     }
@@ -62,11 +62,24 @@ class StringWrapperGenerator extends AbstractTypescriptGenerator<StringShape> {
                     bb.statement("return this.value");
                 });
             });
-            generateJsonValue(cb);
-            generateAddTo(cb);
             generateToJson(cb);
+            generateAddTo(cb);
+            generateToJsonString(cb);
         });
 
         c.accept(tb);
     }
+
+    @Override
+    public void generateToJsonString(TypescriptSource.ClassBuilder<?> cb) {
+        cb.method(TO_JSON_STRING, mth -> {
+            mth.returning("string", bb -> {
+                bb.returningInvocationOf("stringify")
+                        .withArgumentFromField("value")
+                        .ofThis()
+                        .on("JSON");
+            });
+        });
+    }
+
 }

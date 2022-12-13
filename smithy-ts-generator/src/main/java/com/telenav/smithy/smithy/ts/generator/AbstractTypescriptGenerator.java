@@ -29,6 +29,7 @@ import com.mastfrog.smithy.generators.ModelElementGenerator;
 import com.mastfrog.smithy.generators.SettingsKey;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
+import com.mastfrog.util.streams.Streams;
 import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -36,7 +37,14 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InterfaceBuilder;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.typescript;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
+import java.nio.file.Files;
 import java.nio.file.Path;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -87,6 +95,9 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
         // de-facto:
         "undefined"
     };
+    // Needs to have the right name to work in Javascript
+    protected static final String TO_JSON_STRING = "toJsonString";
+    protected static final String TO_JSON = "toJSON";
 
     static {
         Arrays.sort(KEYWORDS);
@@ -111,7 +122,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
         this.target = target;
     }
 
-    private String serviceSourceFile() {
+    protected String serviceSourceFile() {
         String result = "SomeService";
         for (ShapeId id : model.getShapeIds()) {
             Shape sh = model.expectShape(id);
@@ -140,11 +151,21 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
     public Collection<? extends GeneratedCode> generate(SmithyGenerationContext ctx, SmithyGenerationLogger log) {
         this.ctx = ctx;
         this.log = log;
-        Set<TypescriptCode> code = new LinkedHashSet<>();
+        Set<GeneratedCode> code = new LinkedHashSet<>();
         generate(src -> {
             code.add(new TypescriptCode(dest, src, log, shape.getId()));
         });
+        generateAdditional(code::add);
         return code;
+    }
+
+    /**
+     * For emitting static sources, etc.
+     *
+     * @param c a consumer
+     */
+    protected void generateAdditional(Consumer<GeneratedCode> c) {
+        // do nothing
     }
 
     protected String typeName() {
@@ -195,12 +216,12 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
         }
     }
 
-    public void generateToJson(ClassBuilder<?> cb) {
-        cb.method("toJson", mth -> {
+    public void generateToJsonString(ClassBuilder<?> cb) {
+        cb.method(TO_JSON_STRING, mth -> {
             mth.makePublic()
                     .returning("string", bb -> {
                         bb.returningInvocationOf("stringify")
-                                .withArgumentFromInvoking("jsonValue")
+                                .withArgumentFromInvoking(TO_JSON)
                                 .on("this")
                                 .on("JSON");
                     });
@@ -208,26 +229,26 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
     }
 
     public void generateToJsonSignature(InterfaceBuilder<?> cb) {
-        cb.function("toJson", mth -> {
+        cb.function(TO_JSON_STRING, mth -> {
             mth.returning("string");
         });
     }
 
-    public void generateJsonValue(ClassBuilder<?> cb) {
-        cb.method("jsonValue", mth -> {
+    public void generateToJson(ClassBuilder<?> cb) {
+        cb.method(TO_JSON, mth -> {
             mth.makePublic().returning("any", bb -> {
-                jsonValueBody(bb);
+                toJsonBody(bb);
             });
         });
     }
 
     public void generateJsonValueSignature(InterfaceBuilder<?> cb) {
-        cb.function("jsonValue", mth -> {
+        cb.function(TO_JSON, mth -> {
             mth.returning("any");
         });
     }
 
-    protected void jsonValueBody(TypescriptSource.TsBlockBuilder<Void> bb) {
+    protected void toJsonBody(TypescriptSource.TsBlockBuilder<Void> bb) {
         bb.statement("return this.value");
     }
 
@@ -236,7 +257,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
             mth.makePublic().withArgument("name").ofType("string")
                     .withArgument("on").ofType("object")
                     .body((TypescriptSource.TsBlockBuilder<Void> bb) -> {
-                        bb.statement("on[name] = this.jsonValue()");
+                        bb.statement("on[name] = this." + TO_JSON + "()");
                     });
         });
     }
@@ -249,7 +270,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
     }
 
     protected void addContentsToJsonObject(String nameVar, String targetVar, TypescriptSource.TsBlockBuilder<Void> bb) {
-        bb.statement(targetVar + "[" + nameVar + "] = this.jsonValue()");
+        bb.statement(targetVar + "[" + nameVar + "] = this." + TO_JSON + "()");
     }
 
     protected final String jsTypeOf(Shape target) {
@@ -427,5 +448,55 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
             }
         }
         return true;
+    }
+
+    protected final GeneratedCode resource(String relativePath, String resourceName) {
+        return new ResourceCode(relativePath, this.dest, getClass(), resourceName, log);
+    }
+
+    private static final class ResourceCode implements GeneratedCode {
+
+        private final Path path;
+        private final Class<?> adjacentTo;
+        private final String relativePath;
+        private final String resourceName;
+        private final SmithyGenerationLogger log;
+
+        ResourceCode(String relativePath, Path dest, Class<?> adjacentTo,
+                String resourceName, SmithyGenerationLogger log) {
+            path = dest.resolve(relativePath);
+            this.adjacentTo = adjacentTo;
+            this.relativePath = relativePath;
+            this.resourceName = resourceName;
+            this.log = log;
+        }
+
+        @Override
+        public Path destination() {
+            return path;
+        }
+
+        @Override
+        public void write(boolean dryRun) throws IOException {
+            try (final InputStream in = adjacentTo.getResourceAsStream(resourceName)) {
+                if (in == null) {
+                    throw new IOException("No " + resourceName + " adjacent to "
+                            + adjacentTo.getName());
+                }
+                log.info(() -> (dryRun ? "(dry-run)" : "")
+                        + "Save static resource " + resourceName
+                        + " adjacent to " + adjacentTo.getSimpleName()
+                        + " as " + path);
+                if (!dryRun) {
+                    if (!Files.exists(path.getParent())) {
+                        Files.createDirectories(path.getParent());
+                    }
+                    try (OutputStream out = Files.newOutputStream(path,
+                            TRUNCATE_EXISTING, WRITE, CREATE)) {
+                        Streams.copy(in, out);
+                    }
+                }
+            }
+        }
     }
 }

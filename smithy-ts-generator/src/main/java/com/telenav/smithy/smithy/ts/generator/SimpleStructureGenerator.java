@@ -25,6 +25,7 @@ package com.telenav.smithy.smithy.ts.generator;
 
 import com.mastfrog.code.generation.common.LinesBuilder;
 import com.mastfrog.function.QuadConsumer;
+import com.mastfrog.function.TriFunction;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -37,6 +38,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,6 +51,10 @@ import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
 import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.DefaultTrait;
+import software.amazon.smithy.model.traits.HttpHeaderTrait;
+import software.amazon.smithy.model.traits.HttpPayloadTrait;
+import software.amazon.smithy.model.traits.HttpQueryTrait;
+import software.amazon.smithy.model.traits.JsonNameTrait;
 import software.amazon.smithy.model.traits.MixinTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.utils.TriConsumer;
@@ -97,6 +103,49 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         return typeName() + "Impl";
     }
 
+    private Map<String, Map.Entry<String, MemberShape>> httpQueryItems() {
+        return httpQueryItems(model, shape);
+    }
+
+    static Map<String, Map.Entry<String, MemberShape>> httpQueryItems(Model model, StructureShape shape) {
+        Map<String, Map.Entry<String, MemberShape>> result = new HashMap<>();
+        for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+            e.getValue().getTrait(HttpQueryTrait.class)
+                    .ifPresent(q -> {
+                        result.put(q.getValue(), e);
+                    });
+        }
+        return result;
+    }
+
+    private Map<String, Map.Entry<String, MemberShape>> httpHeaderItems() {
+        return httpHeaderItems(model, shape);
+    }
+
+    static Map<String, Map.Entry<String, MemberShape>> httpHeaderItems(Model model, StructureShape shape) {
+        Map<String, Map.Entry<String, MemberShape>> result = new HashMap<>();
+        for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+            e.getValue().getTrait(HttpHeaderTrait.class)
+                    .ifPresent(q -> {
+                        result.put(q.getValue(), e);
+                    });
+        }
+        return result;
+    }
+
+    private <T> Optional<T> withHttpPayloadItem(TriFunction<String, MemberShape, Shape, T> sh) {
+        return withHttpPayloadItem(model, shape, sh);
+    }
+
+    static <T> Optional<T> withHttpPayloadItem(Model model, StructureShape shape, TriFunction<String, MemberShape, Shape, T> sh) {
+        for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+            if (e.getValue().getMemberTrait(model, HttpPayloadTrait.class).isPresent()) {
+                return Optional.of(sh.apply(e.getKey(), e.getValue(), model.expectShape(e.getValue().getTarget())));
+            }
+        }
+        return Optional.empty();
+    }
+
     @Override
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource tb = src();
@@ -128,18 +177,82 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                     addMemberFor(tb, name, memberShape, targetShape, cb);
                 });
                 generateConstructor(cb);
-                generateJsonValue(cb);
-                generateAddTo(cb);
                 generateToJson(cb);
+                generateAddTo(cb);
+                generateToJsonString(cb);
                 cb.method("toString").makePublic()
                         .returning("string", bb -> {
-                            bb.returningInvocationOf("toJson").onThis();
+                            bb.returningInvocationOf("toJsonString").onThis();
                         });
                 generateFromJson(cb);
 
+                Map<String, Map.Entry<String, MemberShape>> queryItems = httpQueryItems();
+                if (!queryItems.isEmpty()) {
+                    generateHttpQueryPopulatorMethod(queryItems, cb);
+                }
+                Map<String, Map.Entry<String, MemberShape>> headerItems = httpHeaderItems();
+                if (!headerItems.isEmpty()) {
+                    generateHttpHeaderPopulatorMethod(headerItems, cb);
+                }
+                withHttpPayloadItem((memberName, memberShape, target) -> {
+                    generateHttpPayloadMethod(memberName, memberShape, target, cb);
+                    return true;
+                });
             });
         }
         c.accept(tb);
+    }
+
+    public void generateHttpPayloadMethod(String memberName, MemberShape memberShape,
+            Shape target, ClassBuilder<Void> cb) {
+        cb.method("httpPayload", mth -> {
+            mth.makePublic().returning(typeNameOf(target, false));
+            mth.body(bb -> {
+                bb.returningField(escape(memberName)).of("this");
+            });
+        });
+    }
+
+    public void generateHttpQueryPopulatorMethod(
+            Map<String, Map.Entry<String, MemberShape>> queryItems,
+            ClassBuilder<Void> cb) {
+        cb.method("populateHttpQuery", mth -> {
+            mth.makePublic().withArgument("obj").ofType("object");
+            mth.body(bb -> {
+                for (Map.Entry<String, Map.Entry<String, MemberShape>> e : queryItems.entrySet()) {
+                    String queryParam = e.getKey();
+                    String fieldName = escape(e.getValue().getKey());
+                    boolean required = e.getValue().getValue().getMemberTrait(model, RequiredTrait.class).isPresent();
+                    if (!required) {
+                        bb.iff("typeof this." + fieldName + " !== 'undefined'")
+                                .statement("obj['" + queryParam + "'] = this." + fieldName)
+                                .endIf();
+                    } else {
+                        bb.statement("obj['" + queryParam + "'] = this." + fieldName);
+                    }
+                }
+            });
+        });
+    }
+
+    public void generateHttpHeaderPopulatorMethod(Map<String, Map.Entry<String, MemberShape>> queryItems, ClassBuilder<Void> cb) {
+        cb.method("populateHttpHeaders", mth -> {
+            mth.makePublic().withArgument("obj").ofType("object");
+            mth.body(bb -> {
+                for (Map.Entry<String, Map.Entry<String, MemberShape>> e : queryItems.entrySet()) {
+                    String queryParam = e.getKey();
+                    String fieldName = escape(e.getValue().getKey());
+                    boolean required = e.getValue().getValue().getMemberTrait(model, RequiredTrait.class).isPresent();
+                    if (!required) {
+                        bb.iff("typeof this." + fieldName + " !== 'undefined'")
+                                .statement("obj['" + queryParam + "'] = this." + fieldName)
+                                .endIf();
+                    } else {
+                        bb.statement("obj['" + queryParam + "'] = this." + fieldName);
+                    }
+                }
+            });
+        });
     }
 
     private Optional<String> defaultValue(MemberShape shape) {
@@ -256,6 +369,8 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
 
                 bb.returningNew(typeName(), nb -> {
                     eachMemberOptionalLast((name, member, target, required) -> {
+                        String jsonName = member.getMemberTrait(model, JsonNameTrait.class)
+                                .map(jn -> jn.getValue()).orElse(name);
                         String fieldName = escape(name);
                         String argName = escape(name);
                         if (required) {
@@ -266,10 +381,10 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                             String vn = argName + "Value";
                             bb.statement("let " + vn + ": " + jsTypeOf(target));
 
-                            bb.iff("typeof obj[\"" + name + "\"] === \"undefined\"")
-                                    .statement("throw new Error('undefined: " + name + "')")
+                            bb.iff("typeof obj[\"" + jsonName + "\"] === \"undefined\"")
+                                    .statement("throw new Error('undefined: " + jsonName + "')")
                                     .orElse()
-                                    .statement(vn + " = obj[\"" + name + "\"] as " + jsTypeOf(target))
+                                    .statement(vn + " = obj[\"" + jsonName + "\"] as " + jsTypeOf(target))
                                     .endIf();
                             argName = vn;
                         }
@@ -281,7 +396,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                                 nb.withArgument(argName);
                             } else {
                                 bb.blankLine().lineComment("d");
-                                nb.withArgument("obj[\"" + name + "\"] as " + tn);
+                                nb.withArgument("obj[\"" + jsonName + "\"] as " + tn);
                             }
                         } else {
                             String nue;
@@ -390,27 +505,33 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
     }
 
     @Override
-    protected void jsonValueBody(TypescriptSource.TsBlockBuilder<Void> bb) {
+    protected void toJsonBody(TypescriptSource.TsBlockBuilder<Void> bb) {
         bb.declareConst("result").ofType("object").assignedTo("{}");
         eachMemberOptionalLast((name, memberShape, target, required) -> {
             if (!required) {
                 ConditionalClauseBuilder<TsBlockBuilder<Void>> test = bb.iff("typeof this." + escape(name) + " !== \"undefined\"");
-                generateObjectFieldAssignment(target, test, name);
+                generateObjectFieldAssignment(target, memberShape, test, name);
                 test.endIf();
             } else {
-                generateObjectFieldAssignment(target, bb, name);
+                generateObjectFieldAssignment(target, memberShape, bb, name);
             }
         });
         bb.returning("result");
     }
 
-    public <C, B extends TSBlockBuilderBase<C, B>> void generateObjectFieldAssignment(Shape target,
+    private String jsonName(String name, MemberShape memberShape) {
+        return memberShape.getMemberTrait(model, JsonNameTrait.class)
+                .map(jn -> jn.getValue()).orElse(name);
+    }
+
+    public <C, B extends TSBlockBuilderBase<C, B>> void generateObjectFieldAssignment(Shape target, MemberShape member,
             B bb, String name) {
+        String jn = jsonName(name, member);
         if ("smithy.api".equals(target.getId().getNamespace())) {
-            bb.statement("result[\"" + name + "\"] = this." + escape(name));
+            bb.statement("result[\"" + jn + "\"] = this." + escape(name));
         } else {
-            bb.statement("result[\"" + name + "\"] = this."
-                    + escape(name) + ".jsonValue()");
+            bb.statement("result[\"" + jn + "\"] = this."
+                    + escape(name) + "." + TO_JSON + "()");
         }
     }
 

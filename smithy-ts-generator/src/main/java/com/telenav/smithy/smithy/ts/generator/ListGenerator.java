@@ -61,9 +61,6 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
             cb.constructor(con -> {
                 con.withArgument("items").ofType(targetTypeName + "[]");
                 con.body(bb -> {
-//                    bb.lineComment("Can be primitive? " + canBePrimitive
-//                            + "\n primitiveTypeName: " + primitiveType
-//                            + "\n targetTypeName " + targetTypeName);
                     if (canBePrimitive) {
                         bb.invoke("super").withArgument("items").inScope();
                     } else {
@@ -92,14 +89,16 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                         bb.declare("result")
                                 .ofType("Array<" + targetTypeName + ">")
                                 .assignedTo("[]");
-                        bb.forVar("item", loop -> {
-                            loop.invoke("push").withArgumentFromInvoking("fromJsonObject")
-                                    .withArgument("item")
-                                    .on(targetTypeName)
-                                    .on("result");
-                            loop.over("input");
-                        });
-//                        bb.returning("result");
+
+                        bb.invoke("forEach")
+                                .withLambda()
+                                .withArgument("item").ofType("any")
+                                .body(lbb -> {
+                                    lbb.invoke("push").withArgumentFromInvoking("fromJsonObject")
+                                            .withArgument("item")
+                                            .on(targetTypeName)
+                                            .on("result");
+                                });
                         bb.returningNew().withArgument("result").ofType(cb.name());
                     }
                 });
@@ -135,8 +134,8 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                 });
 
             }
+            generateToJsonString(cb);
             generateToJson(cb);
-            generateJsonValue(cb);
             generateAddTo(cb);
         });
 
@@ -144,7 +143,7 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
     }
 
     @Override
-    protected void jsonValueBody(TypescriptSource.TsBlockBuilder<Void> bb) {
+    protected void toJsonBody(TypescriptSource.TsBlockBuilder<Void> bb) {
         Shape target = model.expectShape(shape.getMember().getTarget());
         String primitiveType = typeNameOf(target, false);
         String typeName = tsTypeName(target);
@@ -168,7 +167,7 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                     lb.withArgument("item").ofType(typeName);
                     lb.body(lbb -> {
                         lbb.invoke("push")
-                                .withArgumentFromInvoking("jsonValue")
+                                .withArgumentFromInvoking(TO_JSON)
                                 .on("item")
                                 .on("objs");
                         lbb.endBlock();
