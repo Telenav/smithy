@@ -100,7 +100,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
     }
 
     private void generateUiModelInterface(TypescriptSource src) {
-        src.declareInterface("UIModel<T>", iface -> {
+        src.declareInterface("UIModel<T, O>", iface -> {
             // validate(validationConsumer: (objectPath: string, problem: string) => void)
 
             iface.method("validate", mth -> {
@@ -124,6 +124,18 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
             iface.property("model")
                     .docComment("A new model generated from the input fields in the UI.")
                     .ofType("T | undefined | null");
+
+            iface.method("submit", mth -> {
+                mth.docComment("Submit a request using the passed client, returning "
+                        + "a promise for its output."
+                        + "\n@param client A service client"
+                        + "\n@param cancelAnyOutstandingRequests if true, abort any in-flight requests"
+                        + "\n@return A promise");
+                mth.withArgument("client").ofType(serviceClientName(shape));
+                mth.withArgument("cancelAnyOutstandingRequests")
+                        .optional().ofType("boolean");
+                mth.returning("Promise<O>");
+            });
         });
     }
 
@@ -237,14 +249,14 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                             .ofType("StaticText");
                 });
 
-        src.declare("contentHead")
+        src.declare(CONTENT_HEAD_VAR)
                 .assignedToNew()
                 .withStringLiteralArgument("-")
                 .withStringLiteralArgument("h2")
                 .ofType("StaticText");
 
         src.invoke("attach").withStringLiteralArgument("content_head")
-                .on("contentHead");
+                .on(CONTENT_HEAD_VAR);
 
         src.declare(SPINNER_VAR)
                 .assignedToNew()
@@ -272,12 +284,12 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                 .withStringLiteralArgument("top")
                 .on(URL_PANEL_VAR);
 
-        importComponent("ButtonKind", src);
         src.declareConst(SUBMIT_BUTTON_VAR).ofType("Button").assignedToNew()
-                .withArgument("ButtonKind.BUTTON_BUTTON")
+                .withStringLiteralArgument("button")
                 .withStringLiteralArgument("submitter")
                 .withStringLiteralArgument("Submit Request")
                 .ofType("Button");
+
         src.statement(SUBMIT_BUTTON_VAR + ".enabled = false");
 
 //        src.invoke("listen")
@@ -307,7 +319,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                 .ofType("ProblemsPanel");
 
         src.declareConst(MODEL_FOR_PANEL_MAP)
-                .assignedToNew().ofType("Map<string, UIModel<any>>");
+                .assignedToNew().ofType("Map<string, UIModel<any, any>>");
 
         src.invoke("attach").withStringLiteralArgument("probs").on(PROBLEMS_PANEL_VAR);
         src.invoke("listen")
@@ -316,7 +328,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                 .body(lbb -> {
                     lbb.invoke("clear").on(PROBLEMS_PANEL_VAR);
                     lbb.declareConst("panelModel")
-                            .ofType("UIModel<any> | undefined")
+                            .ofType("UIModel<any, any> | undefined")
                             .assignedToInvocationOf("get")
                             .withArgumentFromField("id")
                             .of("panel")
@@ -350,7 +362,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         FunctionBuilder<TypescriptSource> createUI = src.function("populateUI")
                 .withArgument(navVar)
                 .ofType("NavPanel")
-                .withArgument(MODEL_FOR_PANEL_MAP).ofType("Map<string, UIModel<any>>");
+                .withArgument(MODEL_FOR_PANEL_MAP).ofType("Map<string, UIModel<any, any>>");
 
         src.blankLine().lineComment("Creates and adds panels to the navigation component.")
                 .lineComment("Their contents will not be added to the DOM until the first time")
@@ -415,6 +427,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
 
         c.accept(src);
     }
+    public static final String CONTENT_HEAD_VAR = "contentHead";
     public static final String PROBLEMS_PANEL_VAR = "problems";
     public static final String SUBMIT_BUTTON_VAR = "submitButton";
 
@@ -446,6 +459,9 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
 
         String uiModelType = escape(op.getId().getName() + "UIModel");
 
+        String outputType = op.getOutput().map(out -> tsTypeName(model.expectShape(out)))
+                .orElse("void");
+
         try (ComponentAdder add = new ComponentAdder(panel, 3, rows, src)) {
             InterfaceBuilder<TypescriptSource> iface
                     = src.declareInterface(escape(op.getId().getName() + "UIModel"));
@@ -454,7 +470,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
             ClassBuilder<TypescriptSource> ifaceImpl
                     = src.declareClass(op.getId().getName() + "UIModelImpl")
                             .implementing(iface.name())
-                            .implementing("UIModel<" + tsTypeName(input) + ">");
+                            .implementing("UIModel<" + tsTypeName(input) + ","
+                                    + outputType + ">");
 
             TSGetterBlockBuilder<ClassBuilder<TypescriptSource>> modelGetter
                     = ifaceImpl.getter("model")
@@ -494,7 +511,6 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
             Map<String, String> localFieldForIfaceField = new TreeMap<>();
 
             rows.withBlock(block, () -> {
-
                 drillThroughShapes(RAW_MODEL_VAR, idPath,
                         add, input, src, iface, block, localFieldForIfaceField, valFunc,
                         ifaceImpl, modelGetter);
@@ -555,6 +571,23 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                 });
             });
 
+            ifaceImpl.method("submit", mth -> {
+                mth.withArgument("client").ofType(serviceClientName(shape));
+                mth.withArgument("cancelAnyOutstandingRequests")
+                        .optional().ofType("boolean");
+                TsBlockBuilder<?> bb = mth.returning("Promise<" + outputType + ">");
+                bb.iff("cancelAnyOutstandingRequests")
+                        .invoke("cancelAll")
+                        .onField("serviceClient")
+                        .of("client")
+                        .endIf();
+                importModelObject(outputType, src);
+                String methodName = escape(decapitalize(op.getId().getName()));
+                bb.returningInvocationOf(methodName)
+                        .withArgumentFromField("model").ofThis()
+                        .on("client");
+            });
+
             ifaceImpl.constructor(con -> {
                 con.withArgument("stub").ofType(iface.name());
                 con.body(cbb -> {
@@ -583,7 +616,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                         .on("finalResult");
 
                 block.returning("finalResult");
-                
+
                 modelGetter.returningInvocationOf("fromJsonObject")
                         .withArgument("rawModel")
                         .on(tsTypeName(input));

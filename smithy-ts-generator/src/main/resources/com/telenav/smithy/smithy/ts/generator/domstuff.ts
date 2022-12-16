@@ -15,7 +15,7 @@ interface ElementFactory {
     withStyles(style: string | string[]): ElementFactory;
 }
 
-export type StaticTextType =
+export type StaticTextElementKind =
     'span'
     | 'div'
     | 'h1'
@@ -24,6 +24,8 @@ export type StaticTextType =
     | 'h4'
     | 'pre'
     | 'code';
+
+export type ButtonElementKind = 'span' | 'div' | 'button';
 
 /**
 * Base class for element factories which use a BaseFactory under the
@@ -136,7 +138,7 @@ class AttributeWrapperElementFactory extends WrapperElementFactory {
 
 function simpleEF(elementType: string, nameAttribute?: string): SimpleElementFactory {
     return new SimpleElementFactory((id, name): HTMLElement => {
-        let result: HTMLElement = document.createElement("input");
+        let result: HTMLElement = document.createElement(elementType);
         result.id = id;
         if (name && nameAttribute) {
             result.setAttribute(nameAttribute, name);
@@ -159,7 +161,7 @@ const H4 = simpleEF("h4")
 const PRE = simpleEF("pre")
 const CODE = simpleEF("code")
 
-function staticTextFactory(type: StaticTextType): SimpleElementFactory {
+function staticTextFactory(type: StaticTextElementKind): SimpleElementFactory {
     switch (type) {
         case 'div':
             return DIV;
@@ -640,7 +642,7 @@ class Component implements HTMLComponent {
 let staticTextIds = 1;
 export class StaticText extends Component {
     private _text: string;
-    constructor(text: string, type?: StaticTextType, id?: string) {
+    constructor(text: string, type?: StaticTextElementKind, id?: string) {
         super(staticTextFactory(type || 'span'), id ? id : ("st-" + staticTextIds++));
         this._text = text;
     }
@@ -992,6 +994,10 @@ abstract class Container extends Component {
     constructor(inline: boolean, id: string, name?: string) {
         super(inline ? SPAN : DIV, id, name);
     }
+    
+    onEnabledChanged(enabled : boolean) {
+        this.children.forEach(ch => ch.enabled = enabled);
+    }
 
     private addChildRealized(comp: Component) {
         comp.attach(this);
@@ -1184,13 +1190,7 @@ interface Clickable {
     onClick(lis: (any) => void): void;
 }
 
-export enum ButtonKind {
-    SPAN_BUTTON,
-    DIV_BUTTON,
-    BUTTON_BUTTON,
-}
-
-function factoryFrom(kind: boolean | ButtonKind | ElementFactory): ElementFactory {
+function factoryFrom(kind: boolean | ButtonElementKind | ElementFactory): ElementFactory {
     console.log("Factory from " + typeof kind, kind);
     if (typeof kind === 'boolean') {
         if (kind) {
@@ -1202,11 +1202,11 @@ function factoryFrom(kind: boolean | ButtonKind | ElementFactory): ElementFactor
         return kind as ElementFactory;
     } else if (typeof kind === 'string') {
         switch (kind) {
-            case 'SPAN_BUTTON':
+            case 'span':
                 return SPAN;
-            case 'DIV_BUTTON':
+            case 'div':
                 return DIV;
-            case 'BUTTON_BUTTON':
+            case 'button':
                 return BUTTON;
         }
     }
@@ -1218,7 +1218,7 @@ export class Button extends Component implements Clickable {
         = new Array<(v: any) => void>();
     private text: string;
 
-    constructor(kind: boolean | ButtonKind | ElementFactory, id: string, text: string) {
+    constructor(kind: boolean | ButtonElementKind | ElementFactory, id: string, text: string) {
         super(factoryFrom(kind), id, id);
         this.text = text;
     }
@@ -1363,7 +1363,7 @@ export type ListComponentFactory<V> = (index: number, v: V, of: number) => Compo
 export class ListPanel<V> extends Container {
     private readonly itemFactory: ListComponentFactory<V>;
     private first: boolean = true;
-    values: Array<V>;
+    protected values: Array<V>;
 
     constructor(id: string, factory: ListComponentFactory<V>, values?: Array<V>) {
         super(false, id);
@@ -1472,6 +1472,7 @@ export interface Startable {
 }
 
 //const spinnerText = '▁▂▃▄▅▆▇█▉▊▋▌▌▍▎▍▌▋▊▉█▇▆▅▄▃▂▁';
+//const spinnerText = '▫◽◻□◻◽▫▱';
 const spinnerText = '☰☴☶☷☳☱☰☲☵☰☱☲☴☰☶☳☰';
 const spinnerInterval = 150;
 export class Spinner extends Component implements Startable {
