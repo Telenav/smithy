@@ -1,0 +1,6 @@
+#!/bin/sh
+
+set -e
+
+mvn -f ../../smithy-ts-generator/pom.xml clean install && mvn -f ../blog-service-model/pom.xml clean install && ./rebuild
+

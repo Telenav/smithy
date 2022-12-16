@@ -42,9 +42,9 @@ import java.util.function.Function;
 public class MinimalHtmlBuilder extends TypescriptCodeGenerator {
 
     private final List<CodeGenerator> tags = new ArrayList<>();
-    private final Tag<MinimalHtmlBuilder> html = new Tag("html", t -> this);
-    private final Tag<MinimalHtmlBuilder> head = new Tag("head", t -> html);
-    private final Tag<MinimalHtmlBuilder> body = new Tag("body", t -> html);
+    private final Tag<MinimalHtmlBuilder> html = new Tag<>("html", t -> this);
+    private final Tag<Tag<MinimalHtmlBuilder>> head = new Tag<>("head", t -> html);
+    private final Tag<Tag<MinimalHtmlBuilder>> body = new Tag<>("body", t -> html);
     private final StyleTag style = new StyleTag();
     private final TrailingTags trailers = new TrailingTags();
 
@@ -139,11 +139,11 @@ public class MinimalHtmlBuilder extends TypescriptCodeGenerator {
         return this;
     }
 
-    public Tag<MinimalHtmlBuilder> body() {
+    public Tag<Tag<MinimalHtmlBuilder>> body() {
         return body;
     }
 
-    public Tag<MinimalHtmlBuilder> head() {
+    public Tag<Tag<MinimalHtmlBuilder>> head() {
         return head;
     }
 
@@ -156,12 +156,12 @@ public class MinimalHtmlBuilder extends TypescriptCodeGenerator {
         return this;
     }
 
-    public MinimalHtmlBuilder body(Consumer<? super Tag<MinimalHtmlBuilder>> c) {
+    public MinimalHtmlBuilder body(Consumer<? super Tag<Tag<MinimalHtmlBuilder>>> c) {
         c.accept(body);
         return this;
     }
 
-    public MinimalHtmlBuilder head(Consumer<? super Tag<MinimalHtmlBuilder>> c) {
+    public MinimalHtmlBuilder head(Consumer<? super Tag<Tag<MinimalHtmlBuilder>>> c) {
         c.accept(head);
         return this;
     }

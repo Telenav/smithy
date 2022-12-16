@@ -76,34 +76,28 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
         return modelsGeneratedFor.add(model);
     }
 
+    static String serviceClientName(ServiceShape shape) {
+        return escape(capitalize(shape.getId().getName() + "Client"));
+    }
+
+    String serviceClientName() {
+        return serviceClientName(shape);
+    }
+
     @Override
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource src = typescript(shape.getId().getName() + "Client");
         src.importing("ServiceClient").and("serviceClient")
                 .from("./ServiceClient");
 
+//        src.generateDebugLogCode();
         String configInterface = escape(shape.getId().getName() + "Config");
 
-        src.declareInterface(configInterface, iface -> {
-            iface.docComment("Configuration object for the " + shape.getId().getName()
-                    + " client; only needed if you need to customize the host, port, protocol "
-                    + "or URI path prefix used by requests to the " + shape.getId().getName()
-                    + " service.");
-            iface.exported().property("hostAndPort")
-                    .optional()
-                    .ofType("string");
-
-            iface.property("protocol")
-                    .optional()
-                    .ofType("string");
-
-            iface.property("pathPrefix")
-                    .optional()
-                    .ofType("string");
-        });
+        generateConfigInterface(src, configInterface);
+        generateConfigFromUriFunction(src, configInterface);
 
         InterfaceBuilder<TypescriptSource> iface = src.declareInterface(
-                escape(capitalize(shape.getId().getName()) + "Client"))
+                serviceClientName())
                 .exported()
                 .docComment("SDK client interface for the " + shape.getId().getName() + "."
                         + " Use the provided factory method `" + decapitalize(shape.getId().getName()) + "Client to "
@@ -122,12 +116,77 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
         src.function(decapitalize(iface.name()))
                 .docComment("Create a new " + iface.name() + ".")
                 .exported()
+                .withArgument("config")
+                .optional().or().withType("string")
+                .withType("null")
+                .ofType(configInterface)
                 .returning(iface.name())
-                .returningNew().ofType(cb.name());
+                .returningNew()
+                .withArgument("null")
+                .withArgument("config")
+                .ofType(cb.name());
 
         generateAssembleUriFunction(configInterface, src);
 
         c.accept(src);
+    }
+
+    public void generateConfigInterface(TypescriptSource src, String configInterface) {
+        src.declareInterface(configInterface, iface -> {
+            iface.docComment("Configuration object for the " + shape.getId().getName()
+                    + " client; only needed if you need to customize the host, port, protocol "
+                    + "or URI path prefix used by requests to the " + shape.getId().getName()
+                    + " service.");
+            iface.exported().property("hostAndPort")
+                    .optional()
+                    .ofType("string");
+
+            iface.property("protocol")
+                    .optional()
+                    .ofType("string");
+
+            iface.property("pathPrefix")
+                    .optional()
+                    .ofType("string");
+        });
+    }
+
+    public void generateConfigFromUriFunction(TypescriptSource src, String configInterface) {
+        src.function("configFromUri", f -> {
+            f.exported()
+                    .withArgument("url").ofType("string")
+                    .returning(configInterface);
+            f.body(bb -> {
+                bb.declare("result")
+                        .ofType(configInterface)
+                        .assignedToObjectLiteral().endObjectLiteral();
+                bb.declare("u")
+                        .assignedToNew()
+                        .withArgument("url")
+                        .ofType("URL");
+                bb.iff("u.protocol")
+                        .statement("result.protocol = u.protocol")
+                        .endIf();
+                bb.iff("u.host")
+                        .statement("result.hostAndPort = u.host")
+                        .endIf();
+                bb.iff("u.port")
+                        .statement("result.hostAndPort = (result.hostAndPort || 'localhost') + ':' + u.port")
+                        .endIf();
+                bb.iff("u.pathname && u.pathname !== '/'")
+                        .declareConst("strippingLeadingAndTrailingSlashes")
+                        .assignedToInvocationOf("exec")
+                        .withArgument("u.pathname")
+                        .onNew()
+                        .withStringLiteralArgument("/?(.*)/?")
+                        .ofType("RegExp")
+                        .iff("strippingLeadingAndTrailingSlashes")
+                        .statement("result.pathPrefix = strippingLeadingAndTrailingSlashes[1]")
+                        .endIf()
+                        .endIf();
+                bb.returning("result");
+            });
+        });
     }
 
     private void generateAssembleUriFunction(String configInterface, TypescriptSource cb) {
@@ -166,11 +225,11 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                 .ofType(configInterface);
 
         cb.constructor(con -> {
-            con.withArgument("client").optional().ofType("ServiceClient")
-                    .withArgument("config").optional().ofType(configInterface);
+            con.withArgument("client").optional().or().withType("null").ofType("ServiceClient")
+                    .withArgument("config").optional().or().withType("string").withType("null").ofType(configInterface);
             con.body(bb -> {
                 bb.statement("this.client = client || serviceClient()");
-                bb.statement("this.config = config || {}");
+                bb.statement("this.config = typeof config ==='string' ? configFromUri(config) : config || {}");
             });
         });
 
@@ -214,7 +273,7 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
         });
 
         cb.method(methodName, mth -> {
-            iface.function(methodName, imeth -> {
+            iface.method(methodName, imeth -> {
                 op.getTrait(DocumentationTrait.class)
                         .ifPresent(dox -> {
                             imeth.docComment(dox.getValue());

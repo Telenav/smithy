@@ -229,7 +229,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
     }
 
     public void generateToJsonSignature(InterfaceBuilder<?> cb) {
-        cb.function(TO_JSON_STRING, mth -> {
+        cb.method(TO_JSON_STRING, mth -> {
             mth.returning("string");
         });
     }
@@ -243,7 +243,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
     }
 
     public void generateJsonValueSignature(InterfaceBuilder<?> cb) {
-        cb.function(TO_JSON, mth -> {
+        cb.method(TO_JSON, mth -> {
             mth.returning("any");
         });
     }
@@ -263,7 +263,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
     }
 
     public void generateAddToSignature(InterfaceBuilder<Void> cb) {
-        cb.function("addTo", mth -> {
+        cb.method("addTo", mth -> {
             mth.withArgument("name").ofType("string")
                     .withArgument("on").ofType("object");
         });

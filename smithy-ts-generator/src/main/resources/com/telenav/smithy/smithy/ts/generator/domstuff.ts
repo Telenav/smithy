@@ -1,13 +1,34 @@
 
+/**
+* Raw interface for creating a DOM element of some type.
+*/
 type BaseFactory = (id: string, name?: string) => HTMLElement;
 const columnStyles = /col-.*/;
 
+/**
+* Factory which creates a dom element of some sort, and which can
+* be wrappered to set up default attributes or styles.
+*/
 interface ElementFactory {
     create(id: string, name?: string): HTMLElement;
     withAttribute(name: string, value: string): ElementFactory;
     withStyles(style: string | string[]): ElementFactory;
 }
 
+export type StaticTextType =
+    'span'
+    | 'div'
+    | 'h1'
+    | 'h2'
+    | 'h3'
+    | 'h4'
+    | 'pre'
+    | 'code';
+
+/**
+* Base class for element factories which use a BaseFactory under the
+* hood.
+*/
 abstract class ElementFactoryBase implements ElementFactory {
     readonly factory: BaseFactory;
 
@@ -23,6 +44,9 @@ abstract class ElementFactoryBase implements ElementFactory {
     abstract withAttribute(name: string, value: string): ElementFactory;
 }
 
+/**
+* A complete simple element factory.
+*/
 class SimpleElementFactory extends ElementFactoryBase {
 
     constructor(factory: BaseFactory) {
@@ -34,11 +58,22 @@ class SimpleElementFactory extends ElementFactoryBase {
     }
 
     withStyles(style: string | string[]): ElementFactory {
-        let cl = typeof style == 'string' ? [style] : style;
+        let cl = typeof style === 'string' ? [style] : style;
         return new StyleWrapperElementFactory(this, cl);
     }
 }
 
+function arrayOf<T>(itemOrItems : T | T[]) {
+    if (Array.isArray(itemOrItems)) {
+        return itemOrItems as T[];
+    }
+    return [itemOrItems];
+}
+
+/**
+* An element factory which delegates to another to create the initial
+* DOM element, and modifies its output in some fashion..
+*/
 abstract class WrapperElementFactory implements ElementFactory {
     private readonly delegate: ElementFactory;
 
@@ -68,8 +103,7 @@ class StyleWrapperElementFactory extends WrapperElementFactory {
     }
 
     withStyles(style: string | string[]): ElementFactory {
-        let cl = typeof style == 'string' ? [style] : style;
-        return new StyleWrapperElementFactory(this, cl);
+        return new StyleWrapperElementFactory(this, arrayOf(style));
     }
 
     configure(el: HTMLElement): HTMLElement {
@@ -92,8 +126,7 @@ class AttributeWrapperElementFactory extends WrapperElementFactory {
         return new AttributeWrapperElementFactory(this, name, value);
     }
     withStyles(style: string | string[]): ElementFactory {
-        let cl = typeof style == 'string' ? [style] : style;
-        return new StyleWrapperElementFactory(this, cl);
+        return new StyleWrapperElementFactory(this, arrayOf(style));
     }
     configure(el: HTMLElement): HTMLElement {
         el.setAttribute(this.key, this.value);
@@ -101,48 +134,53 @@ class AttributeWrapperElementFactory extends WrapperElementFactory {
     }
 }
 
-const INPUT = new SimpleElementFactory((id, name): HTMLElement => {
-    let result: HTMLElement = document.createElement("input");
-    result.id = id;
-    if (name) {
-        result.setAttribute("name", name);
+function simpleEF(elementType: string, nameAttribute?: string): SimpleElementFactory {
+    return new SimpleElementFactory((id, name): HTMLElement => {
+        let result: HTMLElement = document.createElement("input");
+        result.id = id;
+        if (name && nameAttribute) {
+            result.setAttribute(nameAttribute, name);
+        }
+        return result;
+    });
+}
+
+// SimpleElementFactories for various kinds of common dom elements,
+// and variants on <input>:
+const INPUT = simpleEF("input", "name")
+const LABEL = simpleEF("label", "for")
+const SPAN = simpleEF("span")
+const DIV = simpleEF("div")
+const SELECT = simpleEF("select")
+const H1 = simpleEF("h1")
+const H2 = simpleEF("h2")
+const H3 = simpleEF("h3")
+const H4 = simpleEF("h4")
+const PRE = simpleEF("pre")
+const CODE = simpleEF("code")
+
+function staticTextFactory(type: StaticTextType): SimpleElementFactory {
+    switch (type) {
+        case 'div':
+            return DIV;
+        case 'span':
+            return SPAN;
+        case 'h1':
+            return H1;
+        case 'h2':
+            return H2;
+        case 'h3':
+            return H3;
+        case 'h4':
+            return H4;
+        case 'pre':
+            return PRE;
+        case 'code':
+            return CODE;
     }
-    return result;
-});
+}
 
-const LABEL = new SimpleElementFactory((id, name): HTMLElement => {
-    let result: HTMLElement = document.createElement("label");
-    result.id = id;
-    if (name) {
-        result.setAttribute("for", name);
-    }
-    return result;
-});
-
-const SPAN = new SimpleElementFactory((id, name): HTMLElement => {
-    let result: HTMLElement = document.createElement("span");
-    result.id = id;
-    if (name) {
-        result.setAttribute("for", name);
-    }
-    return result;
-});
-
-const DIV = new SimpleElementFactory((id, name): HTMLElement => {
-    let result: HTMLElement = document.createElement("div");
-    result.id = id;
-    if (name) {
-        result.setAttribute("for", name);
-    }
-    return result;
-});
-
-const SELECT = new SimpleElementFactory((id, name): HTMLElement => {
-    let result: HTMLElement = document.createElement("select");
-    result.id = id;
-    return result;
-});
-
+// Specialized variants of INPUT for different input types:
 const TEXT = INPUT.withAttribute("type", "text");
 const CHECKBOX = INPUT.withAttribute("type", "checkbox");
 const DATETIME = INPUT.withAttribute("type", "datetime-local");
@@ -152,10 +190,12 @@ const RADIO = INPUT.withAttribute("type", "radio");
 const RANGE = INPUT.withAttribute("type", "range");
 const BUTTON = INPUT.withAttribute("type", "button");
 
-interface Comp {
+// Basic interface for a ui component
+interface HTMLComponent {
     element: Element;
     id: string;
-    attach(to: string | Comp | Element): this;
+    enabled: boolean;
+    attach(to: string | HTMLComponent | Element): this;
     detach(): this;
     dispose(): this;
     withAttribute(name: string, value: string): this;
@@ -167,12 +207,29 @@ export interface EventType<T> {
     name: EventName;
 }
 
-class EventTypeImpl<T> implements EventType<T> {
+interface Convertible<T> {
+    convert(obj: any): T;
+}
+
+export interface Transform<T, R> {
+    toValue(value: R): T;
+    fromValue(value: T): R;
+}
+
+interface Transformable<T> {
+    transform<R>(xform: Transform<R, T>): TransformedEventType<R, T>;
+}
+
+class EventTypeImpl<T> implements EventType<T>, Convertible<T>, Transformable<T> {
     public readonly name: EventName;
     private readonly converter?: (any) => T;
     constructor(name: EventName, converter?: (any) => T) {
         this.name = name;
         this.converter = converter;
+    }
+
+    transform<R>(xform: Transform<R, T>): TransformedEventType<R, T> {
+        return new TransformedEventType<R, T>(this, xform);
     }
 
     convert(obj: any): T {
@@ -183,20 +240,97 @@ class EventTypeImpl<T> implements EventType<T> {
     }
 }
 
+class StringToStringListTransform implements Transform<string[], string> {
+    toValue(value: string): string[] {
+        return value.split(/\s*,\s*/);
+    }
+
+    fromValue(value: string[]): string {
+        return value.join(',');
+    }
+}
+
+class ListMemberTransform<T, R> implements Transform<T[], R[]> {
+    private readonly xform: Transform<T, R>;
+    constructor(xform: Transform<T, R>) {
+        this.xform = xform;
+    }
+
+    fromValue(value: T[]): R[] {
+        const result: R[] = [];
+        value.forEach(val => {
+            result.push(this.xform.fromValue(val));
+        });
+        return result;
+    }
+
+    toValue(value: R[]): T[] {
+        const result: T[] = [];
+        value.forEach(val => {
+            result.push(this.xform.toValue(val));
+        });
+        return result;
+    }
+}
+
+class StringToIntTransform implements Transform<string, number> {
+    fromValue(value: string): number {
+        return parseInt(value);
+    }
+
+    toValue(value: number): string {
+        return value.toString();
+    }
+}
+
+class StringToFloatTransform implements Transform<string, number> {
+    fromValue(value: string): number {
+        return parseInt(value);
+    }
+
+    toValue(value: number): string {
+        return value.toString();
+    }
+}
+
+class TransformedEventType<T, R> implements EventType<T>, Transformable<T>  {
+    private readonly delegate: EventType<R> & Convertible<R>;
+    private readonly xform: Transform<T, R>;
+
+    constructor(orig: EventType<R> & Convertible<R>, xform: Transform<T, R>) {
+        this.delegate = orig;
+        this.xform = xform;
+    }
+
+    transform<X>(xform: Transform<X, T>): TransformedEventType<X, T> {
+        return new TransformedEventType<X, T>(this, xform);
+    }
+
+    get name(): EventName {
+        return this.delegate.name;
+    }
+
+    convert(obj: any): T {
+        let origResult: R = this.delegate.convert(obj);
+        return this.xform.toValue(origResult);
+    }
+}
+
+/// Define some generic event types with conversion methods
 const FocusChangeInternal: EventTypeImpl<boolean> = new EventTypeImpl<boolean>('focus');
 const TextChangeInternal: EventTypeImpl<string> = new EventTypeImpl<string>('change');
 const IntegerChangeInternal: EventTypeImpl<number> = new EventTypeImpl<number>('change', val => {
-    return typeof val == 'number' ? val as number : !val ? val : parseInt(val.toString());
+    return typeof val === 'number' ? val as number : !val ? val : parseInt(val.toString());
 });
 const FloatChangeInternal: EventTypeImpl<number> = new EventTypeImpl<number>('change', val => {
-    return typeof val == 'number' ? val as number : !val ? val : parseFloat(val.toString());
+    return typeof val === 'number' ? val as number : !val ? val : parseFloat(val.toString());
 });
 const DateTimeChangeInternal: EventTypeImpl<Date> = new EventTypeImpl<Date>('change', val => {
     return val instanceof Date ? val as Date : !val ? val : new Date(Date.parse(val.toString()));
 });
-
 const SelectChangeInternal: EventTypeImpl<boolean> = new EventTypeImpl<boolean>('change');
 
+// Export them only as the raw EventType, not exposing conversion methods
 export const FocusChange: EventType<boolean> = FocusChangeInternal;
 export const TextChange: EventType<string> = TextChangeInternal;
 export const SelectChange: EventType<boolean> = SelectChangeInternal;
@@ -206,15 +340,22 @@ export const DateTimeChange: EventType<Date> = DateTimeChangeInternal;
 
 export type Listener<T> = (event: EventType<T>, id: string, newValue: T) => void;
 
-interface InteractiveComponent<T> extends Comp {
+export interface InteractiveComponent<T> extends HTMLComponent {
     listen(listener: Listener<T>): this;
     rawValue(): any;
     value(): T;
+    isUnset(): boolean;
     onFocusChange(listener: Listener<boolean>): this;
     withStyles(style: string | string[]): this;
-    setValue(value: any);
+    setValue(value: any): this;
 }
 
+/**
+* Thing which maintains an internal set of css classes that should be present
+* and should *not* be present on a component's element, which can sync the
+* component to the desired state, and preserve that state across the DOM element
+* being replaced with a new one.
+*/
 class StyleUpdater {
     private readonly styles: Map<string, boolean> = new Map<string, boolean>();
     private readonly fetch: () => HTMLElement | null | undefined;
@@ -251,7 +392,7 @@ class StyleUpdater {
     }
 
     _sync(el: HTMLElement) {
-        if (this.styles.size == 0) {
+        if (this.styles.size === 0) {
             return;
         }
         let cur: Set<string> = this.currentStyles();
@@ -294,7 +435,11 @@ class StyleUpdater {
     }
 }
 
-class Component implements Comp {
+/**
+* A UI component ... in the componenty sense.  Is able to realize and manipulate
+* a single DOM element.
+*/
+class Component implements HTMLComponent {
 
     private factory: ElementFactory;
     public readonly id: string;
@@ -303,6 +448,8 @@ class Component implements Comp {
     protected readonly styles = new StyleUpdater(() => this.el);
     private attached = false;
     private title?: string;
+    private enabledValue: boolean = true;
+
     constructor(factory: ElementFactory, id: string, name?: string) {
         this.factory = factory;
         this.id = id;
@@ -311,8 +458,30 @@ class Component implements Comp {
 
     private checkRealized(): void {
         if (this.el) {
-            throw new Error("Cannot change initial style or attributes after component is realized");
+            throw new Error("Cannot change attributes after component is realized.");
         }
+    }
+
+    get enabled(): boolean {
+        return this.enabledValue;
+    }
+
+    set enabled(val: boolean) {
+        if (val !== this.enabledValue) {
+            this.enabledValue = val;
+            this.internalOnEnabledChanged(val);
+        }
+    }
+
+    private internalOnEnabledChanged(to: boolean) {
+        if (this.el) {
+            this.el['disabled'] = !to;
+        }
+        this.onEnabledChanged(to);
+    }
+
+    protected onEnabledChanged(to: boolean) {
+        // do nothing
     }
 
     public tooltip(): string | undefined {
@@ -382,6 +551,9 @@ class Component implements Comp {
         this.onElementCreated(e);
         if (this.title) {
             e.setAttribute('title', this.title);
+        }
+        if (!this.enabled) {
+            e['disabled'] = true;
         }
         this.styles._sync(e);
     }
@@ -465,6 +637,31 @@ class Component implements Comp {
     }
 }
 
+let staticTextIds = 1;
+export class StaticText extends Component {
+    private _text: string;
+    constructor(text: string, type?: StaticTextType, id?: string) {
+        super(staticTextFactory(type || 'span'), id ? id : ("st-" + staticTextIds++));
+        this._text = text;
+    }
+
+    get text() {
+        return this._text;
+    }
+
+    set text(what: string) {
+        this._text = what;
+        if (this.el) {
+            this.el.innerText = what;
+        }
+    }
+
+    onElementCreated(e: HTMLElement) {
+        e.innerText = this._text;
+        super.onElementCreated(e);
+    }
+}
+
 abstract class InputComponentBase<T> extends Component implements InteractiveComponent<T> {
 
     private readonly listeners: Listener<T>[];
@@ -487,12 +684,17 @@ abstract class InputComponentBase<T> extends Component implements InteractiveCom
         if (!this.listeners) {
             console.log("No listeners field???", evt);
             console.log("I should be an instance of InputComponentBase but I am", this);
-            throw new Error("Called with wrong 'this'.");
+            throw new Error("Called with wrong `this`.");
         }
         this.listeners.forEach(lis => {
             lis(this.eventType, 'change', this.eventType.convert(this.rawValue()))
         });
         this.previousValue = this.rawValue();
+    }
+
+    isUnset(): boolean {
+        let v = this.rawValue();
+        return v === "" || v === null || typeof v === 'undefined';
     }
 
     value(): T {
@@ -524,11 +726,12 @@ abstract class InputComponentBase<T> extends Component implements InteractiveCom
         });
     }
 
-    public setValue(value: any) {
+    public setValue(value: any): this {
         this.previousValue = value;
         if (this.el) {
             this.setValueOn(value, this.el);
         }
+        return this;
     }
 
     protected setValueOn(value: any, el: HTMLElement) {
@@ -605,6 +808,27 @@ export class TextField extends InputComponentBase<string> {
 
     constructor(id: string, name?: string) {
         super(TextChangeInternal, TEXT, id, name);
+    }
+
+    rawValue(): any {
+        return this.el ? this.el['value'] : "";
+    }
+
+    protected setValueOn(value: any, el: HTMLElement) {
+        el['value'] = stringFromAny(value);
+    }
+}
+
+export function stringListField(id: string) {
+    return new TransformedTextField<string[]>(id, new StringToStringListTransform());
+}
+
+export class TransformedTextField<T> extends InputComponentBase<T> {
+    private readonly xform: Transform<T, string>;
+
+    constructor(id: string, xform: Transform<T, string>, name?: string) {
+        super(TextChangeInternal.transform(xform), TEXT, id, name);
+        this.xform = xform;
     }
 
     rawValue(): any {
@@ -830,14 +1054,19 @@ export class LabeledComponent<T> extends Container implements InteractiveCompone
 
     readonly proxying: InteractiveComponent<T> & Component;
     constructor(delegate: InteractiveComponent<T> & Component, label: string) {
-        super(true, delegate.id + "Label");
+        super(true, delegate.id + "WithLabel");
         this.proxying = delegate;
         super.addChild(labelFor(label, delegate));
         super.addChild(delegate);
     }
 
-    setValue(value: any) {
+    isUnset(): boolean {
+        return this.proxying.isUnset();
+    }
+
+    setValue(value: any): this {
         this.proxying.setValue(value);
+        return this;
     }
 
     labelComponent(): Label {
@@ -891,7 +1120,7 @@ export class Row extends Container {
 
     constructor() {
         super(false, ('row-' + (++Row.counter)));
-        let st = Row.counter % 2 == 0 ? 'row-even' : 'row-odd';
+        let st = Row.counter % 2 === 0 ? 'row-even' : 'row-odd';
         super.withStyles(['row', st]);
     }
 
@@ -1031,7 +1260,7 @@ export class Panel extends Container {
     static counter = 0;
     constructor() {
         super(false, ('panel-' + (++Panel.counter)));
-        let st = Row.counter % 2 == 0 ? 'panel-even' : 'panel-odd';
+        let st = Row.counter % 2 === 0 ? 'panel-even' : 'panel-odd';
         super.withStyles(['panel', st]);
     }
 
@@ -1058,10 +1287,16 @@ export class NavPanel extends Container {
     private readonly containerId: string;
     private defaultItem?: string;
     private active: string | undefined | null;
+    private readonly listeners: ((label: string, panel: Panel) => void)[] = [];
     constructor(id: string, containerId: string) {
         super(false, id);
         this.containerId = containerId;
         super.withStyles("nav");
+    }
+
+    public listen(f: (label: string, panel: Panel) => void): this {
+        this.listeners.push(f);
+        return this;
     }
 
     public add(label: string, panel: Panel) {
@@ -1078,6 +1313,10 @@ export class NavPanel extends Container {
         super.addChild(lbl);
     }
 
+    private announce(label: string, panel: Panel) {
+        this.listeners.forEach(lis => lis(label, panel));
+    }
+
     public activate(which: string) {
         if (which === this.active) {
             return;
@@ -1091,6 +1330,7 @@ export class NavPanel extends Container {
             const btn = this.labels.get(which);
             btn?.withStyles('nav-active');
             this.active = which;
+            this.announce(which, pnl);
         }
     }
 
@@ -1132,9 +1372,9 @@ export class ListPanel<V> extends Container {
         this.values = values || [];
     }
 
-    protected createElement(index: number, value: V, len: number) : Component {
+    protected createElement(index: number, value: V, len: number): Component {
         let v = this.values[index];
-        let styles = ['list-item', index % 2 == 0 ? 'list-item-even' : 'list-item-odd'];
+        let styles = ['list-item', index % 2 === 0 ? 'list-item-even' : 'list-item-odd'];
         let c = this.itemFactory(index, v, len).withStyles(styles);
         return c;
     }
@@ -1157,4 +1397,159 @@ export class ListPanel<V> extends Container {
     public items(): V[] {
         return [...this.values];
     }
+}
+
+export interface Problem {
+    description: string;
+    inPath: string;
+}
+
+export class ProblemsPanel extends Component {
+    private problems: Problem[] = [];
+    constructor(id: string) {
+        super(DIV.withStyles('problems'), id);
+    }
+
+    public clear() {
+        this.problems = [];
+        if (this.el != null) {
+            this.el['innerHTML'] = '';
+        }
+        console.log("CLEAR PROBLEMS");
+    }
+
+    public add(inPath: string, description: string) {
+        this.addProblem({ inPath, description });
+    }
+
+    public addProblem(problem: Problem) {
+        this.problems.push(problem);
+        this.onAdd(problem);
+    }
+
+    private onAdd(problem: Problem) {
+        if (this.el) {
+            this.addOne(problem, this.el);
+        }
+    }
+
+    private addOne(problem: Problem, el: HTMLElement) {
+        const oneProblem = document.createElement("div");
+        oneProblem.classList.add("problem");
+        const target = document.createElement("span");
+        target.classList.add("problemtarget");
+        target.innerHTML = problem.inPath;
+
+        const em = document.createElement("span");
+        em.innerHTML = " ┉ ";
+
+        const desc = document.createElement("span");
+        desc.classList.add("problemdesc");
+        desc.innerHTML = problem.description;
+        oneProblem.appendChild(desc);
+        oneProblem.appendChild(em);
+        oneProblem.appendChild(target);
+        el.appendChild(oneProblem);
+    }
+
+    private update(el: HTMLElement) {
+        this.clear();
+        this.problems.forEach(prob => {
+            this.addOne(prob, el);
+        });
+    }
+
+    onElementCreated(el: HTMLElement) {
+        this.update(el);
+        super.onElementCreated(el);
+    }
+}
+
+export interface Startable {
+    running: boolean;
+    start(): this;
+    stop(): this;
+}
+
+//const spinnerText = '▁▂▃▄▅▆▇█▉▊▋▌▌▍▎▍▌▋▊▉█▇▆▅▄▃▂▁';
+const spinnerText = '☰☴☶☷☳☱☰☲☵☰☱☲☴☰☶☳☰';
+const spinnerInterval = 150;
+export class Spinner extends Component implements Startable {
+    private counter: number = 0;
+    private timeout: any | null | undefined;
+    private active = false;
+
+    constructor(id: string) {
+        super(SPAN.withStyles("spinner"), id);
+    }
+
+    get running(): boolean {
+        return this.active;
+    }
+
+    set running(val: boolean) {
+        if (val != this.active) {
+            if (val) {
+                this.start();
+            } else {
+                this.stop();
+            }
+        }
+    }
+
+    public start(): this {
+        if (this.active) {
+            return this;
+        }
+        this.active = true;
+        if (this.el) {
+            this.startTimer();
+        }
+        return this;
+    }
+
+    private clearText() {
+        if (this.el) {
+            this.el.innerHTML = ' ';
+        }
+    }
+
+    public stop(): this {
+        let t = this.timeout;
+        if (t) {
+            this.timeout = null;
+            clearInterval(t);
+        }
+        this.active = false;
+        return this;
+    }
+
+
+    onBeforeDispose() {
+        stop();
+    }
+
+    private startTimer() {
+        this.timeout = setInterval(() => {
+            this.tick();
+        }, spinnerInterval);
+    }
+
+    private tick() {
+        if (this.el) {
+            this.el.innerHTML = this.curr();
+        }
+    }
+
+    private curr(): string {
+        return spinnerText.charAt((this.counter++ % spinnerText.length));
+    }
+
+    onElementCreated(el: HTMLElement) {
+        super.onElementCreated(el);
+        if (this.active) {
+            this.startTimer();
+        }
+    }
+
 }
