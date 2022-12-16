@@ -57,6 +57,7 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
 import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
@@ -237,7 +238,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         generateUiModelInterface(src);
         importComponents(src, "Row", "Panel", "NavPanel",
                 "ProblemsPanel", "StaticText", "EventType",
-                "TextField", "Spinner", "Button");
+                "TextField", "Spinner", "Button", "Clickable");
 
         src.invoke("attach")
                 .withStringLiteralArgument("top")
@@ -408,13 +409,78 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                 panelForOp.put(op, pnl);
             }
         });
+// (text: string, type?: StaticTextElementKind, id?: string)
+        src.declareConst(OUTPUT_COMPONENT_VAR)
+                .ofType("StaticText")
+                .assignedToNew()
+                .withStringLiteralArgument("")
+                .withStringLiteralArgument("pre")
+                .withStringLiteralArgument("outtxt")
+                .ofType("StaticText");
+
+        src.invoke("attach")
+                .withStringLiteralArgument("output")
+                .on(OUTPUT_COMPONENT_VAR);
 
         src.blankLine().lineComment("This will cause the first added panel to become selected,")
                 .lineComment("which triggers adding all child components for that operation")
                 .lineComment("to the DOM.");
+
         src.invoke("attach")
                 .withStringLiteralArgument("navholder")
                 .on(navVar);
+
+        src.invoke("onClick")
+                .withLambda()
+                .body(lbb -> {
+                    lbb.declareConst("currPanel")
+                            .ofType("Panel | undefined")
+                            .assignedToField("selected")
+                            .of(navVar);
+                    lbb.iff("!currPanel")
+                            .statement("return")
+                            .endIf();
+                    lbb.declareConst("currModel")
+                            .ofType("UIModel<any, any> | undefined")
+                            .assignedToInvocationOf("get")
+                            .withArgumentFromField("id")
+                            .of("currPanel")
+                            .on(MODEL_FOR_PANEL_MAP);
+                    lbb.iff("!currModel").statement("return").endIf();
+                    lbb.declare("result")
+                            .ofType("Promise<any>")
+                            .assignedToInvocationOf("submit")
+                            .withArgumentFromField("client")
+                            .of(clientHolderVar)
+                            .withArgument(true)
+                            .on("currModel");
+                    lbb.invoke("catch")
+                            .withLambda(lb -> {
+                                lb.withArgument("res").ofType("any");
+                                lb.body(wc -> {
+                                    wc.assignField("text")
+                                            .of(OUTPUT_COMPONENT_VAR)
+                                            .toInvocationOf("stringify")
+                                            .withArgument("res")
+                                            .withArgument("null")
+                                            .withArgument("2")
+                                            .on("JSON");
+                                });
+                            })
+                            .onInvocationOf("then")
+                            .withLambda(lb -> {
+                                lb.withArgument("err").ofType("any");
+                                lb.body(wc -> {
+                                    wc.assignField("text")
+                                            .of(OUTPUT_COMPONENT_VAR)
+                                            .toInvocationOf("toString")
+                                            .on("err");
+                                });
+                            })
+                            .on("result");
+                })
+                .on(SUBMIT_BUTTON_VAR);
+
         src.invoke("attach")
                 .withStringLiteralArgument("submission")
                 .on(SUBMIT_BUTTON_VAR);
@@ -427,6 +493,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
 
         c.accept(src);
     }
+    public static final String OUTPUT_COMPONENT_VAR = "output";
     public static final String CONTENT_HEAD_VAR = "contentHead";
     public static final String PROBLEMS_PANEL_VAR = "problems";
     public static final String SUBMIT_BUTTON_VAR = "submitButton";
@@ -605,15 +672,16 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                         .withArgument("__result")
                         .ofType(ifaceImpl.name());
 
+// .statement(SUBMIT_BUTTON_VAR + ".enabled = valid")                
                 block.lineComment("DO IT HERE ---");
                 block.invoke("listen")
                         .withLambda()
-                        .body()
-                        .invoke("validate")
-                        .withArgument("validationListener")
-                        .on("finalResult")
-                        .endBlock()
-                        .on("finalResult");
+                        .body(blbb -> {
+                            blbb.assignField("enabled").of("submitButton")
+                                    .toInvocationOf("validate")
+                                    .withArgument("validationListener")
+                                    .on("finalResult");
+                        }).on("finalResult");
 
                 block.returning("finalResult");
 
@@ -723,7 +791,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                         bb.declare(name)
                                 .ofType(itemType = "LabeledComponent<boolean>")
                                 .assignedToInvocationOf("labeledWith")
-                                .withStringLiteralArgument(displayNameFromStrings(idPath))
+                                .withStringLiteralArgument(
+                                        displayNameFromStrings(idPath))
                                 .onNew()
                                 .withStringLiteralArgument(jsid)
                                 .ofType("Checkbox");
@@ -743,7 +812,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                         bb.declare(name)
                                 .ofType(itemType = "LabeledComponent<number>")
                                 .assignedToInvocationOf("labeledWith")
-                                .withStringLiteralArgument(displayNameFromStrings(idPath))
+                                .withStringLiteralArgument(
+                                        displayNameFromStrings(idPath))
                                 .onNew()
                                 .withStringLiteralArgument(jsid)
                                 .ofType("IntegerField");
@@ -761,7 +831,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                         bb.declare(name)
                                 .ofType(itemType = "LabeledComponent<number>")
                                 .assignedToInvocationOf("labeledWith")
-                                .withStringLiteralArgument(displayNameFromStrings(idPath))
+                                .withStringLiteralArgument(
+                                        displayNameFromStrings(idPath))
                                 .onNew()
                                 .withStringLiteralArgument(jsid)
                                 .ofType("FloatField");
@@ -777,7 +848,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                         bb.declare(name)
                                 .ofType(itemType = "LabeledComponent<Date>")
                                 .assignedToInvocationOf("labeledWith")
-                                .withStringLiteralArgument(displayNameFromStrings(idPath))
+                                .withStringLiteralArgument(
+                                        displayNameFromStrings(idPath))
                                 .onNew()
                                 .withStringLiteralArgument(jsid)
                                 .ofType("DateTimePicker");
@@ -793,7 +865,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                         bb.declare(name)
                                 .ofType(itemType = "LabeledComponent<string>")
                                 .assignedToInvocationOf("labeledWith")
-                                .withStringLiteralArgument(displayNameFromStrings(idPath))
+                                .withStringLiteralArgument(
+                                        displayNameFromStrings(idPath))
                                 .onNew(nb -> {
                                     nb.withStringLiteralArgument(name)
                                             .withStringLiteralArgument(jsid)
@@ -811,7 +884,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                         bb.declare(name)
                                 .ofType(itemType = "LabeledComponent<string>")
                                 .assignedToInvocationOf("labeledWith")
-                                .withStringLiteralArgument(displayNameFromStrings(idPath))
+                                .withStringLiteralArgument(
+                                        displayNameFromStrings(idPath))
                                 .onNew(nb -> {
                                     nb.withStringLiteralArgument(name)
                                             .withStringLiteralArgument(jsid)
@@ -826,7 +900,82 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                         break;
                     case LIST:
                     case SET:
-
+                        String it = target.asListShape().map(list -> {
+                            ShapeId memId = list.getMember().getTarget();
+                            Shape listMember = model.expectShape(memId);
+                            boolean memberIsModelDefined = !"smithy.api"
+                                    .equals(memId.getNamespace());
+                            /*
+export function stringListField(id: string): TransformedTextField<string[]>
+export function integerListField(id: string): TransformedTextField<number[]>
+export function floatListField(id: string): TransformedTextField<number[]>                            
+                             */
+                            switch (listMember.getType()) {
+                                case STRING:
+                                    importComponent("stringListField", src);
+                                    bb.declare(name)
+                                            .ofType("LabeledComponent<string[]>")
+                                            .assignedToInvocationOf("labeledWith")
+                                            .withStringLiteralArgument(
+                                                    displayNameFromStrings(idPath))
+                                            .onInvocationOf("stringListField")
+                                            .withStringLiteralArgument(name)
+                                            .inScope();
+                                    iface.property(name)
+                                            .ofType("LabeledComponent<string[]>");
+                                    ifaceImpl.property(name)
+                                            .ofType("LabeledComponent<string[]>");
+                                    generateModelRawValueAssignmentForList(required,
+                                            modelGetter, name, rawModelVariable,
+                                            jsonName, listMember);
+                                    return "string[]";
+                                case INTEGER:
+                                case LONG:
+                                case BYTE:
+                                case SHORT:
+                                case BIG_INTEGER:
+                                    importComponent("integerListField", src);
+                                    bb.declare(name)
+                                            .ofType("LabeledComponent<number[]>")
+                                            .assignedToInvocationOf("labeledWith")
+                                            .withStringLiteralArgument(
+                                                    displayNameFromStrings(idPath))
+                                            .onInvocationOf("integerListField")
+                                            .withStringLiteralArgument(name)
+                                            .inScope();
+                                    iface.property(name)
+                                            .ofType("LabeledComponent<number[]>");
+                                    ifaceImpl.property(name)
+                                            .ofType("LabeledComponent<number[]>");
+                                    generateModelRawValueAssignmentForList(required,
+                                            modelGetter, name, rawModelVariable,
+                                            jsonName, listMember);
+                                    return "number[]";
+                                case FLOAT:
+                                    importComponent("floatListField", src);
+                                    bb.declare(name)
+                                            .ofType("LabeledComponent<number[]>")
+                                            .assignedToInvocationOf("labeledWith")
+                                            .withStringLiteralArgument(
+                                                    displayNameFromStrings(idPath))
+                                            .onInvocationOf("floatListField")
+                                            .withStringLiteralArgument(name)
+                                            .inScope();
+                                    iface.property(name)
+                                            .ofType("LabeledComponent<number[]>");
+                                    ifaceImpl.property(name)
+                                            .ofType("LabeledComponent<number[]>");
+                                    generateModelRawValueAssignmentForList(required,
+                                            modelGetter, name, rawModelVariable,
+                                            jsonName, listMember);
+                                    return "number[]";
+                            }
+                            return (String) null;
+                        }).orElse(null);
+                        if (it != null) {
+                            itemType = it;
+                            break;
+                        }
                     default:
                         bb.blankLine()
                                 .lineComment("Unsupported type: " + target.getType()
@@ -851,7 +1000,9 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         }
     }
 
-    public void generateModelRawValueAssignment(boolean required, TSGetterBlockBuilder<ClassBuilder<TypescriptSource>> modelGetter, String name, String rawModelVariable, String jsonName) {
+    public void generateModelRawValueAssignment(boolean required, 
+            TSGetterBlockBuilder<ClassBuilder<TypescriptSource>> modelGetter, 
+            String name, String rawModelVariable, String jsonName) {
         if (!required) {
             modelGetter.iff("!this." + name + ".isUnset()")
                     .statement(rawModelVariable + "['" + jsonName
@@ -862,6 +1013,23 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                     + "'] = this." + name + ".rawValue()");
         }
     }
+    
+    public void generateModelRawValueAssignmentForList(boolean required, 
+            TSGetterBlockBuilder<ClassBuilder<TypescriptSource>> modelGetter, 
+            String name, String rawModelVariable, String jsonName, Shape listMember) {
+        if (!required) {
+            modelGetter.lineComment("List model optional " + jsonName + " " + listMember.getId());
+            modelGetter.iff("!this." + name + ".isUnset()")
+                    .statement(rawModelVariable + "['" + jsonName
+                            + "'] = this." + name + ".rawValue()")
+                    .endIf();
+        } else {
+            modelGetter.lineComment("List model " + jsonName + " " + listMember.getId());
+            modelGetter.statement(rawModelVariable + "['" + jsonName
+                    + "'] = this." + name + ".rawValue()");
+        }
+    }
+    
 
     private void generateValidationStanza(LinkedList<String> l, String fieldName,
             String key, MemberShape value,

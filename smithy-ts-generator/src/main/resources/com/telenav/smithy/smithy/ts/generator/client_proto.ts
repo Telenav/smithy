@@ -297,7 +297,11 @@ export class ServiceClient {
         const requestId = ++this.counter;
 
         const xhr = new XMLHttpRequest();
-        xhr.open(method, query.requestUri());
+        const reqUri = query.requestUri();
+
+        console.log("Invoke " + method + " to " + reqUri + " req id " + requestId);
+
+        xhr.open(method, reqUri);
 
         query.configureRequest(xhr);
 
@@ -371,6 +375,7 @@ export class ServiceClient {
                         } catch (err) {
                             return reject(err);
                         }
+                        console.log("RAW RESPONSE", text);
                         if (!res.ok) {
                             return reject(res);
                         }
@@ -380,12 +385,14 @@ export class ServiceClient {
                         } catch (err) {
                             return reject(err);
                         }
+                        console.log("JSON RESPONSE", obj);
                         let result: T;
                         try {
                             result = (converter || DEFAULT_JSON_CONVERT)(obj)
                         } catch (err) {
                             return reject(err);
                         }
+                        console.log("CONVERTED RESPONSE " + typeof result, result);
                         resolve(result)
                     });
                 });

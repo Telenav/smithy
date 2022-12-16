@@ -165,10 +165,14 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                         .withArgument("url")
                         .ofType("URL");
                 bb.iff("u.protocol")
+                        .iff("u.protocol.charAt(u.protocol.length-1) == ':'")
+                        .statement("result.protocol = u.protocol.substring(0, u.protocol.length-1)")
+                        .orElse()
                         .statement("result.protocol = u.protocol")
+                        .endIf()
                         .endIf();
-                bb.iff("u.host")
-                        .statement("result.hostAndPort = u.host")
+                bb.iff("u.hostname")
+                        .statement("result.hostAndPort = u.hostname")
                         .endIf();
                 bb.iff("u.port")
                         .statement("result.hostAndPort = (result.hostAndPort || 'localhost') + ':' + u.port")
@@ -337,10 +341,23 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                             + " but a uri path element with that name is specified in its http trait", op);
                 }
                 String fieldName = escape(seg.getContent());
-                bb.invoke("push")
-                        .withArgumentFromField(fieldName)
-                        .of("input")
-                        .on("uriElements");
+                Shape inp = inputShape.get();
+                switch (inp.getType()) {
+                    case LIST:
+                    case SET:
+                        bb.invoke("push")
+                                .withArgumentFromInvoking("toString")
+                                .onField(fieldName)
+                                .of("input")
+                                .on("uriElements");
+                        break;
+                    default:
+                        bb.invoke("push")
+                                .withArgumentFromField(fieldName)
+                                .of("input")
+                                .on("uriElements");
+                        break;
+                }
             }
         });
 

@@ -149,6 +149,12 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
     @Override
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource tb = src();
+        tb.generateDebugLogCode();
+        _generate(tb, c);
+        tb.disableDebugLogCode();
+    }
+
+    public void _generate(TypescriptSource tb, Consumer<TypescriptSource> c) {
 
         boolean isMixin = shape.getTrait(MixinTrait.class).isPresent();
 
@@ -223,13 +229,30 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                     String queryParam = e.getKey();
                     String fieldName = escape(e.getValue().getKey());
                     boolean required = e.getValue().getValue().getMemberTrait(model, RequiredTrait.class).isPresent();
-                    if (!required) {
-                        bb.iff("typeof this." + fieldName + " !== 'undefined'")
-                                .statement("obj['" + queryParam + "'] = this." + fieldName)
-                                .endIf();
-                    } else {
-                        bb.statement("obj['" + queryParam + "'] = this." + fieldName);
+
+                    Shape targetShape = model.expectShape(e.getValue().getValue().getTarget());
+
+                    switch (targetShape.getType()) {
+                        case LIST:
+                        case SET:
+                            if (!required) {
+                                bb.iff("typeof this." + fieldName + " !== 'undefined'")
+                                        .statement("obj['" + queryParam + "'] = this." + fieldName + ".toString()")
+                                        .endIf();
+                            } else {
+                                bb.statement("obj['" + queryParam + "'] = this." + fieldName + ".toString()");
+                            }
+                            break;
+                        default:
+                            if (!required) {
+                                bb.iff("typeof this." + fieldName + " !== 'undefined'")
+                                        .statement("obj['" + queryParam + "'] = this." + fieldName)
+                                        .endIf();
+                            } else {
+                                bb.statement("obj['" + queryParam + "'] = this." + fieldName);
+                            }
                     }
+
                 }
             });
         });
@@ -398,6 +421,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                                 bb.blankLine().lineComment("d");
                                 nb.withArgument("obj[\"" + jsonName + "\"] as " + tn);
                             }
+
                         } else {
                             String nue;
                             switch (target.getType()) {

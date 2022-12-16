@@ -26,11 +26,14 @@ package com.telenav.smithy.smithy.ts.generator;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
+import static software.amazon.smithy.model.shapes.ShapeType.STRING;
 import software.amazon.smithy.model.traits.UniqueItemsTrait;
 
 /**
@@ -39,8 +42,11 @@ import software.amazon.smithy.model.traits.UniqueItemsTrait;
  */
 public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
 
+    final Shape memberTarget;
+
     public ListGenerator(ListShape shape, Model model, LanguageWithVersion ver, Path dest, GenerationTarget target) {
         super(shape, model, ver, dest, target);
+        memberTarget = model.expectShape(shape.getMember().getTarget());
     }
 
     @Override
@@ -58,16 +64,77 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
             String ext = isSet ? "Set<" + targetTypeName + ">" : "Array<" + targetTypeName + ">";
             cb.extending(ext);
             cb.exported();
+
+            TsBlockBuilder<ClassBuilder<Void>> et = cb.method("ensureType")
+                    .makeStatic()
+                    .makePrivate()
+                    .withArgument("obj").ofType("any")
+                    .returning(targetTypeName + "[]");
+
+            et.iff("!Array.isArray(obj)")
+                    .returning("[obj] as " + targetTypeName + "[]");
+
+            et.returning("obj as " + targetTypeName + "[]");
+
             cb.constructor(con -> {
                 con.withArgument("items").ofType(targetTypeName + "[]");
                 con.body(bb -> {
                     if (canBePrimitive) {
-                        bb.invoke("super").withArgument("items").inScope();
+                        // We can be called with a string where it should be string[],
+                        // and if you create a new Set from a string, you get one
+                        // element for each letter
+                        bb.invoke("super").withArgumentFromInvoking("ensureType")
+                                .withArgument("items").on(cb.name()).inScope();
                     } else {
-                        bb.invoke("super").withArgument("...items").inScope();
+                        if (memberTarget.getType() == STRING) {
+                            bb.invoke("super").withArgumentFromInvoking("ensureType")
+                                    .withArgument("items").on(cb.name()).inScope();
+                        } else {
+                            bb.invoke("super").withArgument("...items").inScope();
+                        }
                     }
                 });
             });
+
+            cb.method("toString", mth -> {
+                mth.makePublic().returning("string");
+                mth.body(bb -> {
+                    bb.declareConst("strings")
+                            .ofType("string[]")
+                            .assignedTo("[]");
+
+                    bb.invoke("forEach")
+                            .withLambda()
+                            .withArgument("item").inferringType()
+                            .body(lbb -> {
+                                lbb.invoke("push")
+                                        .withArgumentFromInvoking("toString")
+                                        .on("item")
+                                        .on("strings");
+                            }).onThis();
+
+                    bb.declareConst("result")
+                            .ofType("string")
+                            .assignedToInvocationOf("join")
+                            .withStringLiteralArgument(",")
+                            .on("strings");
+
+                    bb.invoke("log")
+                            .withStringLiteralArgument("Strings are ")
+                            .withArgument("strings")
+                            .on("console");
+
+                    bb.invoke("log")
+                            .withArgument("result")
+                            .withArgument("this")
+                            .on("console");
+
+                    bb.returningInvocationOf("join")
+                            .withStringLiteralArgument(",")
+                            .on("strings");
+                });
+            });
+
             cb.method("fromJsonObject", mth -> {
                 mth.makeStatic()
                         .withArgument("input").ofType(jsTypeOf(shape));
@@ -98,7 +165,7 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                                             .withArgument("item")
                                             .on(targetTypeName)
                                             .on("result");
-                                });
+                                }).on("input");
                         bb.returningNew().withArgument("result").ofType(cb.name());
                     }
                 });

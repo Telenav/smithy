@@ -65,7 +65,7 @@ class SimpleElementFactory extends ElementFactoryBase {
     }
 }
 
-function arrayOf<T>(itemOrItems : T | T[]) {
+function arrayOf<T>(itemOrItems: T | T[]) {
     if (Array.isArray(itemOrItems)) {
         return itemOrItems as T[];
     }
@@ -214,12 +214,13 @@ interface Convertible<T> {
 }
 
 export interface Transform<T, R> {
-    toValue(value: R): T;
-    fromValue(value: T): R;
+    toValue(value: T): R;
+    fromValue(value: R): T;
+    transform<X>(xform: Transform<R, X>): Transform<T, X>
 }
 
 interface Transformable<T> {
-    transform<R>(xform: Transform<R, T>): TransformedEventType<R, T>;
+    transform<X>(xform: Transform<T, X>): TransformedEventType<T, X>;
 }
 
 class EventTypeImpl<T> implements EventType<T>, Convertible<T>, Transformable<T> {
@@ -230,8 +231,8 @@ class EventTypeImpl<T> implements EventType<T>, Convertible<T>, Transformable<T>
         this.converter = converter;
     }
 
-    transform<R>(xform: Transform<R, T>): TransformedEventType<R, T> {
-        return new TransformedEventType<R, T>(this, xform);
+    transform<X>(xform: Transform<T, X>): TransformedEventType<T, X> {
+        return new TransformedEventType<T, X>(this, xform);
     }
 
     convert(obj: any): T {
@@ -242,32 +243,66 @@ class EventTypeImpl<T> implements EventType<T>, Convertible<T>, Transformable<T>
     }
 }
 
-class StringToStringListTransform implements Transform<string[], string> {
-    toValue(value: string): string[] {
-        return value.split(/\s*,\s*/);
+abstract class ChainableTransform<A, B> implements Transform<A, B> {
+    transform<X>(xform: Transform<B, X>): Transform<A, X> {
+        return new ChainedTransform<A, B, X>(this, xform);
     }
+    abstract fromValue(value: B): A;
+    abstract toValue(value: A): B;
+}
 
-    fromValue(value: string[]): string {
-        return value.join(',');
+class ChainedTransform<A, B, C> extends ChainableTransform<A, C> {
+    private readonly first: Transform<A, B>;
+    private readonly second: Transform<B, C>;
+    constructor(first: Transform<A, B>, second: Transform<B, C>) {
+        super();
+        this.first = first;
+        this.second = second;
+    }
+    transform<X>(xform: Transform<C, X>): Transform<A, X> {
+        return new ChainedTransform<A, C, X>(this, xform);
+    }
+    fromValue(value: C): A {
+        let b: B = this.second.fromValue(value);
+        return this.first.fromValue(b);
+    }
+    toValue(value: A): C {
+        let b: B = this.first.toValue(value);
+        return this.second.toValue(b);
     }
 }
 
-class ListMemberTransform<T, R> implements Transform<T[], R[]> {
+class StringToStringListTransform extends ChainableTransform<string, string[]> {
+    fromValue(value: string[]): string {
+        console.log("StringToStringListTransform fromValue " + typeof value
+            + " to " + value.join(","), value);
+        return value.join(',');
+    }
+
+    toValue(value: string): string[] {
+        console.log("StringToStringListTransform toValue " + typeof value
+            + " to " + value, value.split(/\s*,\s*/));
+        return value.split(/\s*,\s*/);
+    }
+}
+
+class ListMemberTransform<T, R> extends ChainableTransform<T[], R[]> {
     private readonly xform: Transform<T, R>;
     constructor(xform: Transform<T, R>) {
+        super();
         this.xform = xform;
     }
 
-    fromValue(value: T[]): R[] {
-        const result: R[] = [];
+    fromValue(value: R[]): T[] {
+        const result: T[] = [];
         value.forEach(val => {
             result.push(this.xform.fromValue(val));
         });
         return result;
     }
 
-    toValue(value: R[]): T[] {
-        const result: T[] = [];
+    toValue(value: T[]): R[] {
+        const result: R[] = [];
         value.forEach(val => {
             result.push(this.xform.toValue(val));
         });
@@ -275,45 +310,54 @@ class ListMemberTransform<T, R> implements Transform<T[], R[]> {
     }
 }
 
-class StringToIntTransform implements Transform<string, number> {
-    fromValue(value: string): number {
-        return parseInt(value);
+class StringToIntTransform extends ChainableTransform<string, number> {
+
+    fromValue(value: number): string {
+        return value.toString();
     }
 
-    toValue(value: number): string {
-        return value.toString();
+    toValue(value: string): number {
+        return parseInt(value);
     }
 }
 
-class StringToFloatTransform implements Transform<string, number> {
-    fromValue(value: string): number {
-        return parseInt(value);
+class StringToFloatTransform extends ChainableTransform<string, number> {
+
+    fromValue(value: number): string {
+        return value.toString();
     }
 
-    toValue(value: number): string {
-        return value.toString();
+    toValue(value: string): number {
+        return parseFloat(value);
     }
 }
 
-class TransformedEventType<T, R> implements EventType<T>, Transformable<T>  {
-    private readonly delegate: EventType<R> & Convertible<R>;
+const STRING_TO_STRING_ARRAY = new StringToStringListTransform();
+const STRING_TO_INT = new StringToIntTransform();
+const STRING_TO_FLOAT = new StringToFloatTransform();
+const STRING_ARRAY_TO_FLOAT_ARRAY = STRING_TO_STRING_ARRAY.transform(new ListMemberTransform(STRING_TO_FLOAT));
+const STRING_ARRAY_TO_INT_ARRAY = STRING_TO_STRING_ARRAY.transform(new ListMemberTransform(STRING_TO_INT));
+
+
+class TransformedEventType<T, R> implements EventType<R>, Transformable<R>, Convertible<R>  {
+    private readonly delegate: EventType<T> & Convertible<T>;
     private readonly xform: Transform<T, R>;
 
-    constructor(orig: EventType<R> & Convertible<R>, xform: Transform<T, R>) {
+    constructor(orig: EventType<T> & Convertible<T>, xform: Transform<T, R>) {
         this.delegate = orig;
         this.xform = xform;
     }
 
-    transform<X>(xform: Transform<X, T>): TransformedEventType<X, T> {
-        return new TransformedEventType<X, T>(this, xform);
+    transform<X>(xform: Transform<R, X>): TransformedEventType<R, X> {
+        return new TransformedEventType<R, X>(this, xform);
     }
 
     get name(): EventName {
         return this.delegate.name;
     }
 
-    convert(obj: any): T {
-        let origResult: R = this.delegate.convert(obj);
+    convert(obj: any): R {
+        let origResult: T = this.delegate.convert(obj);
         return this.xform.toValue(origResult);
     }
 }
@@ -820,24 +864,43 @@ export class TextField extends InputComponentBase<string> {
         el['value'] = stringFromAny(value);
     }
 }
+/*
+const STRING_TO_STRING_ARRAY = new StringToStringListTransform();
+const STRING_TO_INT = new StringToIntTransform();
+const STRING_TO_FLOAT = new StringToFloatTransform();
+const STRING_ARRAY_TO_FLOAT_ARRAY = STRING_TO_STRING_ARRAY.transform(new ListMemberTransform(STRING_TO_FLOAT));
+const STRING_ARRAY_TO_INT_ARRAY = STRING_TO_STRING_ARRAY.transform(new ListMemberTransform(STRING_TO_INT));
 
-export function stringListField(id: string) {
-    return new TransformedTextField<string[]>(id, new StringToStringListTransform());
+*/
+export function stringListField(id: string): TransformedTextField<string[]> {
+    return new TransformedTextField<string[]>(id, STRING_TO_STRING_ARRAY);
+}
+
+export function integerListField(id: string): TransformedTextField<number[]> {
+    return new TransformedTextField<number[]>(id, STRING_ARRAY_TO_INT_ARRAY);
+}
+
+export function floatListField(id: string): TransformedTextField<number[]> {
+    return new TransformedTextField<number[]>(id, STRING_ARRAY_TO_FLOAT_ARRAY);
 }
 
 export class TransformedTextField<T> extends InputComponentBase<T> {
-    private readonly xform: Transform<T, string>;
+    private readonly xform: Transform<string, T>;
 
-    constructor(id: string, xform: Transform<T, string>, name?: string) {
+    constructor(id: string, xform: Transform<string, T>, name?: string) {
         super(TextChangeInternal.transform(xform), TEXT, id, name);
         this.xform = xform;
     }
 
     rawValue(): any {
-        return this.el ? this.el['value'] : "";
+        let result = this.el ? this.el['value'] : "";
+        console.log("XFormed tf raw value", result);
+        //        console.log("My value", this.value());
+        return result;
     }
 
     protected setValueOn(value: any, el: HTMLElement) {
+        console.log("Set value on xf ", value);
         el['value'] = stringFromAny(value);
     }
 }
@@ -859,6 +922,16 @@ export class IntegerField extends InputComponentBase<number> {
     protected setValueOn(value: any, el: HTMLElement) {
         el['value'] = stringFromAny(value);
     }
+
+    isUnset(): boolean {
+        if (!this.el) {
+            return true;
+        }
+        if (typeof this.el['value'] !== 'undefined' || '' === this.el['value']) {
+            return true;
+        }
+        return false;
+    }
 }
 
 export class FloatField extends InputComponentBase<number> {
@@ -873,6 +946,16 @@ export class FloatField extends InputComponentBase<number> {
             return parseFloat(val);
         }
         return val;
+    }
+
+    isUnset(): boolean {
+        if (!this.el) {
+            return true;
+        }
+        if (typeof this.el['value'] !== 'undefined' || '' === this.el['value']) {
+            return true;
+        }
+        return false;
     }
 
     protected setValueOn(value: any, el: HTMLElement) {
@@ -994,8 +1077,8 @@ abstract class Container extends Component {
     constructor(inline: boolean, id: string, name?: string) {
         super(inline ? SPAN : DIV, id, name);
     }
-    
-    onEnabledChanged(enabled : boolean) {
+
+    onEnabledChanged(enabled: boolean) {
         this.children.forEach(ch => ch.enabled = enabled);
     }
 
@@ -1186,7 +1269,7 @@ export class ComboBox extends InputComponentBase<string> {
     }
 }
 
-interface Clickable {
+export interface Clickable {
     onClick(lis: (any) => void): void;
 }
 
@@ -1294,9 +1377,22 @@ export class NavPanel extends Container {
         super.withStyles("nav");
     }
 
+    /**
+    * Listen for changes in the currently selected panel.
+    */
     public listen(f: (label: string, panel: Panel) => void): this {
         this.listeners.push(f);
         return this;
+    }
+
+    /**
+    * Get the currently selected panel.
+    */
+    get selected(): Panel | undefined {
+        if (!this.active) {
+            return;
+        }
+        return this.panels.get(this.active);
     }
 
     public add(label: string, panel: Panel) {
