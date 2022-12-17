@@ -35,7 +35,7 @@
                 width: 100%;
                 display: flex;
                 flex-direction: row;
-                flex-wrap: nowrap;
+                flex-wrap: wrap;
             }
             .column {
                 margin-right: 1em;
@@ -100,6 +100,7 @@
             }
             #content {
                 margin: 1em;
+                width: 80%;
                 display: flow-root;
             }
             .list-panel {
@@ -169,6 +170,12 @@
             }
             input:disabled {
                 color: #888;
+            }
+            pre {
+                overflow-wrap: break-word;
+                width: 100%;
+                white-space: pre-wrap;
+                margin: 1em;
             }
         </style>
     </head>

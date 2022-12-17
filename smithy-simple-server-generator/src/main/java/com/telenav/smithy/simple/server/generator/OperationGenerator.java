@@ -244,6 +244,11 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
         ConstructorBuilder<ClassBuilder<String>> con = cb.constructor()
                 .annotatedWith("Inject").closeAnnotation();
+        
+        if (!shape.getInput().isPresent()) {
+            con.addArgument(operationInterfaceName(shape), "operationImplementation");
+            cb.importing(operationInterfaceFqn(model, shape));
+        }
 
         ServiceShape service = graph.serviceForOperation(shape);
 
@@ -297,6 +302,11 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
         } else {
             cb.docComment("Computes the final input shape from elements of the HTTP request and"
                     + "injects them into the scope for use by {@link " + cb.className() + "Concluder}.");
+//            if (!in.isPresent()) {
+//                String iface = operationInterfaceName(shape);
+//                cb.importing(operationInterfaceFqn(model, shape));
+//                con.addArgument(iface, "operationImplementation");
+//            }
             addTo.accept(generatePostActeur(cb, in.get()));
         }
 
@@ -371,8 +381,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
         con.addArgument("SmithyRequest", "request");
         if (in != null) {
-            String[] fqns = new String[]{in.fqn()};
-            maybeImport(cb, fqns);
+            maybeImport(cb, in.fqn());
             con.addArgument(in.typeName(), "input");
         }
         con.addArgument(ifaceName, "operationImplementation");
@@ -457,7 +466,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
             }
         });
 
-        if (hasInput) {
+        if (shape.getInput().isPresent()) {
             inv.withArgument("input");
         }
 

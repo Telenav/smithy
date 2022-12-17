@@ -1,4 +1,3 @@
-
 package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -20,7 +19,6 @@ import static javax.lang.model.element.Modifier.PUBLIC;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.traits.UnitTypeTrait;
 
 /**
  *
@@ -46,24 +44,28 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
                         + "supply an implementation of that operation.");
         applyGeneratedAnnotation(OperationInterfaceGenerator.class, cb);
 
-        Shape in = model.expectShape(shape.getInputShape());
+//        THIS SHOULD NOT USE getInputShape and must handle no input and/or no output
+        Optional<Shape> in = shape.getInput().map(model::expectShape);
 
-        Shape out = model.expectShape(shape.getOutputShape());
+//        Shape in = model.expectShape(shape.getInputShape());
+//        Shape out = model.expectShape(shape.getOutputShape());
+        Optional<Shape> out = shape.getOutput().map(model::expectShape);
 
-        boolean hasInput = !out.getTrait(UnitTypeTrait.class).isPresent();
+        boolean hasInput = in.isPresent();
 
-        if (hasInput) {
-            String[] fqns = new String[]{names().qualifiedNameOf(in, cb, true)};
+        if (in.isPresent()) {
+            String[] fqns = new String[]{names().qualifiedNameOf(in.get(), cb, true)};
             maybeImport(cb, fqns);
         }
-        String[] fqns = new String[]{names().qualifiedNameOf(out, cb, true)};
-        maybeImport(cb, fqns);
+        out.ifPresent(o -> {
+            maybeImport(cb, names().qualifiedNameOf(out.get(), cb, true));
+        });
 
         cb.importing("com.mastfrog.smithy.http.SmithyRequest",
                 "com.mastfrog.smithy.http.SmithyResponse");
 
         cb.method("respond", mth
-                -> applyMethodSignature(mth, hasInput, cb, in, out))
+                -> applyMethodSignature(mth, cb, in, out))
                 .docComment("Construct a response to the inbound " + shape.getId().getName()
                         + " request.  The response can (and should) be computed asynchronously - the "
                         + "passed SmithyResponse is a thin wrapper over a CompletableFuture, and "
@@ -89,12 +91,14 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
                 .importing("com.mastfrog.smithy.http.SmithyRequest",
                         "com.mastfrog.smithy.http.SmithyResponse");
         if (hasInput) {
-            maybeImport(mock, names().qualifiedNameOf(in, mock, true));
+            maybeImport(mock, names().qualifiedNameOf(in.get(), mock, true));
         }
-        maybeImport(mock, names().qualifiedNameOf(out, mock, true));
+        if (out.isPresent()) {
+            maybeImport(mock, names().qualifiedNameOf(out.get(), mock, true));
+        }
         applyGeneratedAnnotation(OperationInterfaceGenerator.class, mock);
         mock.overridePublic("respond", mth -> {
-            applyMethodSignature(mth, hasInput, mock, in, out);
+            applyMethodSignature(mth, mock, in, out);
             mth.body(bb -> {
                 bb.invoke("completeExceptionally")
                         .withArgumentFromNew(nb -> {
@@ -111,7 +115,8 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
         addTo.accept(mock);
     }
 
-    private MethodBuilder<?> applyMethodSignature(MethodBuilder<?> mth, boolean hasInput, ClassBuilder<String> cb, Shape in, Shape out) {
+    private MethodBuilder<?> applyMethodSignature(MethodBuilder<?> mth,
+            ClassBuilder<String> cb, Optional<Shape> in, Optional<Shape> out) {
         mth.addArgument("SmithyRequest", "request");
 
         withAuthInfo(shape, model, names(), (Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
@@ -127,11 +132,11 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
             mth.addArgument(argType, "authInfo");
         });
 
-        if (hasInput) {
-            String tn = names().typeNameOf(cb, in, false);
+        if (in.isPresent()) {
+            String tn = names().typeNameOf(cb, in.get(), false);
             mth.addArgument(tn, "input");
         }
-        String outTn = names().typeNameOf(cb, out, true);
+        String outTn = out.map(o -> names().typeNameOf(o)).orElse("Void");
         mth.addArgument("SmithyResponse<" + outTn + ">", "output");
         mth.throwing("Exception");
         return mth;

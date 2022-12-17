@@ -456,25 +456,27 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                             .on("currModel");
                     lbb.invoke("catch")
                             .withLambda(lb -> {
-                                lb.withArgument("res").ofType("any");
-                                lb.body(wc -> {
-                                    wc.assignField("text")
-                                            .of(OUTPUT_COMPONENT_VAR)
-                                            .toInvocationOf("stringify")
-                                            .withArgument("res")
-                                            .withArgument("null")
-                                            .withArgument("2")
-                                            .on("JSON");
-                                });
-                            })
-                            .onInvocationOf("then")
-                            .withLambda(lb -> {
                                 lb.withArgument("err").ofType("any");
                                 lb.body(wc -> {
                                     wc.assignField("text")
                                             .of(OUTPUT_COMPONENT_VAR)
                                             .toInvocationOf("toString")
                                             .on("err");
+                                });
+                            })
+                            .onInvocationOf("then")
+                            .withLambda(lb -> {
+                                lb.withArgument("res").ofType("any");
+                                lb.body(wc -> {
+                                    wc.assignField("text")
+                                            .of(OUTPUT_COMPONENT_VAR)
+                                            .toInvocationOf("stringify")
+                                            .withArgumentFromInvoking("parse")
+                                            .withArgument("res")
+                                            .on("JSON")
+                                            .withArgument("null")
+                                            .withArgument(2)
+                                            .on("JSON");
                                 });
                             })
                             .on("result");

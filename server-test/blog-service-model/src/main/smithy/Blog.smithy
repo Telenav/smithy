@@ -14,6 +14,7 @@ use com.telenav.smithy#genericRestProtocol
 service BlogService {
     version : "1.0"
     resources : [Blogs]
+    operations : [Health]
 }
 
 /// Resource providing blog entries
@@ -39,6 +40,16 @@ resource Comments {
     list: ListComments
     create: PutComment
     operations: [ApproveComment]
+}
+
+@http(method:"GET", uri:"/health", code: 200)
+operation Health {
+    output : HealthOutput
+}
+
+@output
+structure HealthOutput {
+    ok : Boolean
 }
 
 /// Approve (or un-approve) a comment, making it visible or invisible to non-admin users.

@@ -1304,55 +1304,62 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         "static com.telenav.smithy.vertx.adapter.VertxRequestAdapter.smithyRequest",
                         "javax.inject.Inject",
                         "com.telenav.vertx.guice.scope.RequestScope",
-                        input.fqn(),
                         operationInterfaceFqn(model, op)
                 )
                 .implementing("Handler<RoutingContext>")
                 .withModifier(PUBLIC, FINAL);
+        if (input != null) {
+            cb.importing(input.fqn());
+        }
         initDebug(cb);
         handlers.add(cb.fqn());
         spiArgs.importTypes(cb);
-        cb
-                .importing(CompletableFuture.class
-                );
+        cb.importing(CompletableFuture.class);
         boolean writesPayload = op.getOutput().isPresent();
 
         cb.constructor(con -> {
+
             con.annotatedWith("Inject").closeAnnotation()
-                    .addArgument(operationInterfaceName(op), "spi")
-                    .addArgument(simpleNameOf(input.typeName()), "input")
-                    .body(bb -> {
-                        addProbeArgumentsAndFields(cb, con, bb);
-                        cb.field("input", inField -> {
-                            inField.withModifier(PRIVATE, FINAL)
-                                    .ofType(simpleNameOf(input.typeName()));
-                        });
-                        cb.field("spi", spiField -> {
-                            spiField.withModifier(PRIVATE, FINAL)
-                                    .ofType(operationInterfaceName(op));
-                        });
-                        bb.statement("this.input = input");
-                        bb.statement("this.spi = spi");
-                        if (writesPayload) {
-                            cb.importing("com.fasterxml.jackson.databind.ObjectMapper");
-                            cb.field("mapper", mapField -> {
-                                mapField.withModifier(PRIVATE, FINAL)
-                                        .ofType("ObjectMapper");
-                            });
-                            con.addArgument("ObjectMapper", "mapper");
-                            bb.statement("this.mapper = mapper");
-                        }
-                        spiArgs.eachInjectableType((fqn, varName) -> {
-                            // Need to strip generics
-                            cb.importing(rawTypeName(fqn));
-                            con.addArgument(simpleNameOf(fqn), varName);
-                            cb.field(varName, fld -> {
-                                fld.withModifier(PRIVATE, FINAL);
-                                fld.ofType(simpleNameOf(fqn));
-                            });
-                            bb.statement("this." + varName + " = " + varName);
-                        });
+                    .addArgument(operationInterfaceName(op), "spi");
+            if (input != null) {
+                con.addArgument(simpleNameOf(input.typeName()), "input");
+            }
+            con.body(bb -> {
+                addProbeArgumentsAndFields(cb, con, bb);
+                if (input != null) {
+                    cb.field("input", inField -> {
+                        inField.withModifier(PRIVATE, FINAL)
+                                .ofType(simpleNameOf(input.typeName()));
                     });
+                }
+                cb.field("spi", spiField -> {
+                    spiField.withModifier(PRIVATE, FINAL)
+                            .ofType(operationInterfaceName(op));
+                });
+                if (input != null) {
+                    bb.statement("this.input = input");
+                }
+                bb.statement("this.spi = spi");
+                if (writesPayload) {
+                    cb.importing("com.fasterxml.jackson.databind.ObjectMapper");
+                    cb.field("mapper", mapField -> {
+                        mapField.withModifier(PRIVATE, FINAL)
+                                .ofType("ObjectMapper");
+                    });
+                    con.addArgument("ObjectMapper", "mapper");
+                    bb.statement("this.mapper = mapper");
+                }
+                spiArgs.eachInjectableType((fqn, varName) -> {
+                    // Need to strip generics
+                    cb.importing(rawTypeName(fqn));
+                    con.addArgument(simpleNameOf(fqn), varName);
+                    cb.field(varName, fld -> {
+                        fld.withModifier(PRIVATE, FINAL);
+                        fld.ofType(simpleNameOf(fqn));
+                    });
+                    bb.statement("this." + varName + " = " + varName);
+                });
+            });
         });
 
         cb.overridePublic("handle", mth -> {
@@ -1786,8 +1793,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     private Input examineInput(OperationShape op, StructureShape input, ResourceGraph graph,
             ClassBuilder<String> cb) {
-        Optional<HttpTrait> httpOpt = op.getTrait(HttpTrait.class
-        );
+        Optional<HttpTrait> httpOpt = op.getTrait(HttpTrait.class);
         List<InputMemberObtentionStrategy> st = new ArrayList<>();
         StringBuilder sb = new StringBuilder();
         sb.append(" ************** STRATEGIES **************");
