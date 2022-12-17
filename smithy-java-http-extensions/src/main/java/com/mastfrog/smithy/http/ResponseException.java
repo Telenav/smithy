@@ -23,25 +23,52 @@
  */
 package com.mastfrog.smithy.http;
 
+import java.util.function.BiConsumer;
+
 /**
+ * An exception that specifies as response code and optionally, a header name
+ * value pair.
  *
  * @author Tim Boudreau
  */
 public final class ResponseException extends RuntimeException {
 
     private final int status;
+    private String headerName;
+    private String headerValue;
 
     public ResponseException(int status, String msg) {
-        super(msg);
-        this.status = status;
+        this(status, msg, null, null, null);
     }
 
     public ResponseException(int status, String msg, Throwable cause) {
+        this(status, msg, cause, null, null);
+    }
+
+    public ResponseException(int status, String msg, String headerName, String headerValue) {
+        this(status, msg, null, headerName, headerValue);
+    }
+
+    public ResponseException(int status, String msg, Throwable cause, String headerName, String headerValue) {
         super(msg, cause);
         this.status = status;
+        this.headerName = headerName;
+        this.headerValue = headerValue;
     }
 
     public int status() {
         return status;
+    }
+
+    public boolean hasHeader() {
+        return headerName != null && headerValue != null;
+    }
+
+    public boolean withHeaderNameAndValue(BiConsumer<String, String> nameValueConsumer) {
+        if (headerName != null && headerValue != null) {
+            nameValueConsumer.accept(headerName, headerValue);
+            return true;
+        }
+        return false;
     }
 }

@@ -21,46 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.smithy.http;
+package com.telenav.smithy.blog.server.spi.impl;
 
-import java.util.concurrent.CompletableFuture;
+import com.google.inject.Inject;
+import com.mastfrog.smithy.http.SmithyRequest;
+import com.mastfrog.smithy.http.SmithyResponse;
+import com.telenav.blog.model.AuthUser;
+import com.telenav.blog.model.UpdateBlogInput;
+import com.telenav.blog.spi.UpdateBlogResponder;
+import com.telenav.smithy.blog.demo.data.BlogStore;
 
 /**
- * Callback interface for providing an authentication result of some type.
  *
  * @author Tim Boudreau
  */
-public interface AuthenticationResultConsumer<T> {
+public class UpdateBlogResponderImpl implements UpdateBlogResponder {
 
-    void ok(T obj);
+    private final BlogStore store;
 
-    default void unauthorized() {
-        failed(new ResponseException(401, "Unauthorized"));
+    @Inject
+    UpdateBlogResponderImpl(BlogStore store) {
+        this.store = store;
     }
 
-    /**
-     * Mark the response as unauthenticated, providing a header and header value
-     * to attach to the response (e.g. www-authenticate).
-     *
-     * @param headerName A header name
-     * @param headerValue A header value
-     */
-    default void unauthorized(String headerName, String headerValue) {
-        failed(new ResponseException(401, "Unauthorized", headerName, headerValue));
+    @Override
+    public void respond(SmithyRequest request, AuthUser authInfo,
+            UpdateBlogInput input, SmithyResponse<Void> output) throws Exception {
+        store.updateBlog(input.id(), input.updates());
+        output.complete(null);
     }
 
-    default void forbidden() {
-        failed(new ResponseException(403, "Forbidden"));
-    }
-
-    void failed(Throwable thrown);
-
-    default void ok() {
-        ok(null);
-    }
-
-    public static <T> AuthenticationResultConsumer<T> create(CompletableFuture<T> fut,
-            boolean optional) {
-        return AuthenticationResultConsumerFactory.newConsumer(fut, optional);
-    }
 }

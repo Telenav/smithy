@@ -94,7 +94,7 @@ public abstract class AuthenticationResultConsumerFactory {
             if (!logged) {
                 logMissingImpl();
             }
-            failed(new IllegalStateException("Unauthorized"));
+            failed(new ResponseException(401, "Unauthorized"));
         }
 
         @Override
@@ -102,7 +102,7 @@ public abstract class AuthenticationResultConsumerFactory {
             if (!logged) {
                 logMissingImpl();
             }
-            failed(new IllegalStateException("Forbidden"));
+            failed(new ResponseException(403, "Forbidden"));
         }
 
         private void logMissingImpl() {

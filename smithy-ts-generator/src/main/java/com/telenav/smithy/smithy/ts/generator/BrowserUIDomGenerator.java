@@ -90,6 +90,9 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
     }
 
     private void importModelObject(String comp, TypescriptSource src) {
+        if ("void".equals(comp)) {
+            return;
+        }
         String modelSource = "./" + escape(shape.getId().getName() + "Model");
         src.importing(comp).from(modelSource);
     }
@@ -239,6 +242,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         importComponents(src, "Row", "Panel", "NavPanel",
                 "ProblemsPanel", "StaticText", "EventType",
                 "TextField", "Spinner", "Button", "Clickable");
+
+        src.generateDebugLogCode();
 
         src.invoke("attach")
                 .withStringLiteralArgument("top")
@@ -535,12 +540,13 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
             InterfaceBuilder<TypescriptSource> iface
                     = src.declareInterface(escape(op.getId().getName() + "UIModel"));
 
+            String promiseTypeParameter = "void".equals(outputType) ? "boolean" : outputType;
             importModelObject(tsTypeName(input), src);
             ClassBuilder<TypescriptSource> ifaceImpl
                     = src.declareClass(op.getId().getName() + "UIModelImpl")
                             .implementing(iface.name())
                             .implementing("UIModel<" + tsTypeName(input) + ","
-                                    + outputType + ">");
+                                    + promiseTypeParameter + ">");
 
             TSGetterBlockBuilder<ClassBuilder<TypescriptSource>> modelGetter
                     = ifaceImpl.getter("model")
@@ -644,13 +650,16 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                 mth.withArgument("client").ofType(serviceClientName(shape));
                 mth.withArgument("cancelAnyOutstandingRequests")
                         .optional().ofType("boolean");
-                TsBlockBuilder<?> bb = mth.returning("Promise<" + outputType + ">");
+                String promiseType = "void".equals(outputType) ? "Promise<boolean>" : "Promise<" + outputType + ">";
+                TsBlockBuilder<?> bb = mth.returning(promiseType);
                 bb.iff("cancelAnyOutstandingRequests")
                         .invoke("cancelAll")
                         .onField("serviceClient")
                         .of("client")
                         .endIf();
-                importModelObject(outputType, src);
+                if (!"void".equals(outputType)) {
+                    importModelObject(outputType, src);
+                }
                 String methodName = escape(decapitalize(op.getId().getName()));
                 bb.returningInvocationOf(methodName)
                         .withArgumentFromField("model").ofThis()
@@ -1002,8 +1011,8 @@ export function floatListField(id: string): TransformedTextField<number[]>
         }
     }
 
-    public void generateModelRawValueAssignment(boolean required, 
-            TSGetterBlockBuilder<ClassBuilder<TypescriptSource>> modelGetter, 
+    public void generateModelRawValueAssignment(boolean required,
+            TSGetterBlockBuilder<ClassBuilder<TypescriptSource>> modelGetter,
             String name, String rawModelVariable, String jsonName) {
         if (!required) {
             modelGetter.iff("!this." + name + ".isUnset()")
@@ -1015,9 +1024,9 @@ export function floatListField(id: string): TransformedTextField<number[]>
                     + "'] = this." + name + ".rawValue()");
         }
     }
-    
-    public void generateModelRawValueAssignmentForList(boolean required, 
-            TSGetterBlockBuilder<ClassBuilder<TypescriptSource>> modelGetter, 
+
+    public void generateModelRawValueAssignmentForList(boolean required,
+            TSGetterBlockBuilder<ClassBuilder<TypescriptSource>> modelGetter,
             String name, String rawModelVariable, String jsonName, Shape listMember) {
         if (!required) {
             modelGetter.lineComment("List model optional " + jsonName + " " + listMember.getId());
@@ -1031,7 +1040,6 @@ export function floatListField(id: string): TransformedTextField<number[]>
                     + "'] = this." + name + ".rawValue()");
         }
     }
-    
 
     private void generateValidationStanza(LinkedList<String> l, String fieldName,
             String key, MemberShape value,

@@ -64,6 +64,11 @@ public class VertxAuthenticationResultConsumerFactory extends AuthenticationResu
         }
 
         @Override
+        public void unauthorized(String headerName, String headerValue) {
+            throw new ResponseException(401, "Unauthorized", headerName, headerValue);
+        }
+
+        @Override
         public void forbidden() {
             throw new ResponseException(403, "Forbidden");
         }

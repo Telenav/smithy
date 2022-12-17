@@ -326,7 +326,8 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
             case LONG:
             case SHORT:
             case BYTE:
-                return ("bigint");
+//                return ("bigint");
+                return ("number");
             case STRING:
                 return ("string");
             case BOOLEAN:

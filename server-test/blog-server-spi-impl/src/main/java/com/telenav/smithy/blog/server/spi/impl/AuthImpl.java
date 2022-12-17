@@ -27,6 +27,7 @@ import com.google.inject.Inject;
 import com.mastfrog.acteur.header.entities.BasicCredentials;
 import com.mastfrog.smithy.http.AuthenticationResultConsumer;
 import static com.mastfrog.smithy.http.HeaderTypes.headerTypes;
+import com.mastfrog.smithy.http.ResponseException;
 import com.mastfrog.smithy.http.SmithyRequest;
 import com.telenav.blog.auth.AuthenticateWithAuthUser;
 import com.telenav.blog.auth.BlogServiceAuthenticatedOperations;
@@ -55,7 +56,8 @@ public final class AuthImpl implements AuthenticateWithAuthUser {
         if (optional && !authInfo.isPresent()) {
             results.ok();
         } else if (!authInfo.isPresent()) {
-            results.unauthorized();
+            results.failed(new ResponseException(401, "Not authenticated", "www-authenticate", "basic realm=blogs"));
+//            results.unauthorized();
         } else {
             BasicCredentials creds = authInfo.get();
             if (!userName.equals(creds.username) || !password.equals(creds.password)) {

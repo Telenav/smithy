@@ -23,24 +23,22 @@
  */
 package com.telenav.smithy.blog.demo;
 
-import static com.google.common.base.Charsets.UTF_8;
 import com.google.inject.AbstractModule;
 import com.google.inject.name.Names;
-import com.mastfrog.acteur.Event;
-import com.mastfrog.acteur.HttpEvent;
-import com.mastfrog.acteur.RequestLogger;
-import com.mastfrog.acteur.util.RequestID;
 import com.mastfrog.jackson.JacksonModule;
 import static com.mastfrog.jackson.configuration.TimeSerializationMode.TIME_AS_ISO_STRING;
 import static com.mastfrog.jackson.configuration.DurationSerializationMode.DURATION_AS_ISO_STRING;
 import com.telenav.blog.BlogService;
-import com.telenav.blog.auth.AuthenticateWithAuthUser;
+import com.telenav.smithy.blog.demo.data.BlogStore;
 import com.telenav.smithy.blog.server.spi.impl.AuthImpl;
+import com.telenav.smithy.blog.server.spi.impl.HealthResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.ListBlogsResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.ListCommentsResponderImpl;
+import com.telenav.smithy.blog.server.spi.impl.NewBlogResponderImpl;
+import com.telenav.smithy.blog.server.spi.impl.PingResponderImpl;
+import com.telenav.smithy.blog.server.spi.impl.PutCommentResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.ReadBlogResponderImpl;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import java.net.URLDecoder;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -56,9 +54,17 @@ public class BlogDemo extends AbstractModule {
                 .withModule(new BlogDemo())
                 .withModule(new JacksonModule()
                         .withJavaTimeSerializationMode(TIME_AS_ISO_STRING, DURATION_AS_ISO_STRING))
+                .withAuthenticatorForAuthenticateWithAuthUser(AuthImpl.class)
                 .withListBlogsResponderType(ListBlogsResponderImpl.class)
                 .withReadBlogResponderType(ReadBlogResponderImpl.class)
                 .withListCommentsResponderType(ListCommentsResponderImpl.class)
+                .withNewBlogResponderType(NewBlogResponderImpl.class)
+                .withPutCommentResponderType(PutCommentResponderImpl.class)
+                .withPingResponderType(PingResponderImpl.class)
+                .withHealthResponderType(HealthResponderImpl.class)
+                .mappingExceptionTo(BlogStore.BlogAlreadyExistsException.class, HttpResponseStatus.CONFLICT)
+                .mappingExceptionTo(BlogStore.CommentAlreadyExistsException.class, HttpResponseStatus.CONFLICT)
+                .mappingExceptionTo(BlogStore.NoSuchBlogException.class, HttpResponseStatus.GONE)
                 .start(args)
                 .await();
     }
@@ -67,28 +73,5 @@ public class BlogDemo extends AbstractModule {
     protected void configure() {
         Path dir = Paths.get("/tmp/blog-demo");
         bind(Path.class).annotatedWith(Names.named("blogDir")).toInstance(dir);
-        bind(AuthenticateWithAuthUser.class).to(AuthImpl.class);
-        bind(RequestLogger.class).to(RL.class).asEagerSingleton();
     }
-    
-    static class RL implements RequestLogger {
-
-        @Override
-        public void onBeforeEvent(RequestID rid, Event<?> event) {
-            HttpEvent e = (HttpEvent) event;
-            System.out.println("\n-------- REQUEST " + e.getRequestURL(false));
-            System.out.println("URI: " + URLDecoder.decode(e.requestUri(), UTF_8));
-            System.out.println(e.path());
-            e.httpHeaderNames().forEach(hdr -> {
-                System.out.println("  " + hdr + ":\t" + e.header(hdr));
-            });
-        }
-        
-        @Override
-        public void onRespond(RequestID rid, Event<?> event, HttpResponseStatus status) {
-            System.out.println(rid + ": " + event + ": " + status);
-        }
-        
-    }
-
 }

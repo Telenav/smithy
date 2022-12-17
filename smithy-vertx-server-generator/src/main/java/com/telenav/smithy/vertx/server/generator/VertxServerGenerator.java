@@ -91,13 +91,16 @@ import static java.beans.Introspector.decapitalize;
 import java.nio.file.Path;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
@@ -130,6 +133,7 @@ import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
 import static software.amazon.smithy.model.shapes.ShapeType.STRING;
 import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.CorsTrait;
 import software.amazon.smithy.model.traits.DefaultTrait;
 import software.amazon.smithy.model.traits.HttpHeaderTrait;
 import software.amazon.smithy.model.traits.HttpLabelTrait;
@@ -828,6 +832,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             addTo.accept(operationClass);
                         });
 
+                        generateCorsHandling(bb, routerBuilder, verticleBuilderName, ops);
+
                         bb.invoke("accept")
                                 .withArgument(verticleBuilderName)
                                 .on("verticleConfigurer");
@@ -843,6 +849,266 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         bb.returningInvocationOf("bind").on(verticleBuilderName);
                     });
         });
+    }
+
+    private void createCorsInfo() {
+
+    }
+
+    static final class CorsInfo {
+
+        // Note, we want to explicitly parameterize on TreeSet - if this code
+        // were changed to use an unsorted hash set, the variable names would be
+        // unpredictable, and wa aim always to generate identical code for identical
+        // input.
+        Map<String, TreeSet<String>> paths = new TreeMap<>();
+        Map<String, TreeSet<String>> regexen = new TreeMap<>();
+        Map<OperationShape, PathInfo> pathInfoForOperation = new HashMap<>();
+        Map<OperationShape, HttpTrait> httpTraitForOperation = new HashMap<>();
+        Set<TreeSet<String>> methodSets = new TreeSet<>(CorsInfo::compareTreeSets);
+        private final CorsTrait cors;
+
+        CorsInfo(Model model, ServiceShape shape, Collection<? extends OperationShape> ops) {
+            cors = shape.getTrait(CorsTrait.class).map(cors -> {
+                for (OperationShape op : ops) {
+                    op.getTrait(HttpTrait.class).ifPresent(http -> {
+                        StructureShape inputShape = op.getInput()
+                                .map(model::expectShape).flatMap(Shape::asStructureShape).orElse(null);
+                        PathInfo info = new PathInformationExtractor(model, http.getUri()).extractPathInfo(inputShape);
+                        if (info.isRegex()) {
+                            regexen.computeIfAbsent(info.text(), tx -> new TreeSet<>())
+                                    .add(http.getMethod());
+                        } else {
+                            paths.computeIfAbsent(info.text(), tx -> new TreeSet<>())
+                                    .add(http.getMethod());
+                        }
+                        pathInfoForOperation.put(op, info);
+                        httpTraitForOperation.put(op, http);
+                    });
+                }
+                methodSets.addAll(paths.values());
+                methodSets.addAll(regexen.values());
+                return cors;
+            }).orElse(null);
+        }
+        
+        static int compareTreeSets(TreeSet<String> o1, TreeSet<String> o2) {
+            return o1.toString().compareTo(o2.toString());
+        }
+
+        boolean isCors() {
+            return cors != null;
+        }
+
+        boolean ifCors(Runnable run) {
+            if (isCors()) {
+                run.run();
+                return true;
+            }
+            return false;
+        }
+        
+        String corsHandlerVariableForOperation(OperationShape op) {
+            
+        }
+        
+        String corsHandlerVariableForMethodSet(TreeSet<String> set) {
+            return "cors_" + Strings.join('_', set).toLowerCase();
+        }
+
+        public <C, X, B extends BlockBuilderBase<C, B, X>> void generateCorsHandlerDeclarations(B bb) {
+            bb.blankLine()
+                    .lineComment("Create cors handlers for the exact sets of methods")
+                    .lineComment("handled by different paths:");
+            for (TreeSet<String> set : methodSets) {
+                String varName = corsHandlerVariableForMethodSet(set);
+                bb.declare(varName)
+                        .initializedByInvoking("addOrigin")
+                        .withStringLiteral(cors.getOrigin())
+                        .onInvocationOf("maxAgeSeconds")
+                        .withArgument(cors.getMaxAge())
+                        .onInvocationOf("exposedHeaders")
+                        .withArgument("exposedHeaders")
+                        .onInvocationOf("allowedHeaders")
+                        .withArgument("allowedHeaders")
+                        .onInvocationOf("allowedMethods")
+                        .withArgumentFromNew(nb -> {
+                            nb.withArgumentFromInvoking(
+                                    "asList", ib -> {
+                                        for (String m : set) {
+                                            ib.withArgumentFromField(m.toUpperCase())
+                                                    .of("HttpMethod");
+                                        }
+                                        ib.on("Arrays");
+                                    }).ofType("HashSet<>");
+                        })
+                        .onInvocationOf("allowCredentials")
+                        .withArgument(true)
+                        .onInvocationOf("allowPrivateNetwork")
+                        .withArgument(true)
+                        .onInvocationOf("create")
+                        .on("CorsHandler")
+                        .as("CorsHandler");
+//            corsHandlerVariableForMethodSet.put(set, varName);
+            }
+
+        }
+
+    }
+
+    public <C, X, B extends BlockBuilderBase<C, B, X>> void generateCorsHandling(B bb,
+            ClassBuilder<String> cb, String verticleBuilderName,
+            Collection<? extends OperationShape> ops) {
+        shape.getTrait(CorsTrait.class).ifPresent(cors -> {
+            bb.lineComment("CORS handling");
+
+            Map<String, Set<String>> paths = new TreeMap<>();
+            Map<String, Set<String>> regexen = new TreeMap<>();
+            Map<OperationShape, PathInfo> pathInfoForOperation = new HashMap<>();
+            Map<OperationShape, HttpTrait> httpTraitForOperation = new HashMap<>();
+
+            for (OperationShape op : ops) {
+                op.getTrait(HttpTrait.class).ifPresent(http -> {
+                    StructureShape inputShape = op.getInput()
+                            .map(model::expectShape).flatMap(Shape::asStructureShape).orElse(null);
+                    PathInfo info = new PathInformationExtractor(model, http.getUri()).extractPathInfo(inputShape);
+                    if (info.isRegex()) {
+                        regexen.computeIfAbsent(info.text(), tx -> new TreeSet<>())
+                                .add(http.getMethod());
+                    } else {
+                        paths.computeIfAbsent(info.text(), tx -> new TreeSet<>())
+                                .add(http.getMethod());
+                    }
+                    pathInfoForOperation.put(op, info);
+                    httpTraitForOperation.put(op, http);
+                });
+            }
+
+            Set<Set<String>> methodSets = new TreeSet<>(new Comparator<>() {
+                @Override
+                public int compare(Set<String> o1, Set<String> o2) {
+                    return o1.toString().compareTo(o2.toString());
+                }
+            });
+
+            methodSets.addAll(paths.values());
+            methodSets.addAll(regexen.values());
+            if (methodSets.isEmpty()) {
+                return;
+            }
+
+            cb.method("installCorsHandlers", mb -> {
+                mb.withModifier(PRIVATE)
+                        .addArgument("VerticleBuilder<VertxGuiceModule>", verticleBuilderName)
+                        .docComment("Installs handlers for CORS preflight requests."
+                                + "\n@param " + verticleBuilderName + " the verticle builder");
+                mb.body(mbb -> {
+                    generateInstallCorsHeadersBody(cb, mbb, cors, methodSets, ops,
+                            pathInfoForOperation, regexen, paths, verticleBuilderName);
+                });
+            });
+
+            bb.invoke("installCorsHandlers").withArgument(verticleBuilderName).inScope();
+        });
+    }
+
+    public <C, X, B extends BlockBuilderBase<C, B, X>> void generateInstallCorsHeadersBody(ClassBuilder<String> cb, B bb, CorsTrait cors, Set<Set<String>> methodSets, Collection<? extends OperationShape> ops, Map<OperationShape, PathInfo> pathInfoForOperation, Map<String, Set<String>> regexen, Map<String, Set<String>> paths, String verticleBuilderName) {
+        cb.importing("io.vertx.ext.web.handler.CorsHandler",
+                "io.vertx.core.http.HttpMethod", "java.util.Arrays",
+                "java.util.HashSet", "java.util.Set", "java.util.Collections");
+
+        Map<Set<String>, String> corsHandlerVariableForMethodSet
+                = new HashMap<>();
+
+        bb.lineComment("Headers defined in the @cors trait on the service");
+        bb.declare("exposedHeaders")
+                .initializedByInvoking("unmodifiableSet")
+                .withArgumentFromNew(nb -> {
+                    nb.withArgumentFromInvoking("asList", ib -> {
+                        for (String h : cors.getAdditionalExposedHeaders()) {
+                            ib.withStringLiteral(h);
+                        }
+                        ib.on("Arrays");
+                    }).ofType("HashSet<>");
+                }).on("Collections")
+                .as("Set<String>");
+
+        bb.declare("allowedHeaders")
+                .initializedByInvoking("unmodifiableSet")
+                .withArgumentFromNew(nb -> {
+                    nb.withArgumentFromInvoking("asList", ib -> {
+                        for (String h : cors.getAdditionalAllowedHeaders()) {
+                            ib.withStringLiteral(h);
+                        }
+                        ib.on("Arrays");
+                    }).ofType("HashSet<>");
+                }).on("Collections").as("Set<String>");
+
+        bb.blankLine()
+                .lineComment("Create cors handlers for the exact sets of methods")
+                .lineComment("handled by different paths:");
+        for (Set<String> set : methodSets) {
+            String varName = "cors_" + Strings.join('_', set).toLowerCase();
+            bb.declare(varName)
+                    .initializedByInvoking("addOrigin")
+                    .withStringLiteral(cors.getOrigin())
+                    .onInvocationOf("maxAgeSeconds")
+                    .withArgument(cors.getMaxAge())
+                    .onInvocationOf("exposedHeaders")
+                    .withArgument("exposedHeaders")
+                    .onInvocationOf("allowedHeaders")
+                    .withArgument("allowedHeaders")
+                    .onInvocationOf("allowedMethods")
+                    .withArgumentFromNew(nb -> {
+                        nb.withArgumentFromInvoking(
+                                "asList", ib -> {
+                                    for (String m : set) {
+                                        ib.withArgumentFromField(m.toUpperCase())
+                                                .of("HttpMethod");
+                                    }
+                                    ib.on("Arrays");
+                                }).ofType("HashSet<>");
+                    })
+                    .onInvocationOf("allowCredentials")
+                    .withArgument(true)
+                    .onInvocationOf("allowPrivateNetwork")
+                    .withArgument(true)
+                    .onInvocationOf("create")
+                    .on("CorsHandler")
+                    .as("CorsHandler");
+            corsHandlerVariableForMethodSet.put(set, varName);
+        }
+
+        Set<String> seenPaths = new HashSet<>();
+        for (OperationShape op : ops) {
+            PathInfo info = pathInfoForOperation.get(op);
+            if (info != null) {
+                if (!seenPaths.add(info.text())) {
+                    continue;
+                }
+
+                Set<String> methodSet;
+                if (info.isRegex()) {
+                    methodSet = regexen.get(info.text());
+                } else {
+                    methodSet = paths.get(info.text());
+                }
+                String corsHandler = corsHandlerVariableForMethodSet.get(methodSet);
+                InvocationBuilder<B> inv = bb.invoke("handledBy")
+                        .withArgument(corsHandler);
+                if (info.isRegex()) {
+                    inv = inv.onInvocationOf("withRegex")
+                            .withStringLiteral(info.text());
+                } else {
+                    inv = inv.onInvocationOf("withPath")
+                            .withStringLiteral(info.text());
+                }
+                inv.onInvocationOf("forHttpMethod")
+                        .withArgument("HttpMethod.OPTIONS")
+                        .onInvocationOf("route")
+                        .on(verticleBuilderName);
+            }
+        }
     }
 
     public <C, X, B extends BlockBuilderBase<C, B, X>> void generateErrorHandlingRouterCustomizer(B bb, ClassBuilder<String> routerBuilder, String verticleBuilderName) {
@@ -875,6 +1141,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                                 .on("failure")
                                                 .withArgument(400)
                                                 .withArgument("ctx")
+                                                .withArgument("failure")
                                                 .inScope();
 
                                         routerBuilder.importing("com.mastfrog.smithy.http.ResponseException");
@@ -888,6 +1155,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                                 .withArgumentFromInvoking("status")
                                                 .on("((ResponseException) failure)")
                                                 .withArgument("ctx")
+                                                .withArgument("failure")
                                                 .inScope();
 
                                         test = test.elseIf().variable("failure").instanceOf("UnsupportedOperationException")
@@ -899,6 +1167,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                                 .on("failure")
                                                 .withArgument(501)
                                                 .withArgument("ctx")
+                                                .withArgument("failure")
                                                 .inScope();
 
                                         test.orElse().invoke("next").on("ctx").endIf();
@@ -971,13 +1240,33 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                     + "response."
                     + "\n@param message The exception message or null"
                     + "\n@param statusCode The http status code"
-                    + "\n@param ctx The routing context");
+                    + "\n@param ctx The routing context"
+                    + "\n@param thrown The thrown exception (some may contain headers to "
+                    + "add to the response)"
+            );
             routerBuilder.importing("io.vertx.ext.web.RoutingContext");
             m1.withModifier(PRIVATE, STATIC, FINAL);
             m1.addArgument("String", "message")
                     .addArgument("int", "statusCode")
-                    .addArgument("RoutingContext", "ctx");
+                    .addArgument("RoutingContext", "ctx")
+                    .addArgument("Throwable", "thrown");
             m1.body(mbb -> {
+                mbb.lineComment("ResponseException may bear a header such as www-authenticate");
+                mbb.iff(variable("thrown").isInstance("ResponseException"))
+                        .invoke("withHeaderNameAndValue")
+                        .withLambdaArgument()
+                        .withArgument("headerName")
+                        .withArgument("headerValue")
+                        .body(lbb -> {
+                            lbb.invoke("putHeader")
+                                    .withArgument("headerName")
+                                    .withArgument("headerValue")
+                                    .onInvocationOf("response")
+                                    .on("ctx");
+                        })
+                        .on("((ResponseException) thrown)")
+                        .endIf();
+                mbb.lineComment("Send the response with the status code from the exception");
                 mbb.ifNull("message")
                         .invoke("send")
                         .onInvocationOf("setStatusCode")
@@ -1782,6 +2071,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 .withArgument("HttpMethod." + http.getMethod().toUpperCase());
 
         inv.onInvocationOf("route").on(verticleBuilderName);
+
     }
 
     private StructureShape inputOrNull(OperationShape op) {

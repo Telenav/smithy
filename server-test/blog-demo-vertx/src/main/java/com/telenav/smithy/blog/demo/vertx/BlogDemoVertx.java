@@ -29,6 +29,10 @@ import com.telenav.smithy.blog.server.spi.impl.AuthImpl;
 import com.telenav.smithy.blog.server.spi.impl.ReadBlogResponderImpl;
 import com.google.inject.name.Names;
 import com.telenav.blog.BlogService;
+import com.telenav.smithy.blog.server.spi.impl.HealthResponderImpl;
+import com.telenav.smithy.blog.server.spi.impl.NewBlogResponderImpl;
+import com.telenav.smithy.blog.server.spi.impl.PingResponderImpl;
+import com.telenav.smithy.blog.server.spi.impl.PutCommentResponderImpl;
 import com.telenav.smithy.vertx.probe.ProbeImplementation;
 import com.telenav.vertx.guice.VertxGuiceModule;
 import com.telenav.vertx.guice.verticle.VerticleBuilder;
@@ -47,6 +51,10 @@ public class BlogDemoVertx {
                 .authenticateWithAuthUserUsing(AuthImpl.class)
                 .withListBlogsResponderType(ListBlogsResponderImpl.class)
                 .withListCommentsResponderType(ListCommentsResponderImpl.class)
+                .withNewBlogResponderType(NewBlogResponderImpl.class)
+                .withPingResponderType(PingResponderImpl.class)
+                .withHealthResponderType(HealthResponderImpl.class)
+                .withPutCommentResponderType(PutCommentResponderImpl.class)
                 .configuringVertxWith(BlogDemoVertx::configureVertx)
                 .configuringVerticleWith(BlogDemoVertx::configureVerticleBuilder)
                 .withProbe(ProbeImplementation.stderr())

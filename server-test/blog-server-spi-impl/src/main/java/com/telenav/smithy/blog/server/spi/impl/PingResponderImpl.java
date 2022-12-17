@@ -21,46 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.smithy.http;
 
-import java.util.concurrent.CompletableFuture;
+package com.telenav.smithy.blog.server.spi.impl;
+
+import com.mastfrog.smithy.http.SmithyRequest;
+import com.mastfrog.smithy.http.SmithyResponse;
+import com.telenav.blog.model.PingInput;
+import com.telenav.blog.spi.PingResponder;
 
 /**
- * Callback interface for providing an authentication result of some type.
  *
  * @author Tim Boudreau
  */
-public interface AuthenticationResultConsumer<T> {
+public class PingResponderImpl implements PingResponder {
 
-    void ok(T obj);
-
-    default void unauthorized() {
-        failed(new ResponseException(401, "Unauthorized"));
+    @Override
+    public void respond(SmithyRequest request, PingInput input, SmithyResponse<Void> output) throws Exception {
+        output.complete(null);
     }
 
-    /**
-     * Mark the response as unauthenticated, providing a header and header value
-     * to attach to the response (e.g. www-authenticate).
-     *
-     * @param headerName A header name
-     * @param headerValue A header value
-     */
-    default void unauthorized(String headerName, String headerValue) {
-        failed(new ResponseException(401, "Unauthorized", headerName, headerValue));
-    }
-
-    default void forbidden() {
-        failed(new ResponseException(403, "Forbidden"));
-    }
-
-    void failed(Throwable thrown);
-
-    default void ok() {
-        ok(null);
-    }
-
-    public static <T> AuthenticationResultConsumer<T> create(CompletableFuture<T> fut,
-            boolean optional) {
-        return AuthenticationResultConsumerFactory.newConsumer(fut, optional);
-    }
 }

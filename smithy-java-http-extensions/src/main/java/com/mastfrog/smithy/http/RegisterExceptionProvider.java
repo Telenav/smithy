@@ -40,6 +40,7 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 
 /**
+ * XXX this creates a hard dependency from runtime to smithy generators.  Fix.
  *
  * @author Tim Boudreau
  */

@@ -10,11 +10,19 @@ use com.telenav.smithy#genericRestProtocol
 
 /// A service for blogs
 @genericRestProtocol
-@cors(additionalAllowedHeaders:["x-tn-req-id"], additionalExposedHeaders: ["x-tn-req-id"])
+@cors(
+    additionalAllowedHeaders: 
+        ["x-tn-req-id", "if-none-match", "if-modified-since", "if-match", 
+         "if-unmodified-since", "accept", "authorization", "content-type",
+         "x-requested-with"], 
+    additionalExposedHeaders: 
+        ["x-tn-req-id", "if-none-match", "if-modified-since", "if-match", 
+         "if-unmodified-since", "accept", "authorization", "content-type",
+         "x-requested-with"])
 service BlogService {
     version : "1.0"
     resources : [Blogs]
-    operations : [Health]
+    operations : [Health, Ping]
 }
 
 /// Resource providing blog entries
@@ -26,11 +34,13 @@ resource Blogs {
                   published: Boolean,
                   synopsis: Synopsis,
                   tags: Tags,
-                  body : String
+                  body : String,
+                  updates: BlogUpdates
                 }
     read: ReadBlog
     list: ListBlogs
     create: NewBlog
+    update: UpdateBlog
     resources: [Comments]
 }
 
@@ -49,7 +59,28 @@ operation Health {
 
 @output
 structure HealthOutput {
-    ok : Boolean
+    @required
+    passed : Integer,
+    @required
+    of : Integer
+}
+
+/// Bogus operation in order to test generation of
+/// code with input but no output; could be construed as
+/// a way to notify the server periodically that a tab
+/// was still open on the page
+@http(method:"PUT", uri:"/ping/{visitorId}", code: 202)
+operation Ping {
+    input : PingInput
+}
+
+@input
+structure PingInput {
+    @required
+    @httpLabel
+    visitorId : String,
+    @httpHeader("referer")
+    referredBy : String
 }
 
 /// Approve (or un-approve) a comment, making it visible or invisible to non-admin users.
@@ -143,6 +174,40 @@ operation PutComment {
 operation NewBlog {
     input: NewBlogInput
     output: NewBlogOutput
+}
+
+/// Update a blog
+@http(method:"POST", uri:"/blog/{id}", code: 202)
+@authenticated(mechanism : "basic", payload : "com.telenav.blog#AuthUser")
+operation UpdateBlog {
+    input: UpdateBlogInput
+}
+
+/// Input for updating a blog
+structure UpdateBlogInput {
+    /// The identifier of the blog to update
+    @httpLabel
+    @required
+    id : BlogId,
+
+    /// The modifications
+    @required
+    @httpPayload
+    updates : BlogUpdates
+}
+
+/// The modified contents when updating a blog
+structure BlogUpdates {
+    // The updated title
+    title : Title,
+    /// The updated body
+    body : String,
+    /// The updated synopsis, if any
+    synopsis: Synopsis,
+    /// Updated tags, if any
+    tags: Tags,
+
+    published: Boolean,
 }
 
 /// An authorized user
