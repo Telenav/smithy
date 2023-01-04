@@ -25,39 +25,54 @@ package com.telenav.smithy.smithy.ts.generator;
 
 import com.mastfrog.code.generation.common.LinesBuilder;
 import com.mastfrog.function.QuadConsumer;
+import com.mastfrog.function.PetaConsumer;
 import com.mastfrog.function.TriFunction;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
+import com.mastfrog.util.strings.Strings;
+import com.telenav.smithy.smithy.ts.generator.type.TsVariable;
+import static com.telenav.smithy.smithy.ts.generator.type.TypeStrategies.isNotUserType;
+import com.telenav.smithy.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.FunctionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InterfaceBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.NewBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.PropertyBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
+import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
-import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
+import software.amazon.smithy.model.shapes.ShapeType;
 import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.DefaultTrait;
+import software.amazon.smithy.model.traits.DocumentationTrait;
 import software.amazon.smithy.model.traits.HttpHeaderTrait;
+import software.amazon.smithy.model.traits.HttpLabelTrait;
 import software.amazon.smithy.model.traits.HttpPayloadTrait;
 import software.amazon.smithy.model.traits.HttpQueryTrait;
 import software.amazon.smithy.model.traits.JsonNameTrait;
 import software.amazon.smithy.model.traits.MixinTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
-import software.amazon.smithy.utils.TriConsumer;
+import software.amazon.smithy.model.traits.Trait;
 
 /**
  *
@@ -65,26 +80,43 @@ import software.amazon.smithy.utils.TriConsumer;
  */
 public class SimpleStructureGenerator extends AbstractTypescriptGenerator<StructureShape> {
 
+    private final Map<String, TypeStrategy> memberStrategies = new HashMap<>();
+
     public SimpleStructureGenerator(StructureShape shape, Model model,
             LanguageWithVersion ver, Path dest, GenerationTarget target) {
         super(shape, model, ver, dest, target);
+        shape.getAllMembers().forEach((name, mem) -> {
+            memberStrategies.put(name, strategies.strategy(mem));
+        });
     }
 
-    protected void eachMember(TriConsumer<String, MemberShape, Shape> c) {
+    protected void eachMember(QuadConsumer<String, MemberShape, Shape, TypeStrategy> c) {
         for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
-            Shape target = model.expectShape(e.getValue().getTarget());
-            c.accept(e.getKey(), e.getValue(), target);
+            Shape tgt = model.expectShape(e.getValue().getTarget());
+            c.accept(e.getKey(), e.getValue(), tgt, memberStrategies.get(e.getKey()));
         }
     }
 
-    protected void eachMemberOptionalLast(QuadConsumer<String, MemberShape, Shape, Boolean> c) {
+    private Map<String, DefaultTrait> defaultTraits() {
+        Map<String, DefaultTrait> result = new HashMap<>();
+        shape.getAllMembers().forEach((name, member) -> {
+            member.getMemberTrait(model, DefaultTrait.class).ifPresent(dt -> result.put(name, dt));
+        });
+        return result;
+    }
+
+    private boolean allMembersHaveDefaultTraits() {
+        return shape.getAllMembers().size() == defaultTraits().size();
+    }
+
+    protected void eachMemberOptionalLast(PetaConsumer<String, MemberShape, Shape, Boolean, TypeStrategy> c) {
         // Typescript needs optional arguments last, like varargs
         List<Map.Entry<String, MemberShape>> sorted
                 = new ArrayList<>(shape.getAllMembers().entrySet());
         sorted.sort((a, b) -> {
-            int va  = a.getValue().getMemberTrait(model, RequiredTrait.class)
+            int va  = a.getValue().getTrait(RequiredTrait.class)
                     .isPresent() ? 0 : 1;
-            int vb = b.getValue().getMemberTrait(model, RequiredTrait.class)
+            int vb = b.getValue().getTrait(RequiredTrait.class)
                     .isPresent() ? 0 : 1;
             int result = Integer.compare(va, vb);
             if (result == 0) {
@@ -95,7 +127,8 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         for (Map.Entry<String, MemberShape> e : sorted) {
             Shape target = model.expectShape(e.getValue().getTarget());
             c.accept(e.getKey(), e.getValue(), target,
-                    e.getValue().getMemberTrait(model, RequiredTrait.class).isPresent());
+                    e.getValue().getTrait(RequiredTrait.class).isPresent(),
+                    memberStrategies.get(e.getKey()));
         }
     }
 
@@ -137,11 +170,24 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         return withHttpPayloadItem(model, shape, sh);
     }
 
-    static <T> Optional<T> withHttpPayloadItem(Model model, StructureShape shape, TriFunction<String, MemberShape, Shape, T> sh) {
+    private static final List<Class<? extends Trait>> HTTP_TRAITS
+            = Arrays.asList(HttpQueryTrait.class, HttpPayloadTrait.class, HttpLabelTrait.class,
+                    HttpHeaderTrait.class);
+
+    static <T> Optional<T> withHttpPayloadItem(Model model, StructureShape shape,
+            TriFunction<String, MemberShape, Shape, T> sh) {
+        boolean httpTraitsSeen = false;
         for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
             if (e.getValue().getMemberTrait(model, HttpPayloadTrait.class).isPresent()) {
-                return Optional.of(sh.apply(e.getKey(), e.getValue(), model.expectShape(e.getValue().getTarget())));
+                return Optional.ofNullable(sh.apply(e.getKey(), e.getValue(),
+                        model.expectShape(e.getValue().getTarget())));
             }
+            for (Class<? extends Trait> c : HTTP_TRAITS) {
+                httpTraitsSeen |= e.getValue().getMemberTrait(model, c).isPresent();
+            }
+        }
+        if (!httpTraitsSeen) {
+            return Optional.ofNullable(sh.apply(null, null, shape));
         }
         return Optional.empty();
     }
@@ -149,38 +195,43 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
     @Override
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource tb = src();
-        tb.generateDebugLogCode();
+//        tb.generateDebugLogCode();
         _generate(tb, c);
-        tb.disableDebugLogCode();
+//        tb.disableDebugLogCode();
     }
 
-    public void _generate(TypescriptSource tb, Consumer<TypescriptSource> c) {
+    private void _generate(TypescriptSource tb, Consumer<TypescriptSource> c) {
 
         boolean isMixin = shape.getTrait(MixinTrait.class).isPresent();
 
         if (isMixin) {
             tb.declareInterface(typeName(), ib -> {
                 ib.exported();
-                eachMember((name, memberShape, targetShape) -> {
-                    addMemberFor(tb, name, memberShape, targetShape, ib);
+                eachMember((name, memberShape, targetShape, strategy) -> {
+                    addMemberFor(tb, name, memberShape, targetShape, ib, strategy);
                 });
-//            generateJsonValueSignature(ib);
-//            generateAddToSignature(ib);
-//            generateToJsonSignature(ib);
+
+                shape.getTrait(DocumentationTrait.class).ifPresent(dox -> {
+                    ib.docComment(dox.getValue());
+                });
 
                 shape.getMixins().forEach(mixin -> {
                     Shape mixinShape = model.expectShape(mixin);
                     importShape(mixinShape, tb);
                     ib.extending(super.typeNameOf(mixinShape, false));
                 });
-
             });
         } else {
             tb.declareClass(typeName(), cb -> {
-                cb.exported() //.implementing(typeName())
-                        ;
-                eachMember((name, memberShape, targetShape) -> {
-                    addMemberFor(tb, name, memberShape, targetShape, cb);
+                cb.exported();
+                eachMember((name, memberShape, targetShape, strategy) -> {
+                    addMemberFor(tb, name, memberShape, targetShape, cb, strategy);
+                });
+                shape.getTrait(DocumentationTrait.class).ifPresent(dox -> {
+                    cb.docComment(dox.getValue());
+                });
+                shape.getMixins().forEach(mixinId -> {
+                    cb.implementing(tsTypeName(model.expectShape(mixinId)));
                 });
                 generateConstructor(cb);
                 generateToJson(cb);
@@ -204,6 +255,9 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                     generateHttpPayloadMethod(memberName, memberShape, target, cb);
                     return true;
                 });
+                if (allMembersHaveDefaultTraits()) {
+                    generateDefaultInstance(cb);
+                }
             });
         }
         c.accept(tb);
@@ -213,9 +267,11 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
             Shape target, ClassBuilder<Void> cb) {
         cb.method("httpPayload", mth -> {
             mth.makePublic().returning(typeNameOf(target, false));
-            mth.body(bb -> {
-                bb.returningField(escape(memberName)).of("this");
-            });
+            if (memberShape == null) {
+                mth.body(bb -> bb.returningThis());
+            } else {
+                mth.body(bb -> bb.returningField(escape(memberName)).ofThis());
+            }
         });
     }
 
@@ -229,30 +285,9 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                     String queryParam = e.getKey();
                     String fieldName = escape(e.getValue().getKey());
                     boolean required = e.getValue().getValue().getMemberTrait(model, RequiredTrait.class).isPresent();
-
-                    Shape targetShape = model.expectShape(e.getValue().getValue().getTarget());
-
-                    switch (targetShape.getType()) {
-                        case LIST:
-                        case SET:
-                            if (!required) {
-                                bb.iff("typeof this." + fieldName + " !== 'undefined'")
-                                        .statement("obj['" + queryParam + "'] = this." + fieldName + ".toString()")
-                                        .endIf();
-                            } else {
-                                bb.statement("obj['" + queryParam + "'] = this." + fieldName + ".toString()");
-                            }
-                            break;
-                        default:
-                            if (!required) {
-                                bb.iff("typeof this." + fieldName + " !== 'undefined'")
-                                        .statement("obj['" + queryParam + "'] = this." + fieldName)
-                                        .endIf();
-                            } else {
-                                bb.statement("obj['" + queryParam + "'] = this." + fieldName);
-                            }
-                    }
-
+                    TypeStrategy strat = memberStrategies.get(e.getValue().getKey());
+                    assert strat != null;
+                    strat.populateQueryParam(fieldName, required, bb, queryParam);
                 }
             });
         });
@@ -263,81 +298,49 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
             mth.makePublic().withArgument("obj").ofType("object");
             mth.body(bb -> {
                 for (Map.Entry<String, Map.Entry<String, MemberShape>> e : queryItems.entrySet()) {
+
+                    Shape member = model.expectShape(e.getValue().getValue().getTarget());
+
+                    TypeStrategy<?> strategy = memberStrategies.get(e.getValue().getKey());
+
                     String queryParam = e.getKey();
                     String fieldName = escape(e.getValue().getKey());
                     boolean required = e.getValue().getValue().getMemberTrait(model, RequiredTrait.class).isPresent();
+
                     if (!required) {
-                        bb.iff("typeof this." + fieldName + " !== 'undefined'")
-                                .statement("obj['" + queryParam + "'] = this." + fieldName)
-                                .endIf();
+                        Assignment<ConditionalClauseBuilder<TsBlockBuilder<Void>>> assig
+                                = bb.ifFieldDefined(fieldName).ofThis()
+                                        .assignLiteralRawProperty(queryParam)
+                                        .of("obj");
+
+                        strategy.populateHttpHeader(assig, fieldName).endIf();
                     } else {
-                        bb.statement("obj['" + queryParam + "'] = this." + fieldName);
+                        Assignment<TsBlockBuilder<Void>> assig
+                                = bb.assignLiteralRawProperty(queryParam).of("obj");
+
+                        strategy.populateHttpHeader(assig, fieldName);
                     }
                 }
             });
         });
     }
 
-    private Optional<String> defaultValue(MemberShape shape) {
-        return shape.getMemberTrait(model, DefaultTrait.class).map(def -> {
-            Node n = def.toNode();
-            switch (n.getType()) {
-                case NULL:
-                    return "null";
-                case BOOLEAN:
-                    return Boolean.toString(n.asBooleanNode().get().getValue());
-                case NUMBER:
-                    Number num = n.asNumberNode().get().getValue();
-                    switch (shape.getType()) {
-                        case INTEGER:
-                            return Integer.toString(num.intValue());
-                        case LONG:
-                            return Long.toString(num.longValue());
-                        case BYTE:
-                            return Byte.toString(num.byteValue());
-                        case SHORT:
-                            return Short.toString(num.shortValue());
-                        case FLOAT:
-                            return Float.toString(num.floatValue());
-                        case INT_ENUM:
-                            return Integer.toString(num.intValue());
-                        case BOOLEAN:
-                            return Boolean.toString(num.longValue() != 0);
-                        default:
-                            throw new IllegalArgumentException("Number default for "
-                                    + shape.getType() + " " + shape.getId() + "?");
-                    }
-                case STRING:
-                    return '"' + LinesBuilder.escape(n.expectStringNode().getValue()) + '"';
-                case OBJECT:
-                case ARRAY:
-                    throw new IllegalArgumentException("Defaults not currently supported for "
-                            + shape.getType() + " with default of " + n.getType()
-                            + " (in " + shape.getId() + ")"
-                    );
-            }
-            return "";
-        });
-    }
-
     public void generateConstructor(ClassBuilder<Void> cb) {
-        cb.constructor(con -> {
-            con.body(bb -> {
-                eachMemberOptionalLast((name, memberShape, targetShape, required) -> {
+        cb.constructor((FunctionBuilder<Void> con) -> {
+            con.body((TsBlockBuilder<Void> bb) -> {
+                eachMemberOptionalLast((name, memberShape, targetShape, required, strategy) -> {
                     String argName = escape(name);
                     String fieldName = argName;
                     PropertyBuilder<FunctionBuilder<Void>> tp = con.withArgument(argName);
                     String suffix = required ? "" : " | undefined";
 
-                    Optional<String> defVal = defaultValue(memberShape);
-                    if (!required && defVal.isPresent()) {
-                        bb.blankLine().lineComment("Have a default of '" + defVal.get() + "'");
-                        bb.iff("typeof " + argName + " === 'undefined'")
-                                .statement(argName + " = " + defVal.get())
-                                .endIf();
-                    } else {
-                        bb.blankLine().lineComment("No default for " + name + " required " + required);
-                    }
+                    boolean prim = isNotUserType(targetShape);
+
+                    String an = argName;
+                    memberShape.getMemberTrait(model, DefaultTrait.class)
+                            .ifPresent(defaultTrait -> {
+                                applyDefaultValue(bb, defaultTrait, an, strategy);
+                            });
                     String dateField = escape(name + "AsDate");
                     if (targetShape.getType() == TIMESTAMP) {
                         suffix += " | string | number";
@@ -346,30 +349,65 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                         } else {
                             bb.statement("let " + dateField);
                         }
-                        ConditionalClauseBuilder<TsBlockBuilder<Void>> test = bb.iff("typeof " + fieldName + " === 'string'");
-                        test = test.statement(dateField + " = new Date(Date.parse(" + fieldName + " as string))");
+
+                        ConditionalClauseBuilder<TsBlockBuilder<Void>> test
+                                = bb.ifTypeOf(fieldName, "string");
+
+                        test.assign(dateField).assignedToNew(nb -> {
+                            nb.withArgumentFromInvoking("parse")
+                                    .withArgument(fieldName + " as string")
+                                    .on("Date")
+                                    .ofType("Date");
+                        });
+
                         test = test.orElse("typeof " + fieldName + " === 'number'");
-                        test = test.statement(dateField + " = new Date(" + fieldName + " as number)");
+
+                        test.assign(dateField).assignedToNew().withArgument(fieldName + " as number").ofType("Date");
                         if (required) {
-                            test.orElse().statement(dateField + " = " + fieldName).endIf();
+                            test.orElse().assign(dateField).assignedTo(fieldName).endIf();
+//                            test.orElse().statement(dateField + " = " + fieldName).endIf();
                         } else {
                             test.orElse(argName)
                                     .statement(dateField + " = " + fieldName + " as Date")
                                     .endIf();
                         }
-                        argName = dateField;
+                        if (!isNotUserType(targetShape)) {
+                            String nue = argName + "As" + strategy.targetType();
+                            bb.declare(nue).ofType(strategy.targetType())
+                                    .assignedToNew().withArgument(dateField)
+                                    .ofType(strategy.targetType());
+                            argName = nue;
+                        } else {
+                            argName = dateField;
+                        }
                     }
-                    boolean prim = "smithy.api".equals(targetShape.getId().getNamespace());
-
                     if (prim) {
                         tp.ofType(typeNameOf(targetShape, false) + suffix);
                     } else {
                         tp.ofType(tsTypeName(targetShape) + suffix);
                     }
-                    bb.statement("this." + fieldName + " = " + argName);
+                    bb.assignField(fieldName).ofThis().to(argName);
                 });
             });
         });
+    }
+
+    private void applyDefaultValue(TsBlockBuilder<Void> bb, DefaultTrait defVal,
+            String argName, TypeStrategy strategy) {
+        bb.blankLine().lineComment("Have a default of '" + defVal.toNode() + "' with "
+                + strategy.getClass().getSimpleName());
+
+        Consumer<ConditionalClauseBuilder<Void>> c
+                = iff -> {
+                    strategy.applyDefault(defVal, iff.assign(argName).assignedTo());
+                };
+        switch (strategy.shape().getType()) {
+            case BOOLEAN:
+                bb.iff("typeof " + argName + " === 'undefined'", c);
+                break;
+            default:
+                bb.ifTypeOf(argName, "undefined", c);
+        }
     }
 
     public void generateFromJson(ClassBuilder<Void> cb) {
@@ -389,135 +427,93 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
             mth.makeStatic().makePublic()
                     .withArgument("obj").ofType("any");
             mth.returning(typeName(), bb -> {
-
                 bb.returningNew(typeName(), nb -> {
-                    eachMemberOptionalLast((name, member, target, required) -> {
+                    Set<String> requiredJsonNames = new TreeSet<>();
+                    Set<String> defaultedProperties = new HashSet<>();
+                    eachMemberOptionalLast((name, member, target, required, strategy) -> {
+                        boolean defaulted = member.getMemberTrait(model, DefaultTrait.class).isPresent();
+                        if (required) {
+                            String jsonName = member.getMemberTrait(model, JsonNameTrait.class)
+                                    .map(jn -> jn.getValue()).orElse(name);
+                            if (!defaulted) {
+                                requiredJsonNames.add(jsonName);
+                            }
+                        }
+                        if (defaulted) {
+                            defaultedProperties.add(name);
+                        }
+                    });
+                    bb.lineComment("RequiredJsonNames: " + Strings.join(", ", requiredJsonNames));
+                    bb.lineComment("DefaultedProperties: " + Strings.join(", ", defaultedProperties));
+                    // Do missing property test first
+                    if (!requiredJsonNames.isEmpty()) {
+                        StringBuilder sb = new StringBuilder();
+                        for (String req : requiredJsonNames) {
+                            if (sb.length() > 0) {
+                                sb.append(" || ");
+                            }
+                            sb.append("typeof obj['").append(req).append("'] === 'undefined'");
+                        }
+                        bb.iff(sb.toString())
+                                .throwing(err -> {
+                                    err.withStringLiteralArgument("Object is missing some of "
+                                            + "properties " + Strings.join(", ", requiredJsonNames));
+                                }).endIf();
+                    }
+                    eachMemberOptionalLast((name, member, target, required, strategy) -> {
                         String jsonName = member.getMemberTrait(model, JsonNameTrait.class)
                                 .map(jn -> jn.getValue()).orElse(name);
                         String fieldName = escape(name);
-                        String argName = escape(name);
-                        if (required) {
-                            // fromJsonObject
 
-                            bb.blankLine().lineComment("a");
+                        boolean needOptional = target.getType() == ShapeType.UNION;
 
-                            String vn = argName + "Value";
-                            bb.statement("let " + vn + ": " + jsTypeOf(target));
-
-                            bb.iff("typeof obj[\"" + jsonName + "\"] === \"undefined\"")
-                                    .statement("throw new Error('undefined: " + jsonName + "')")
-                                    .orElse()
-                                    .statement(vn + " = obj[\"" + jsonName + "\"] as " + jsTypeOf(target))
-                                    .endIf();
-                            argName = vn;
-                        }
-                        String tn = typeNameOf(target, false);
-                        if ("smithy.api".equals(target.getId().getNamespace())) {
-                            bb.blankLine().lineComment("b");
-                            if (required) {
-                                bb.blankLine().lineComment("c");
-                                nb.withArgument(argName);
-                            } else {
-                                bb.blankLine().lineComment("d");
-                                nb.withArgument("obj[\"" + jsonName + "\"] as " + tn);
-                            }
-
-                        } else {
-                            String nue;
-                            switch (target.getType()) {
-                                case LIST:
-                                case SET:
-                                    nue = tsTypeName(target) + ".fromJsonObject(" + argName + ")";
-                                    break;
-                                case STRUCTURE:
-                                    nue = tsTypeName(target) + ".fromJsonObject(" + argName + ")";
-                                    break;
-                                default:
-                                    nue = "new " + tsTypeName(target) + "(" + argName + ")";
-                            }
-                            bb.blankLine().lineComment("e - nue " + nue);
-                            if (required) {
-                                bb.blankLine().lineComment("f");
-                                nb.withArgument(nue);
-                            } else {
-                                bb.blankLine().lineComment("g");
-                                nb.withArgument(
-                                        "typeof obj[\"" + name + "\"] == 'undefined' ? undefined : new " + tsTypeName(target) + "(obj[\"" + name + "\"] as " + tn + " )");
-                            }
-                        }
-
+                        TsVariable v = strategy.shapeType()
+                                .optional(needOptional)
+                                //                                .optional(!required || defaultedProperties.contains(name))
+                                .variable("obj['" + jsonName + "']");
+                        strategy.instantiateFromRawJsonObject(bb, v, fieldName, true);
+//                        nb.withArgumentFromInvoking(name)
+                        String arg = required ? fieldName + " as " + strategy.targetType() : fieldName;
+                        nb.withArgument(arg);
                     });
                 });
             });
-            /*
-            mth.returning(typeName(), bb -> {
-                
-                
-                bb.returningObjectLiteral(olb -> {
-                    eachMemberOptionalLast((name, member, target, required) -> {
-                        String fieldName = escape(name);
-                        String argName = escape(name);
-                        if (required) {
-                            String vn = argName + "Value";
-                            bb.statement("let " + vn + ": " + jsTypeOf(target));
-
-                            bb.iff("typeof obj[\"" + name + "\"] === \"undefined\"")
-                                    .statement("throw new Error('undefined: " + name + "')")
-                                    .orElse()
-                                    .statement(vn + " = obj[\"" + name + "\"] as " + jsTypeOf(target))
-                                    .endIf();
-                            argName = vn;
-                        }
-                        String tn = typeNameOf(target, false);
-                        if ("smithy.api".equals(target.getId().getNamespace())) {
-                            if (required) {
-                                olb.assigning(fieldName).toExpression(argName);
-                            } else {
-                                olb.assigning(fieldName).toExpression("obj[\"" + name + "\"] as " + tn);
-                            }
-                        } else {
-                            String nue = tsTypeName(target) + ".fromJsonObject(" + argName + ")";
-                            if (required) {
-                                olb.assigning(fieldName).toExpression(nue);
-                            } else {
-                                olb.assigning(name).toExpression(
-                                        "typeof obj[\"" + name + "\"] == 'undefined' ? undefined : new " + tsTypeName(target) + "(obj[\"" + name + "\"] as " + tn + " )");
-                            }
-                        }
-                    });
-                });
-            });
-             */
         });
     }
 
-    private void addMemberFor(TypescriptSource tb, String key, MemberShape value, Shape target, InterfaceBuilder<Void> ib) {
+    private void addMemberFor(TypescriptSource tb, String key, MemberShape value, Shape target, InterfaceBuilder<Void> ib, TypeStrategy strategy) {
         ib.property(escape(key), pb -> {
+            value.getMemberTrait(model, DocumentationTrait.class).ifPresent(dox -> {
+                pb.docComment(dox.getValue());
+            });
             boolean canBeAbsent = !value.getMemberTrait(model, DefaultTrait.class)
                     .isPresent() && !value.getMemberTrait(model, RequiredTrait.class).isPresent();
             if (canBeAbsent) {
                 pb.optional();
             }
             pb.readonly();
-            applyType(tb, key, value, target, canBeAbsent, pb);
+            applyType(tb, key, value, target, canBeAbsent, strategy, pb);
         });
     }
 
-    private void addMemberFor(TypescriptSource tb, String key, MemberShape value, Shape target, ClassBuilder<Void> ib) {
+    private void addMemberFor(TypescriptSource tb, String key, MemberShape value, Shape target, ClassBuilder<Void> ib, TypeStrategy strategy) {
         ib.property(escape(key), pb -> {
             boolean canBeAbsent = !value.getMemberTrait(model, DefaultTrait.class)
                     .isPresent() && !value.getMemberTrait(model, RequiredTrait.class).isPresent();
+            value.getMemberTrait(model, DocumentationTrait.class).ifPresent(dox -> {
+                pb.docComment(dox.getValue());
+            });
             if (canBeAbsent) {
                 pb.optional();
             }
             pb.readonly();
             pb.setPublic();
-            applyType(tb, key, value, target, canBeAbsent, pb);
+            applyType(tb, key, value, target, canBeAbsent, strategy, pb);
         });
     }
 
     private void applyType(TypescriptSource tb, String key, MemberShape value,
-            Shape target, boolean canBeAbsent,
+            Shape target, boolean canBeAbsent, TypeStrategy strategy,
             PropertyBuilder<Void> pb) {
         boolean isModelDefined = !"smithy.api".equals(target.getId().getNamespace());
         if (isModelDefined) {
@@ -531,13 +527,16 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
     @Override
     protected void toJsonBody(TypescriptSource.TsBlockBuilder<Void> bb) {
         bb.declareConst("result").ofType("object").assignedTo("{}");
-        eachMemberOptionalLast((name, memberShape, target, required) -> {
+        eachMemberOptionalLast((name, memberShape, target, required, strategy) -> {
+            String fieldName = escape(name);
             if (!required) {
-                ConditionalClauseBuilder<TsBlockBuilder<Void>> test = bb.iff("typeof this." + escape(name) + " !== \"undefined\"");
-                generateObjectFieldAssignment(target, memberShape, test, name);
+                ConditionalClauseBuilder<TsBlockBuilder<Void>> test
+                        = bb.ifFieldDefined(escape(name)).ofThis();
+//                        = bb.iff("typeof this." + escape(name) + " !== \"undefined\"");
+                generateObjectFieldAssignment(target, memberShape, test, fieldName, strategy, required);
                 test.endIf();
             } else {
-                generateObjectFieldAssignment(target, memberShape, bb, name);
+                generateObjectFieldAssignment(target, memberShape, bb, fieldName, strategy, required);
             }
         });
         bb.returning("result");
@@ -549,14 +548,39 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
     }
 
     public <C, B extends TSBlockBuilderBase<C, B>> void generateObjectFieldAssignment(Shape target, MemberShape member,
-            B bb, String name) {
+            B bb, String name, TypeStrategy strategy, boolean required) {
         String jn = jsonName(name, member);
-        if ("smithy.api".equals(target.getId().getNamespace())) {
-            bb.statement("result[\"" + jn + "\"] = this." + escape(name));
-        } else {
-            bb.statement("result[\"" + jn + "\"] = this."
-                    + escape(name) + "." + TO_JSON + "()");
-        }
+        String nm = escape("__" + jn);
+        strategy.convertToRawJsonObject(bb, strategy.shapeType().optional(!required).variable("this." + name),
+                nm, true);
+        bb.assignLiteralRawProperty(jn).of("result").assignedTo(nm);
     }
 
+    private boolean defaultGenerated;
+
+    private void generateDefaultInstance(ClassBuilder<Void> cb) {
+        if (defaultGenerated) {
+            return;
+        }
+        defaultGenerated = true;
+        cb.blockComment(Strings.toString(new Exception("Default Generation for " + shape.getId().getName())));
+
+        cb.property("DEFAULT", p -> {
+            p.makeStatic().setPublic();
+
+            Map<String, DefaultTrait> defaults = defaultTraits();
+
+            p.initializedWithNew(nb -> {
+                eachMemberOptionalLast((name, member, targetShape, required, strategy) -> {
+                    DefaultTrait def = defaults.get(name);
+                    TypeStrategy strat = memberStrategies.get(name);
+                    ExpressionBuilder<NewBuilder<Void>> ex = nb.withArgument();
+                    strat.applyDefault(def, ex);
+                });
+                nb.ofType(cb.name());
+            });
+
+//            p.ofType(cb.name());
+        });
+    }
 }

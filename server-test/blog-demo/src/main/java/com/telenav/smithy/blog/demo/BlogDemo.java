@@ -34,6 +34,7 @@ import com.telenav.smithy.blog.server.spi.impl.AuthImpl;
 import com.telenav.smithy.blog.server.spi.impl.HealthResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.ListBlogsResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.ListCommentsResponderImpl;
+import com.telenav.smithy.blog.server.spi.impl.LoginResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.NewBlogResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.PingResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.PutCommentResponderImpl;
@@ -62,6 +63,7 @@ public class BlogDemo extends AbstractModule {
                 .withPutCommentResponderType(PutCommentResponderImpl.class)
                 .withPingResponderType(PingResponderImpl.class)
                 .withHealthResponderType(HealthResponderImpl.class)
+                .withLoginResponderType(LoginResponderImpl.class)
                 .mappingExceptionTo(BlogStore.BlogAlreadyExistsException.class, HttpResponseStatus.CONFLICT)
                 .mappingExceptionTo(BlogStore.CommentAlreadyExistsException.class, HttpResponseStatus.CONFLICT)
                 .mappingExceptionTo(BlogStore.NoSuchBlogException.class, HttpResponseStatus.GONE)

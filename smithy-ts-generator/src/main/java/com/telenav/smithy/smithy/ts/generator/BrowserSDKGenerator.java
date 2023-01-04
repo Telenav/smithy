@@ -164,20 +164,53 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                         .assignedToNew()
                         .withArgument("url")
                         .ofType("URL");
+
                 bb.iff("u.protocol")
-                        .iff("u.protocol.charAt(u.protocol.length-1) == ':'")
-                        .statement("result.protocol = u.protocol.substring(0, u.protocol.length-1)")
+                        .iff().operation(TypescriptSource.BinaryOperations.EQUALLING)
+                        .invoke("charAt").withArgument().operation(TypescriptSource.BinaryOperations.MINUS)
+                        .field("length").ofField("protocol").of("u")
+                        .literal(1)
+                        .onField("protocol").of("u")
+                        .literal(":")
+                        .assignField("protocol")
+                        .of("result")
+                        .toInvocationOf("substring")
+                        .withArgument(0)
+                        .withArgument().operation(TypescriptSource.BinaryOperations.MINUS)
+                        .field("length").ofField("protocol").of("u")
+                        .literal(1)
+                        .onField("protocol")
+                        .of("u")
                         .orElse()
-                        .statement("result.protocol = u.protocol")
-                        .endIf()
-                        .endIf();
+                        .assignField("protocol").of("result")
+                        .toField("protocol").of("u")
+                        .endIf().endIf();
                 bb.iff("u.hostname")
-                        .statement("result.hostAndPort = u.hostname")
+                        .assignField("hostAndPort").of("result").toField("hostname").of("u")
                         .endIf();
+
                 bb.iff("u.port")
-                        .statement("result.hostAndPort = (result.hostAndPort || 'localhost') + ':' + u.port")
-                        .endIf();
-                bb.iff("u.pathname && u.pathname !== '/'")
+                        .assignField("hostAndPort").of("result")
+                        .toStringConcatenation(cat -> {
+                            cat.appending()
+                                    .parenthesized()
+                                    .operation(TypescriptSource.BinaryOperations.LOGICAL_OR)
+                                    .field("hostAndPort").of("result")
+                                    .literal("localhost")
+                                    .append(":")
+                                    .appendField("port")
+                                    .of("u")
+                                    .endConcatenation();
+                        }).endIf();
+
+//                bb.iff("u.port")
+//                        .statement("result.hostAndPort = (result.hostAndPort || 'localhost') + ':' + u.port")
+//                        .endIf();
+                bb.iff().operation(TypescriptSource.BinaryOperations.LOGICAL_AND)
+                        .field("pathname").of("u")
+                        .operation(TypescriptSource.BinaryOperations.NOT_EQUALLING)
+                        .field("pathname").of("u")
+                        .literal("/")
                         .declareConst("strippingLeadingAndTrailingSlashes")
                         .assignedToInvocationOf("exec")
                         .withArgument("u.pathname")
@@ -185,7 +218,9 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                         .withStringLiteralArgument("/?(.*)/?")
                         .ofType("RegExp")
                         .iff("strippingLeadingAndTrailingSlashes")
-                        .statement("result.pathPrefix = strippingLeadingAndTrailingSlashes[1]")
+                        .assignField("pathPrefix").of("result")
+                        .toElement().literal(1).of("strippingLeadingAndTrailingSlashes")
+                        //                        .statement("result.pathPrefix = strippingLeadingAndTrailingSlashes[1]")
                         .endIf()
                         .endIf();
                 bb.returning("result");
@@ -202,7 +237,11 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                     .ofType(configInterface);
             f.body(bb -> {
                 bb.iff("config.hostAndPort", iff -> {
-                    iff.statement("let protocol = config.protocol || 'http'");
+                    iff.declare("protocol").assignedTo()
+                            .operation(TypescriptSource.BinaryOperations.LOGICAL_OR)
+                            .field("protocol").of("config")
+                            .literal("http");
+//                    iff.statement("let protocol = config.protocol || 'http'");
                     iff.returning("protocol + '://' + config.hostAndPort + '/' + path");
                 });
                 bb.returning("'/' + path");
@@ -214,8 +253,10 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
     protected void generateAdditional(Consumer<GeneratedCode> c) {
         if (shouldAddServiceClient()) {
             c.accept(resource("ServiceClient.ts", "client_proto.ts"));
-            c.accept(resource("index.html", "domstuff.html"));
-            c.accept(resource("domstuff.ts", "domstuff.ts"));
+            if (BrowserUIDomGenerator.shouldGenerateUI(ctx.settings())) {
+                c.accept(resource("index.html", "domstuff.html"));
+                c.accept(resource("domstuff.ts", "domstuff.ts"));
+            }
         }
     }
 
@@ -415,7 +456,13 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                 });
         InvocationBuilder<Void> inv = inputShape.flatMap(inp -> inp.asStructureShape()).flatMap(struct -> {
             return withHttpPayloadItem(model, struct, (name, member, payloadShape)
-                    -> partialInvocation.withArgumentFromField(name).of("input")
+                    -> {
+                if (member == null) {
+                    return partialInvocation.withArgument("input");
+                } else {
+                    return partialInvocation.withArgumentFromField(name).of("input");
+                }
+            }
             );
         }).orElse(partialInvocation);
         inv.onField("serviceClient").ofThis();

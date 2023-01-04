@@ -76,12 +76,16 @@ public final class SmithyGenerationSettings {
         return ofNullable(stringSettings.get(key));
     }
 
+    public Optional<Boolean> getBoolean(String key) {
+        return getString(key).map(Boolean::parseBoolean);
+    }
+    
     public Optional<Integer> getInt(String key) {
-        return getString(key).map(val -> Integer.valueOf(val));
+        return getString(key).map(Integer::valueOf);
     }
 
     public Optional<Long> getLong(String key) {
-        return getString(key).map(val -> Long.valueOf(val));
+        return getString(key).map(Long::valueOf);
     }
 
     public <E extends Enum<E>> boolean is(E value) {

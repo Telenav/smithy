@@ -53,21 +53,33 @@ class NumberWrapperGenerator extends AbstractTypescriptGenerator<NumberShape> {
             cb.exported();
             cb.property("value")
                     .setPublic()
+                    .readonly()
                     .ofType(memberTypeName());
             cb.constructor(con -> {
                 con.withArgument("value").ofType(memberTypeName())
                         .body(bb -> {
-                            bb.statement("this.value = value");
+                            bb.assignField("value").ofThis().to("value");
                         });
             });
             cb.method("toString", mth -> {
                 mth.returning("string", bb -> {
-                    bb.returningInvocationOf("toString").on("this.value");
+                    bb.returningInvocationOf("toString").onField("value").ofThis();
                 });
             });
             generateToJson(cb);
             generateAddTo(cb);
             generateToJsonString(cb);
+
+            cb.method("fromJsonObject", mth -> {
+                mth.makePublic().makeStatic()
+                        .withArgument("value").ofType("number");
+                mth.body(bb -> {
+                    bb.returningNew(nb -> {
+                        nb.withArgument("value").ofType(typeName());
+                    });
+                });
+            });
+
         });
 
         c.accept(tb);

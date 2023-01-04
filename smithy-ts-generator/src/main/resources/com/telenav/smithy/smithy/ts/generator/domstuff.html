@@ -154,7 +154,7 @@
                 margin-right: 4em;
                 display: inline-block;
             }
-            .main {
+            #main {
                 margin-top: 1em;
             }
             .spinner {
@@ -167,6 +167,12 @@
                 color: orange;
                 margin-left: 1em;
                 font-size: 2em;
+            }
+            .sizeless {
+                max-width: 0;
+                max-height: 0;
+                width: 0;
+                height : 0;
             }
             input:disabled {
                 color: #888;
@@ -181,7 +187,7 @@
     </head>
     <body>
         <div id='top'></div>
-        <div class="main">
+        <div id="main">
             <div id='navparent'>
                 <h4 class='ops'>Operations</h4>
                 <div id='navholder'></div>

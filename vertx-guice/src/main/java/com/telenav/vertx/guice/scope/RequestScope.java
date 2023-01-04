@@ -28,17 +28,36 @@ import com.google.inject.Key;
 import com.google.inject.Provider;
 import com.google.inject.Scope;
 import com.google.inject.TypeLiteral;
-import com.google.inject.util.Providers;
+import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
+import io.vertx.core.MultiMap;
+import io.vertx.core.Vertx;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.Cookie;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerRequest;
+import io.vertx.core.http.HttpServerResponse;
+import io.vertx.ext.auth.User;
+import io.vertx.ext.web.FileUpload;
+import io.vertx.ext.web.ParsedHeaderValues;
+import io.vertx.ext.web.RequestBody;
+import io.vertx.ext.web.Route;
+import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.Session;
+import io.vertx.ext.web.impl.RoutingContextInternal;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import static java.util.Arrays.asList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * A straightforward, reentrant Guice scope. Supports binding concrete types and
@@ -216,6 +235,32 @@ public final class RequestScope implements Scope {
         return snap.wrap(run);
     }
 
+    public Handler<RoutingContext> wrap(Supplier<? extends Handler<RoutingContext>> supp) {
+        return new WrappedHandler(this, supp);
+    }
+
+    /**
+     * Wrap the passed runnable in one which can be run asynchronously and will
+     * reconstitute a snapshot of the current scope contents before running it.
+     *
+     * @param run A runnable
+     * @return A wrapper for that runnable
+     */
+    public Runnable wrap(Runnable run, Consumer<? super Throwable> onError, Object... toAdd) {
+//        if (contents.isEmpty()) {
+//            return () -> {
+//                try {
+//                    run.run();
+//                } catch (Exception | Error e) {
+//                    onError.accept(e);
+//                }
+//            };
+////            return run;
+//        }
+        Snapshot snap = new Snapshot(asList(toAdd));
+        return snap.wrap(run, onError);
+    }
+
     /**
      * Wrap the passed runnable in one which can be run asynchronously and will
      * reconstitute a snapshot of the current scope contents, adding the passed
@@ -383,25 +428,67 @@ public final class RequestScope implements Scope {
             }
         }
 
+        @Override
+        public String toString() {
+            return "Snapshot(" + snapshot + ")";
+        }
+
         Snapshot(Collection<? extends Object> o) {
             this();
             this.snapshot.add(new ArrayList<>(o));
         }
 
         Runnable wrap(Runnable r) {
+            ClassLoader ldr = Thread.currentThread().getContextClassLoader();
             return () -> {
+                Thread t = Thread.currentThread();
+                ClassLoader old = t.getContextClassLoader();
+                t.setContextClassLoader(ldr);
                 try (ScopeEntry en = enter()) {
                     r.run();
+                } finally {
+                    t.setContextClassLoader(old);
                 }
             };
         }
 
-        Handler<RoutingContext> wrap(Handler<RoutingContext> h) {
-            return ctx -> {
+        Runnable wrap(Runnable r, Consumer<? super Throwable> onError) {
+            ClassLoader ldr = Thread.currentThread().getContextClassLoader();
+            return () -> {
+                Thread t = Thread.currentThread();
+                ClassLoader old = t.getContextClassLoader();
+                t.setContextClassLoader(ldr);
                 try (ScopeEntry en = enter()) {
-                    h.handle(ctx);
+                    r.run();
+                } catch (Exception | Error e) {
+                    onError.accept(e);
+                } finally {
+                    t.setContextClassLoader(old);
                 }
             };
+        }
+
+        Handler<RoutingContext> wrap(Supplier<Handler<RoutingContext>> h) {
+            return new WrappedHandler(RequestScope.this, h);
+        }
+
+        Handler<RoutingContext> wrap(Handler<RoutingContext> h) {
+            return new WrappedHandler(RequestScope.this, new IdentitySupplier<>(h));
+//            ClassLoader ldr = Thread.currentThread().getContextClassLoader();
+//            return ctx -> {
+//                Thread t = Thread.currentThread();
+//                ClassLoader old = t.getContextClassLoader();
+//                t.setContextClassLoader(ldr);
+//                try (ScopeEntry en = enter()) {
+//                    h.handle(ctx);
+//                } finally {
+//                    t.setContextClassLoader(old);
+//                }
+//            };
+        }
+
+        RequestScope scope() {
+            return RequestScope.this;
         }
 
         public ScopeEntry enter() {
@@ -437,4 +524,342 @@ public final class RequestScope implements Scope {
         }
     }
 
+    Snapshot snapshot() {
+        return new Snapshot();
+    }
+    
+    static class IdentitySupplier<T> implements Supplier<T> {
+        private final T t;
+
+        IdentitySupplier(T t) {
+            this.t = t;
+        }
+        
+
+        @Override
+        public T get() {
+            return t;
+        }
+        
+        @Override
+        public String toString() {
+            return t.toString();
+        }
+        
+    }
+
+    static class WrappedHandler implements Handler<RoutingContext> {
+
+        private final RequestScope scope;
+        private final Supplier<? extends Handler<RoutingContext>> orig;
+
+        WrappedHandler(RequestScope scope, Supplier<? extends Handler<RoutingContext>> orig) {
+            this.scope = scope;
+            this.orig = orig;
+        }
+        
+        
+
+        @Override
+        public void handle(RoutingContext event) {
+            Snapshot snap = scope.snapshot();
+            scope.run(() -> {
+                orig.get().handle(new WrappedRoutingContext((RoutingContextInternal) event, snap));
+            });
+        }
+    }
+
+    static class WrappedRoutingContext implements RoutingContextInternal {
+
+        private final RoutingContextInternal delegate;
+        private final Snapshot snap;
+
+        WrappedRoutingContext(RoutingContextInternal delegate, Snapshot snap) {
+            this.delegate = delegate;
+            this.snap = snap;
+        }
+
+        @Override
+        public String toString() {
+            return "Wrapped(" + delegate + ") with " + snap;
+        }
+
+        @Override
+        public RoutingContextInternal visitHandler(int id) {
+            return delegate.visitHandler(id);
+        }
+
+        @Override
+        public boolean seenHandler(int id) {
+            return delegate.seenHandler(id);
+        }
+
+        @Override
+        public RoutingContextInternal setMatchFailure(int matchFailure) {
+            return delegate.setMatchFailure(matchFailure);
+        }
+
+        @Override
+        public Router currentRouter() {
+            return delegate.currentRouter();
+        }
+
+        @Override
+        public RoutingContextInternal parent() {
+            return new WrappedRoutingContext(delegate.parent(), snap.scope().snapshot());
+        }
+
+        @Override
+        public void setBody(Buffer buffer) {
+            delegate.setBody(buffer);
+        }
+
+        @Override
+        public void setSession(Session session) {
+            delegate.setSession(session);
+        }
+
+        @Override
+        public int restIndex() {
+            return delegate.restIndex();
+        }
+
+        @Override
+        public boolean normalizedMatch() {
+            return delegate.normalizedMatch();
+        }
+
+        @Override
+        public HttpServerRequest request() {
+            return delegate.request();
+        }
+
+        @Override
+        public HttpServerResponse response() {
+            return delegate.response();
+        }
+
+        @Override
+        public void next() {
+            snap.wrap(delegate::next, this::fail).run();
+        }
+
+        @Override
+        public void fail(int statusCode) {
+            delegate.fail(statusCode);
+        }
+
+        @Override
+        public void fail(Throwable throwable) {
+            delegate.fail(throwable);
+        }
+
+        @Override
+        public void fail(int statusCode, Throwable throwable) {
+            delegate.fail(statusCode, throwable);
+        }
+
+        @Override
+        public RoutingContext put(String key, Object obj) {
+            delegate.put(key, obj);
+            return this;
+        }
+
+        @Override
+        public <T> T get(String key) {
+            return delegate.get(key);
+        }
+
+        @Override
+        public <T> T get(String key, T defaultValue) {
+            return delegate.get(key, defaultValue);
+        }
+
+        @Override
+        public <T> T remove(String key) {
+            return delegate.remove(key);
+        }
+
+        @Override
+        public Map<String, Object> data() {
+            return delegate.data();
+        }
+
+        @Override
+        public Vertx vertx() {
+            return delegate.vertx();
+        }
+
+        @Override
+        public String mountPoint() {
+            return delegate.mountPoint();
+        }
+
+        @Override
+        public Route currentRoute() {
+            return delegate.currentRoute();
+        }
+
+        @Override
+        public String normalizedPath() {
+            return delegate.normalizedPath();
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public Cookie getCookie(String name) {
+            return delegate.getCookie(name);
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public RoutingContext addCookie(Cookie cookie) {
+            delegate.addCookie(cookie);
+            return this;
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public Cookie removeCookie(String name, boolean invalidate) {
+            return delegate.removeCookie(name, invalidate);
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public int cookieCount() {
+            return delegate.cookieCount();
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public Map<String, Cookie> cookieMap() {
+            return delegate.cookieMap();
+        }
+
+        @Override
+        public RequestBody body() {
+            return delegate.body();
+        }
+
+        @Override
+        public List<FileUpload> fileUploads() {
+            return delegate.fileUploads();
+        }
+
+        @Override
+        public Session session() {
+            return delegate.session();
+        }
+
+        @Override
+        public boolean isSessionAccessed() {
+            return delegate.isSessionAccessed();
+        }
+
+        @Override
+        public User user() {
+            return delegate.user();
+        }
+
+        @Override
+        public Throwable failure() {
+            return delegate.failure();
+        }
+
+        @Override
+        public int statusCode() {
+            return delegate.statusCode();
+        }
+
+        @Override
+        public String getAcceptableContentType() {
+            return delegate.getAcceptableContentType();
+        }
+
+        @Override
+        public ParsedHeaderValues parsedHeaders() {
+            return delegate.parsedHeaders();
+        }
+
+        @Override
+        public int addHeadersEndHandler(Handler<Void> handler) {
+            return delegate.addHeadersEndHandler(handler);
+        }
+
+        @Override
+        public boolean removeHeadersEndHandler(int handlerID) {
+            return delegate.removeHeadersEndHandler(handlerID);
+        }
+
+        @Override
+        public int addBodyEndHandler(Handler<Void> handler) {
+            return delegate.addBodyEndHandler(handler);
+        }
+
+        @Override
+        public boolean removeBodyEndHandler(int handlerID) {
+            return delegate.removeBodyEndHandler(handlerID);
+        }
+
+        @Override
+        public int addEndHandler(Handler<AsyncResult<Void>> handler) {
+            return delegate.addEndHandler(handler);
+        }
+
+        @Override
+        public boolean removeEndHandler(int handlerID) {
+            return delegate.removeEndHandler(handlerID);
+        }
+
+        @Override
+        public boolean failed() {
+            return delegate.failed();
+        }
+
+        @Override
+        public void setUser(User user) {
+            delegate.setUser(user);
+        }
+
+        @Override
+        public void clearUser() {
+            delegate.clearUser();
+        }
+
+        @Override
+        public void setAcceptableContentType(String contentType) {
+            delegate.setAcceptableContentType(contentType);
+        }
+
+        @Override
+        public void reroute(HttpMethod method, String path) {
+            delegate.reroute(method, path);
+        }
+
+        @Override
+        public Map<String, String> pathParams() {
+            return delegate.pathParams();
+        }
+
+        @Override
+        public String pathParam(String name) {
+            return delegate.pathParam(name);
+        }
+
+        @Override
+        public MultiMap queryParams() {
+            return delegate.queryParams();
+        }
+
+        @Override
+        public MultiMap queryParams(Charset encoding) {
+            return delegate.queryParams(encoding);
+        }
+
+        @Override
+        public List<String> queryParam(String name) {
+            return delegate.queryParam(name);
+        }
+
+    }
 }

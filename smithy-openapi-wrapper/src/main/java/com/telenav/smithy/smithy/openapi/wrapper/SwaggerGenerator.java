@@ -27,6 +27,7 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
+import static com.mastfrog.smithy.generators.SmithyGenerationContext.SWAGGER_PATH_CATEGORY;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.simple.extensions.GenericRestProtocolTrait;
 import java.io.IOException;
@@ -34,6 +35,7 @@ import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
@@ -57,6 +59,9 @@ import software.amazon.smithy.openapi.model.OpenApi;
  * @author Tim Boudreau
  */
 final class SwaggerGenerator implements ModelElementGenerator {
+
+    public static final String SWAGGER_JSON_FILE_NAME_SETTINGS_KEY = "swaggerFilePath";
+    public static final String DEFAULT_SWAGGER_FILE_PATH = "swagger/swagger.json";
 
     private final Model model;
     private final ServiceShape service;
@@ -98,6 +103,17 @@ final class SwaggerGenerator implements ModelElementGenerator {
         converter.config(config);
         OpenApi result = converter.convert(model);
         c.accept(new OpenApiCode(result, ctx, log));
+        ctx.registerPath(SWAGGER_PATH_CATEGORY, swaggerDestinationPath(ctx));
+    }
+
+    public static Path swaggerFileRelativePath(SmithyGenerationContext ctx) {
+        return Paths.get(ctx.settings().getString(SWAGGER_JSON_FILE_NAME_SETTINGS_KEY).orElse(DEFAULT_SWAGGER_FILE_PATH));
+    }
+
+    private Path swaggerDestinationPath(SmithyGenerationContext ctx) {
+        return ctx.destinations().sourceRootFor(target, service, ver, ctx.settings())
+                .resolve(service.getId().getNamespace().replace('.', '/'))
+                .resolve(swaggerFileRelativePath(ctx));
     }
 
     private class OpenApiCode implements GeneratedCode {
@@ -109,9 +125,7 @@ final class SwaggerGenerator implements ModelElementGenerator {
         OpenApiCode(OpenApi api, SmithyGenerationContext ctx, SmithyGenerationLogger log) {
             this.api = api;
             this.log = log;
-            Path root = ctx.destinations().sourceRootFor(target, service, ver, ctx.settings())
-                    .resolve(service.getId().getNamespace().replace('.', '/')).resolve("swagger");
-            dest = root.resolve("swagger.json");
+            dest = swaggerDestinationPath(ctx);
         }
 
         @Override

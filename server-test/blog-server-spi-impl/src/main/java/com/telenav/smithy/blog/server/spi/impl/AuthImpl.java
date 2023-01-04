@@ -53,16 +53,24 @@ public final class AuthImpl implements AuthenticateWithAuthUser {
     public void authenticate(BlogServiceAuthenticatedOperations target, SmithyRequest request,
             boolean optional, AuthenticationResultConsumer<AuthUser> results) {
         Optional<BasicCredentials> authInfo = request.header(headerTypes().basicAuth());
+        System.out.println("AUTHENTICATE " + request.httpMethod() + " " + request.requestUri() 
+                +  " - credentials: " + authInfo);
         if (optional && !authInfo.isPresent()) {
+            System.out.println("  optional auth, no credentials");
             results.ok();
         } else if (!authInfo.isPresent()) {
-            results.failed(new ResponseException(401, "Not authenticated", "www-authenticate", "basic realm=blogs"));
+            System.out.println("No auth info and it is required");
+            System.out.println("CALL FAILED");
+            results.failed(new ResponseException(401, "Not authenticated", "WWW-Authenticate", "basic realm=blogs"));
 //            results.unauthorized();
         } else {
             BasicCredentials creds = authInfo.get();
+            System.out.println("CREDENTIALS: '" + creds.username + "' password '" + creds.password + "'");
             if (!userName.equals(creds.username) || !password.equals(creds.password)) {
+                System.out.println("CALL FORBIDDEN");
                 results.forbidden();
             } else {
+                System.out.println("CALL OK");
                 results.ok(new AuthUser(creds.username));
             }
         }

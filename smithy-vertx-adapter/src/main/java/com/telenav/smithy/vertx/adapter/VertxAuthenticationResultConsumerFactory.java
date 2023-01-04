@@ -28,7 +28,6 @@ import com.mastfrog.smithy.http.AuthenticationResultConsumer;
 import com.mastfrog.smithy.http.AuthenticationResultConsumerFactory;
 import com.mastfrog.util.service.ServiceProvider;
 import com.mastfrog.util.strings.Strings;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -60,22 +59,25 @@ public class VertxAuthenticationResultConsumerFactory extends AuthenticationResu
 
         @Override
         public void unauthorized() {
-            throw new ResponseException(401, "Unauthorized");
+            failed(new ResponseException(401, "Unauthorized"));
         }
 
         @Override
         public void unauthorized(String headerName, String headerValue) {
-            throw new ResponseException(401, "Unauthorized", headerName, headerValue);
+            failed(new ResponseException(401, "Unauthorized", headerName, headerValue));
         }
 
         @Override
         public void forbidden() {
-            throw new ResponseException(403, "Forbidden");
+            failed(new ResponseException(403, "Forbidden"));
         }
 
         @Override
         public void failed(Throwable thrown) {
-            throw new ResponseException(500, Strings.toString(thrown), thrown);
+            if (thrown instanceof ResponseException) {
+                throw (ResponseException) thrown;
+            }
+            fut.completeExceptionally(new ResponseException(500, Strings.toString(thrown), thrown));
         }
 
     }

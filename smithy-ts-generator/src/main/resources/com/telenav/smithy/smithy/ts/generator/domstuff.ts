@@ -160,6 +160,7 @@ const H3 = simpleEF("h3")
 const H4 = simpleEF("h4")
 const PRE = simpleEF("pre")
 const CODE = simpleEF("code")
+const IFRAME = simpleEF("iframe")
 
 function staticTextFactory(type: StaticTextElementKind): SimpleElementFactory {
     switch (type) {
@@ -680,6 +681,14 @@ class Component implements HTMLComponent {
             this.el = null;
         }
         return this;
+    }
+}
+
+
+let iframes = 0;
+export class IFrame extends Component {
+    constructor(src : string, id? : string) {
+        super(IFRAME.withAttribute("src", src).withStyles('sizeless'), id || ("iframe-" + iframes++));
     }
 }
 

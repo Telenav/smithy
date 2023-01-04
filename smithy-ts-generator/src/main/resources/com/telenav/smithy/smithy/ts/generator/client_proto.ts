@@ -132,7 +132,7 @@ function newSuccessResponse(xhr: XMLHttpRequest): ServiceResponse {
     };
 }
 
-type RequestMethod = 'get' | 'post' | 'put'
+type RequestMethod = 'get' | 'post' | 'put' | 'delete' | 'options'
 
 class QueryImpl implements Query {
     readonly uri: string;
@@ -275,28 +275,47 @@ export class ServiceClient {
     /**
      * Perform an HTTP GET request.
      */
-    public get(query: Query): ServiceRequest {
+    public get(query) {
         return this.request('get', ServiceClient.applyDefaults(query));
+    }
+
+    /**
+     * Perform an HTTP DELETE request.
+     */
+    public del(query) {
+        return this.request('delete', ServiceClient.applyDefaults(query));
     }
 
     /**
      * Perform an HTTP POST request.
      */
-    public post<T>(query: Query, payload?: T): ServiceRequest {
+    public post(query, payload) {
         return this.request('post', ServiceClient.applyDefaults(query), payload);
+    }
+
+    /**
+     * Perform an HTTP DELETE request.
+     */
+    public options(query) {
+        return this.request('options', ServiceClient.applyDefaults(query));
     }
 
     /**
      * Perform an HTTP PUT request.
      */
     public put<T>(query: Query, payload?: T): ServiceRequest {
-        return this.request('post', ServiceClient.applyDefaults(query), payload);
+        return this.request('put', ServiceClient.applyDefaults(query), payload);
     }
 
     private request<T>(method: RequestMethod, query: QueryImpl, payload?: T): ServiceRequest {
         const requestId = ++this.counter;
 
         const xhr = new XMLHttpRequest();
+
+        // XXX make this an option, or do it in the generated client on authenticated
+        // requests?  Required to get the minimal web api to pass basic auth credentials.
+        xhr.withCredentials = true;
+
         const reqUri = query.requestUri();
 
         console.log("Invoke " + method + " to " + reqUri + " req id " + requestId);
@@ -348,8 +367,11 @@ export class ServiceClient {
 
             try {
                 if (payload) {
-                    xhr.send(JSON.stringify(payload));
+                    let payloadJson = JSON.stringify(payload);
+                    console.log("Send payload", payloadJson);
+                    xhr.send(payloadJson);
                 } else {
+                    console.log("Send - no payload");
                     xhr.send();
                 }
             } catch (err) {

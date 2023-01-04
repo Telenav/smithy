@@ -27,6 +27,7 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import java.nio.file.Path;
 import java.util.function.Consumer;
@@ -50,6 +51,7 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource tb = src();
 
@@ -65,17 +67,6 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
             cb.extending(ext);
             cb.exported();
 
-            TsBlockBuilder<ClassBuilder<Void>> et = cb.method("ensureType")
-                    .makeStatic()
-                    .makePrivate()
-                    .withArgument("obj").ofType("any")
-                    .returning(targetTypeName + "[]");
-
-            et.iff("!Array.isArray(obj)")
-                    .returning("[obj] as " + targetTypeName + "[]");
-
-            et.returning("obj as " + targetTypeName + "[]");
-
             cb.constructor(con -> {
                 con.withArgument("items").ofType(targetTypeName + "[]");
                 con.body(bb -> {
@@ -83,14 +74,14 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                         // We can be called with a string where it should be string[],
                         // and if you create a new Set from a string, you get one
                         // element for each letter
-                        bb.invoke("super").withArgumentFromInvoking("ensureType")
-                                .withArgument("items").on(cb.name()).inScope();
+                        bb.invoke("super")
+                                .withArgument("items").inScope();
                     } else {
                         if (memberTarget.getType() == STRING) {
-                            bb.invoke("super").withArgumentFromInvoking("ensureType")
-                                    .withArgument("items").on(cb.name()).inScope();
+                            bb.invoke("super")
+                                    .withArgument("items").inScope();
                         } else {
-                            bb.invoke("super").withArgument("...items").inScope();
+                            bb.invoke("super").withArgument(isSet ? "items" : "...items").inScope();
                         }
                     }
                 });
@@ -212,7 +203,8 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
     @Override
     protected void toJsonBody(TypescriptSource.TsBlockBuilder<Void> bb) {
         Shape target = model.expectShape(shape.getMember().getTarget());
-        String primitiveType = typeNameOf(target, false);
+//        String primitiveType = typeNameOf(target, false);
+        String primitiveType = jsTypeOf(target);
         String typeName = tsTypeName(target);
 
         bb.blankLine()
@@ -222,10 +214,6 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                 .lineComment("jsTypeName of target " + jsTypeOf(target))
                 .lineComment("jsTypeName of shape " + jsTypeOf(shape));
 
-        if (typeName.equals(primitiveType)) {
-            bb.returning("this");
-            return;
-        }
         bb.declare("objs")
                 .ofType(primitiveType + "[]")
                 .assignedTo("[]");
@@ -233,10 +221,18 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                 .withLambda(lb -> {
                     lb.withArgument("item").ofType(typeName);
                     lb.body(lbb -> {
-                        lbb.invoke("push")
-                                .withArgumentFromInvoking(TO_JSON)
-                                .on("item")
-                                .on("objs");
+                        if (typeName.equals(primitiveType)) {
+                            lbb.lineComment("TN eq prim - simple push");
+                            lbb.invoke("push")
+                                    .withArgument("item")
+                                    .on("objs");
+                        } else {
+                            lbb.lineComment("TN ne prim - use toJson");
+                            lbb.invoke("push")
+                                    .withArgumentFromInvoking(TO_JSON)
+                                    .on("item")
+                                    .on("objs");
+                        }
                         lbb.endBlock();
                     });
                 })

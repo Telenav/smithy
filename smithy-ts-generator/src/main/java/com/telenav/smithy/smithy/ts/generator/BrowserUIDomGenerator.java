@@ -25,11 +25,14 @@ package com.telenav.smithy.smithy.ts.generator;
 
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
+import com.mastfrog.smithy.generators.SmithyGenerationSettings;
+import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
 import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.camelCaseToDelimited;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import static com.mastfrog.util.strings.Strings.decapitalize;
 import static com.telenav.smithy.smithy.ts.generator.BrowserSDKGenerator.serviceClientName;
+import com.telenav.smithy.smithy.ts.spi.LoginOperationFinder;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
@@ -48,11 +51,14 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.pattern.SmithyPattern;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -62,7 +68,9 @@ import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
 import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.AuthTrait;
 import software.amazon.smithy.model.traits.DocumentationTrait;
+import software.amazon.smithy.model.traits.HttpTrait;
 import software.amazon.smithy.model.traits.JsonNameTrait;
 import software.amazon.smithy.model.traits.LengthTrait;
 import software.amazon.smithy.model.traits.PatternTrait;
@@ -75,8 +83,15 @@ import software.amazon.smithy.model.traits.RequiredTrait;
  */
 public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceShape> {
 
+    private final Optional<OperationShape> loginOperation;
+    private final Set<OperationShape> ops;
+
     BrowserUIDomGenerator(ServiceShape shape, Model model, LanguageWithVersion ver, Path dest, GenerationTarget target) {
         super(shape, model, ver, dest, target);
+        this.loginOperation = LoginOperationFinder.loginOperation(model, shape);
+        ops = ResourceGraphs.graph(model, shape)
+                .transformedClosure(shape, sh -> sh.asOperationShape().orElse(null));
+
     }
 
     private void importComponent(String comp, TypescriptSource src) {
@@ -95,12 +110,6 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         }
         String modelSource = "./" + escape(shape.getId().getName() + "Model");
         src.importing(comp).from(modelSource);
-    }
-
-    private void importModelObjects(TypescriptSource src, String... comps) {
-        for (String c : comps) {
-            importModelObject(c, src);
-        }
     }
 
     private void generateUiModelInterface(TypescriptSource src) {
@@ -231,12 +240,95 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         return escape(shape.getId().getName() + "ClientHolder");
     }
 
+    private boolean hasLoginMethod() {
+        boolean anyAuthOps = false;
+        for (OperationShape op : ops) {
+            if (requiresAuthentication(op)) {
+                anyAuthOps = true;
+            }
+        }
+        if (!anyAuthOps) {
+            return false;
+        }
+        return loginOperation.flatMap(loginOp -> {
+            if (loginOp.getInput().isPresent() || loginOp.getOutput().isPresent()) {
+                return Optional.empty();
+            }
+//            return Optional.of(loginOp.hasTrait(HttpTrait.class));
+            return loginOp.getTrait(HttpTrait.class).map(http -> {
+                return "get".equalsIgnoreCase(http.getMethod());
+            });
+        }).orElse(false);
+    }
+
+    private boolean requiresAuthentication(OperationShape op) {
+        if (shape.hasTrait(AuthTrait.class)) {
+            return true;
+        }
+        return op.getTrait(AuthenticatedTrait.class).map(auth -> {
+            return !auth.isOptional();
+        }).orElse(false);
+    }
+
+    private void generateLoginMethod(TypescriptSource src) {
+        if (!hasLoginMethod()) {
+            return;
+        }
+        this.loginOperation.ifPresent(loginOp -> {
+            if (loginOp.getInput().isPresent() || loginOp.getOutput().isPresent()) {
+                return;
+            }
+            loginOp.getTrait(HttpTrait.class).ifPresent(http -> {
+                if (!"get".equalsIgnoreCase(http.getMethod())) {
+                    return;
+                }
+                importComponent("IFrame", src);
+                src.declare("loginAttempted").ofType("boolean").assignedTo(false);
+                src.function("login").body(bb -> {
+
+                    ConditionalClauseBuilder<TsBlockBuilder<Void>> test = bb.iff("!loginAttempted");
+                    test.statement("const pathComponents : string[] = []");
+                    test.iff(URL_PANEL_VAR + ".value().length > 0")
+                            .invoke("push").withArgumentFromInvoking("value")
+                            .on(URL_PANEL_VAR).on("pathComponents")
+                            .endIf();
+                    for (SmithyPattern.Segment part : http.getUri().getSegments()) {
+                        test.invoke("push").withStringLiteralArgument(part.getContent())
+                                .on("pathComponents");
+                    }
+                    test.invoke("log").withStringLiteralArgument("Attempt login ")
+                            .withArgument("pathComponents").on("console");
+                    test.invoke("attach").withStringLiteralArgument("main")
+                            .onNew(nb -> {
+                                nb.withArgumentFromInvoking("join")
+                                        .withStringLiteralArgument("/")
+                                        .on("pathComponents");
+                                nb.ofType("IFrame");
+                            });
+                    test.statement("loginAttempted = true");
+                    test.endIf();
+                });
+            });
+        });
+    }
+
     private static final String MODEL_FOR_PANEL_MAP = "modelForPanel";
     private static final String URL_PANEL_VAR = "urlPanel";
     private static final String SPINNER_VAR = "spinner";
 
+    static boolean shouldGenerateUI(SmithyGenerationSettings settings) {
+        return settings.getBoolean("generate-test-ui").orElse(false);
+    }
+
+    private boolean shouldGenerateUI() {
+        return shouldGenerateUI(ctx.settings());
+    }
+
     @Override
     public void generate(Consumer<TypescriptSource> c) {
+        if (!shouldGenerateUI()) {
+            return;
+        }
         TypescriptSource src = typescript("testit");
         generateUiModelInterface(src);
         importComponents(src, "Row", "Panel", "NavPanel",
@@ -244,6 +336,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                 "TextField", "Spinner", "Button", "Clickable");
 
         src.generateDebugLogCode();
+
+        generateLoginMethod(src);
 
         src.invoke("attach")
                 .withStringLiteralArgument("top")
@@ -652,6 +746,11 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                         .optional().ofType("boolean");
                 String promiseType = "void".equals(outputType) ? "Promise<boolean>" : "Promise<" + outputType + ">";
                 TsBlockBuilder<?> bb = mth.returning(promiseType);
+
+                if (hasLoginMethod() && requiresAuthentication(op)) {
+                    bb.invoke("login").inScope();
+                }
+
                 bb.iff("cancelAnyOutstandingRequests")
                         .invoke("cancelAll")
                         .onField("serviceClient")
@@ -991,6 +1090,9 @@ export function floatListField(id: string): TransformedTextField<number[]>
                         bb.blankLine()
                                 .lineComment("Unsupported type: " + target.getType()
                                         + " for " + target.getId());
+                        if (false) {
+                            throw new IllegalStateException("Unsupporrted shape type " + target.getType());
+                        }
                         continue;
                 }
 

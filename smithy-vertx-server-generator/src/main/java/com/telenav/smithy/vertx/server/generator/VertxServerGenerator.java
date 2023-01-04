@@ -31,15 +31,20 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.ConstructorBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.ElseClauseBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
+import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.TryBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.Value;
 import com.mastfrog.java.vogon.ClassBuilder.Variable;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
 import static com.mastfrog.java.vogon.ClassBuilder.variable;
+import static com.mastfrog.smithy.generators.FeatureBridge.MARKUP_GENERATION_PRESENT;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
+import com.mastfrog.smithy.generators.PostGenerateTask;
+import com.mastfrog.smithy.generators.SmithyGenerationContext;
+import static com.mastfrog.smithy.generators.SmithyGenerationContext.MARKUP_PATH_CATEGORY;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
@@ -91,20 +96,17 @@ import static java.beans.Introspector.decapitalize;
 import java.nio.file.Path;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
+import static java.util.Collections.unmodifiableSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
@@ -112,6 +114,7 @@ import static javax.lang.model.element.Modifier.STATIC;
 import static javax.lang.model.element.Modifier.VOLATILE;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.pattern.SmithyPattern;
+import software.amazon.smithy.model.pattern.SmithyPattern.Segment;
 import software.amazon.smithy.model.pattern.UriPattern;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
@@ -133,7 +136,6 @@ import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
 import static software.amazon.smithy.model.shapes.ShapeType.STRING;
 import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 import software.amazon.smithy.model.shapes.StructureShape;
-import software.amazon.smithy.model.traits.CorsTrait;
 import software.amazon.smithy.model.traits.DefaultTrait;
 import software.amazon.smithy.model.traits.HttpHeaderTrait;
 import software.amazon.smithy.model.traits.HttpLabelTrait;
@@ -152,6 +154,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     private final ScopeBindings scope = new ScopeBindings();
     private final boolean debug;
     private final boolean generateProbeCode;
+    private final Set<? extends OperationShape> ops;
+    private final ResourceGraph graph;
 
     VertxServerGenerator(ServiceShape shape, Model model, Path destSourceRoot,
             GenerationTarget target, LanguageWithVersion language,
@@ -159,6 +163,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         super(shape, model, destSourceRoot, target, language);
         debug = settings.is(DEBUG);
         generateProbeCode = !settings.getString("noprobe").map(Boolean::parseBoolean).orElse(false);
+        graph = ResourceGraphs.graph(model, shape);
+        ops = unmodifiableSet(graph.transformedClosure(shape, sh -> sh.isOperationShape() ? sh.asOperationShape().get() : null));
     }
 
     private void initDebug(ClassBuilder<?> cb) {
@@ -174,12 +180,12 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         }
     }
 
+    private boolean hasMarkup() {
+        return ctx.get(MARKUP_GENERATION_PRESENT).orElse(false);
+    }
+
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
-
-        ResourceGraph graph = ResourceGraphs.graph(model, shape);
-        Set<OperationShape> ops = graph.transformedClosure(shape, sh -> sh.isOperationShape() ? sh.asOperationShape().get() : null);
-
         // Pending - need to sort ops by path to avoid collisions?
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
                 .named(escape(shape.getId().getName(shape)));
@@ -209,26 +215,32 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         generateSendErrorResponseMethod(cb);
         generateErrorHandlingDisablementMethodAndField(cb);
-        generateCreateVertxModuleMethod(cb, graph, ops, addTo);
+        generateCreateVertxModuleMethod(cb, graph, addTo);
 
         generateMainMethod(cb);
-        generateConfigureOverride(cb, ops);
+        generateConfigureOverride(cb, addTo);
 
         generateCheckTypeMethod(cb);
 
         cb.sortMembers();
+        registerZipMarkupTask();
         addTo.accept(cb);
+    }
+
+    private void registerZipMarkupTask() {
+        SmithyGenerationContext context = ctx();
+        String packagePath = names().packageOf(shape).replace('.', '/');
+        String markupRelativePath = context.settings().getString("vertx-server-markup-src-relative-path").orElse("../resources/" + packagePath + "/markup.zip");
+        ctx().session().registerPostGenerationTask(getClass().getName() + "-zip-markup",
+                () -> PostGenerateTask.zipCategory(MARKUP_PATH_CATEGORY, destSourceRoot.resolve(markupRelativePath).toAbsolutePath()));
     }
 
     String probeHandlerClassName(OperationShape op) {
         return escape(op.getId().getName() + "ProbeHandler");
     }
 
-    String probeHandlerFqn(OperationShape op) {
-        return probeHandlerPackage() + "." + probeHandlerClassName(op);
-    }
-
-    private void generateProbeHandler(OperationShape op, List<String> handlers, Consumer<ClassBuilder<String>> c) {
+    private void generateProbeHandler(OperationShape op, List<String> handlers,
+            Input inputOrNull, Consumer<ClassBuilder<String>> c) {
         ifProbe(() -> {
             String implPackage = probeHandlerPackage();
             String handlerType = probeHandlerClassName(op);
@@ -268,6 +280,15 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             .withArgument("event")
                             .withArgument(opEnum)
                             .on("probe");
+                    if (inputOrNull != null && inputOrNull.consumesHttpPayload()) {
+                        bb.blankLine()
+                                .lineComment("Pause reading the request body until the body handler")
+                                .lineComment("gets to it; otherwise vertx can fail cryptically.  We ")
+                                .lineComment("the body handler not to be first (you don't want to slurp a")
+                                .lineComment("huge payload into memory for a request you're going to reject")
+                                .lineComment("with an authentication failure, for example).");
+                        bb.invoke("pause").onInvocationOf("request").on("event");
+                    }
                     bb.invoke("onEnterHandler")
                             .withArgumentFromField(operationEnumConstant(op))
                             .of(operationEnumTypeName())
@@ -389,13 +410,13 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         });
     }
 
-    public void generateConfigureOverride(ClassBuilder<String> cb, Set<OperationShape> ops) {
+    public void generateConfigureOverride(ClassBuilder<String> cb, Consumer<ClassBuilder<String>> con) {
         String binderVar = "binder";
         cb.overridePublic("configure", mth -> {
             mth.addArgument("Binder", "binder");
             mth.body(bb -> {
-                generateOpInterfaceBindingMethodsFieldsAndConfigStanzas(bb, cb, ops);
-                generateAuthBindingMethodsAndCalls(bb, cb, ops);
+                generateOpInterfaceBindingMethodsFieldsAndConfigStanzas(bb, cb);
+                generateAuthBindingMethodsAndCalls(bb, cb);
                 String moduleVar = "vertxModule";
 
                 bb.declare(moduleVar)
@@ -416,6 +437,10 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 generateVertxModuleConfigurationStanzas(moduleVar, bb, cb);
 
                 generateModuleAdditionMethod(moduleVar, bb, cb);
+
+                if (hasMarkup()) {
+                    generateMarkupUnzipper(bb, cb, con);
+                }
 
                 bb.invoke("install").withArgument(moduleVar).on("binder");
                 ifProbe(() -> generateStartupHookBindings(cb, bb));
@@ -556,7 +581,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         });
     }
 
-    private <C, B extends BlockBuilderBase<C, B, ?>> String generateModuleAdditionMethod(String moduleVar, B bb, ClassBuilder<String> cb) {
+    private <C, B extends BlockBuilderBase<C, B, ?>> String generateModuleAdditionMethod(
+            String moduleVar, B bb, ClassBuilder<String> cb) {
         String modulesField = "modules";
         cb.field("modules")
                 .withModifier(PRIVATE, FINAL)
@@ -586,7 +612,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         return modulesField;
     }
 
-    private <C, B extends BlockBuilderBase<C, B, ?>> void generateVertxModuleConfigurationStanzas(String moduleVar, B bb, ClassBuilder<String> cb) {
+    private <C, B extends BlockBuilderBase<C, B, ?>> void generateVertxModuleConfigurationStanzas(
+            String moduleVar, B bb, ClassBuilder<String> cb) {
         cb.importing(Consumer.class);
         String consumerField = "vertxModuleConfigurer";
         String consumerType = "Consumer<VertxGuiceModule>";
@@ -617,7 +644,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         bb.invoke("accept").withArgument(moduleVar).onField(consumerField).ofThis();
     }
 
-    private <C, B extends BlockBuilderBase<C, B, ?>> void generateOpInterfaceBindingMethodsFieldsAndConfigStanzas(B bb, ClassBuilder<String> cb, Set<OperationShape> ops) {
+    private <C, B extends BlockBuilderBase<C, B, ?>> void generateOpInterfaceBindingMethodsFieldsAndConfigStanzas(
+            B bb, ClassBuilder<String> cb) {
         cb.field("initialized")
                 .withModifier(PRIVATE, VOLATILE)
                 .ofType("boolean");
@@ -663,25 +691,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         .addArgument(fieldType, argName)
                         .returning(cb.className())
                         .body(typeAssign -> {
-//                            typeAssign.invoke("checkInitialized").inScope();
-//                            typeAssign.ifNull(argName)
-//                                    .andThrow(nb -> {
-//                                        nb.withStringLiteral(argName + " may not be null")
-//                                                .ofType("IllegalArgumentException");
-//                                    }).endIf();
-//                            Value abstractTest = invocationOf("getModifiers")
-//                                    .on(argName).and("java.lang.reflect.Modifier.ABSTRACT")
-//                                    .parenthesized().isNotEqualTo(number(0)
-//                                            .logicalOrWith(invocationOf("isInterface").on(argName)));
-//
-//                            typeAssign.iff(abstractTest)
-//                                    .andThrow(nb -> nb.withStringLiteral("Cannot bind an abstract class or interface")
-//                                    .ofType("IllegalArgumentException")).endIf();
-//                            typeAssign.iff(invocationOf("isAssignableFrom").withArgument(argName).on(typeName + ".class").isEqualTo("false"))
-//                                    .andThrow(nb -> nb.withStringLiteral("Not really a subclass of " + typeName).ofType("IllegalArgumentException")).endIf();
-//                            typeAssign.assignField(fieldName)
-//                                    .ofThis().toExpression(argName);
-
                             typeAssign.assignField(fieldName)
                                     .ofThis()
                                     .toInvocation("checkType")
@@ -702,12 +711,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         return escape(shape.getId().getName() + "Operations");
     }
 
-    private void withOperationEnumItem(OperationShape op, BiConsumer<String, String> enumTypeAndConstant) {
-        enumTypeAndConstant.accept(names().packageOf(shape) + "." + operationEnumTypeName(),
-                operationEnumConstant(op));
-    }
-
-    public String createOperationsEnum(Collection<? extends OperationShape> ops, Consumer<ClassBuilder<String>> addTo) {
+    public String createOperationsEnum(Consumer<ClassBuilder<String>> addTo) {
         String nm = operationEnumTypeName();
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
                 .named(nm)
@@ -742,7 +746,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     public void generateBodyHandlerSupport(ClassBuilder<String> routerBuilder, String operationsEnumName) {
         routerBuilder.innerClass("DefaultBodyHandlerFactory", cb -> {
             cb.importing(
-                    "io.vertx.ext.web.handler.BodyHandler",
+                    //                    "io.vertx.ext.web.handler.BodyHandler",
+                    "com.telenav.smithy.vertx.debug.BodyHandler",
                     "java.util.function.Function",
                     "io.vertx.ext.web.RoutingContext",
                     "io.vertx.core.Handler")
@@ -788,9 +793,43 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         });
     }
 
-    public void generateCreateVertxModuleMethod(ClassBuilder<String> routerBuilder, ResourceGraph graph, Collection<? extends OperationShape> ops, Consumer<ClassBuilder<String>> addTo) {
-        String operationsEnumName = createOperationsEnum(ops, addTo);
+    public void generateScopeBodyWrapper(ClassBuilder<String> routerBuilder) {
+        routerBuilder.innerClass("ScopeBodyHandlerWrapper", cb -> {
+            cb.withModifier(PRIVATE, STATIC, FINAL)
+                    .importing(Function.class);
+            cb.implementing("Function<" + operationEnumTypeName() + ", Handler<RoutingContext>>");
+            cb.constructor(con -> {
+                con.addArgument("RequestScope", "scope")
+                        .addArgument("Function<? super " + operationEnumTypeName() + ", ? extends Handler<RoutingContext>>", "delegate");
+                con.body()
+                        .statement("this.scope = scope")
+                        .statement("this.delegate = delegate")
+                        .endBlock();
+            });
+            cb.field("delegate").withModifier(PRIVATE, FINAL)
+                    .ofType("Function<? super " + operationEnumTypeName() + ", ? extends Handler<RoutingContext>>");
+            cb.field("scope").withModifier(PRIVATE, FINAL)
+                    .ofType("RequestScope");
+            cb.overridePublic("apply")
+                    .addArgument(operationEnumTypeName(), "op")
+                    .returning("Handler<RoutingContext>")
+                    .body(bb -> {
+                        bb.returningInvocationOf("wrap")
+                                .withArgumentFromInvoking("apply")
+                                .withArgument("op")
+                                .onField("delegate").ofThis()
+                                .onField("scope").ofThis();
+                    });
+            ;
+        });
+    }
+
+    public void generateCreateVertxModuleMethod(ClassBuilder<String> routerBuilder,
+            ResourceGraph graph, Consumer<ClassBuilder<String>> addTo) {
+        String operationsEnumName = createOperationsEnum(addTo);
         generateBodyHandlerSupport(routerBuilder, operationsEnumName);
+
+        generateScopeBodyWrapper(routerBuilder);
 
         routerBuilder.method("createVertxModule", mth -> {
             mth.withModifier(PRIVATE, FINAL)
@@ -799,15 +838,24 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             + "operations for the " + shape.getId().getName() + " model."
                             + "\n@return A VertxGuiceModule configured for this service")
                     .body(bb -> {
-
                         bb.declare("result")
                                 .initializedWithNew(nb -> nb.ofType("VertxGuiceModule"))
                                 .as("VertxGuiceModule");
 
                         bb.declare("bodyFactory")
-                                .initializedFromField("bodyFactory")
-                                .ofThis()
-                                .as("Function<? super " + operationsEnumName + ", ? extends Handler<RoutingContext>>");
+                                .initializedWithNew(nb -> {
+                                    nb.withArgumentFromInvoking("scope")
+                                            .on("result")
+                                            .withArgumentFromField("bodyFactory")
+                                            .ofThis()
+                                            .ofType("ScopeBodyHandlerWrapper");
+                                })
+                                .as("Function<? super " + operationsEnumName
+                                        + ", ? extends Handler<RoutingContext>>");
+//                        bb.declare("bodyFactory")
+//                                .initializedFromField("bodyFactory")
+//                                .ofThis()
+//                                .as("Function<? super " + operationsEnumName + ", ? extends Handler<RoutingContext>>");
 
                         bb.blankLine().lineComment("Binds ObjectMapper configured to correctly "
                                 + " handle").lineComment("java.time types as ISO 8601 strings");
@@ -824,7 +872,10 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .on("result")
                                 .as("VerticleBuilder<VertxGuiceModule>");
 
-                        ops.forEach(op -> {
+                        declareCorsHandlers(routerBuilder, bb);
+                        generateCorsHandling(bb, routerBuilder, verticleBuilderName);
+
+                        sortedOperations().forEach(op -> {
                             List<String> handlers = new ArrayList<>();
                             ClassBuilder<String> operationClass = generateOperation(op, graph, handlers, addTo);
                             bb.blankLine().lineComment("Operation " + op.getId());
@@ -832,7 +883,10 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             addTo.accept(operationClass);
                         });
 
-                        generateCorsHandling(bb, routerBuilder, verticleBuilderName, ops);
+                        if (hasMarkup()) {
+                            bb.blankLine().lineComment("Markup files:");
+                            generateMarkupServing(bb, routerBuilder, addTo);
+                        }
 
                         bb.invoke("accept")
                                 .withArgument(verticleBuilderName)
@@ -851,264 +905,346 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         });
     }
 
-    private void createCorsInfo() {
+    private static final String GUICE_BINDING_MARKUP = "__markup";
+    private static final String MARKUP_ZIP_FILE = "markup.zip";
 
-    }
+    private <C, X, B extends BlockBuilderBase<C, B, X>> void generateMarkupUnzipper(
+            B configureBody, ClassBuilder<String> cb, Consumer<ClassBuilder<String>> addTo) {
+        ClassBuilder<String> markup = ClassBuilder.forPackage(names().packageOf(shape))
+                .named("Markup").withModifier(PUBLIC, FINAL)
+                .importing("javax.inject.Singleton")
+                .annotatedWith("Singleton").closeAnnotation()
+                .importing("javax.inject.Singleton",
+                        "java.io.InputStream",
+                        "java.io.OutputStream",
+                        "java.nio.file.Files",
+                        "java.nio.file.Path",
+                        "java.nio.file.Paths",
+                        "static java.nio.file.StandardOpenOption.CREATE",
+                        "static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING",
+                        "static java.nio.file.StandardOpenOption.WRITE",
+                        "java.util.Map",
+                        "java.util.HashMap",
+                        "java.util.concurrent.ThreadLocalRandom",
+                        "java.util.zip.ZipEntry",
+                        "java.util.zip.ZipInputStream",
+                        "java.security.MessageDigest",
+                        "java.util.Base64"
+                );
 
-    static final class CorsInfo {
+        markup.field("names", fld -> {
+            fld.withModifier(PRIVATE, FINAL)
+                    .initializedWithNew(nb -> {
+                        nb.ofType("HashMap<>");
+                    }).ofType("Map<String, String>");
+        });
+        markup.field("uid", fld -> {
+            fld.withModifier(PRIVATE, FINAL);
+            fld.initializedFromInvocationOf("toString")
+                    .withArgumentFromInvoking("currentTimeMillis")
+                    .on("System")
+                    .withArgument(36)
+                    .on("Long").ofType("String");
+        });
+        markup.field("tmp", fld -> {
+            fld.withModifier(PRIVATE, FINAL).ofType("Path");
+        });
 
-        // Note, we want to explicitly parameterize on TreeSet - if this code
-        // were changed to use an unsorted hash set, the variable names would be
-        // unpredictable, and wa aim always to generate identical code for identical
-        // input.
-        Map<String, TreeSet<String>> paths = new TreeMap<>();
-        Map<String, TreeSet<String>> regexen = new TreeMap<>();
-        Map<OperationShape, PathInfo> pathInfoForOperation = new HashMap<>();
-        Map<OperationShape, HttpTrait> httpTraitForOperation = new HashMap<>();
-        Set<TreeSet<String>> methodSets = new TreeSet<>(CorsInfo::compareTreeSets);
-        private final CorsTrait cors;
+        markup.constructor(con -> {
+            con.throwing("Exception");
+            con.body(bb -> {
+                bb.assignField("tmp")
+                        .ofThis()
+                        .toInvocation("resolve")
+                        .withStringConcatentationArgument(shape.getId().getName() + "Markup_")
+                        .appendField("uid").ofThis().endConcatenation()
+                        .onInvocationOf("get")
+                        .withArgumentFromInvoking("getProperty")
+                        .withStringLiteral("java.io.tmpdir")
+                        .on("System")
+                        .on("Paths");
 
-        CorsInfo(Model model, ServiceShape shape, Collection<? extends OperationShape> ops) {
-            cors = shape.getTrait(CorsTrait.class).map(cors -> {
-                for (OperationShape op : ops) {
-                    op.getTrait(HttpTrait.class).ifPresent(http -> {
-                        StructureShape inputShape = op.getInput()
-                                .map(model::expectShape).flatMap(Shape::asStructureShape).orElse(null);
-                        PathInfo info = new PathInformationExtractor(model, http.getUri()).extractPathInfo(inputShape);
-                        if (info.isRegex()) {
-                            regexen.computeIfAbsent(info.text(), tx -> new TreeSet<>())
-                                    .add(http.getMethod());
-                        } else {
-                            paths.computeIfAbsent(info.text(), tx -> new TreeSet<>())
-                                    .add(http.getMethod());
-                        }
-                        pathInfoForOperation.put(op, info);
-                        httpTraitForOperation.put(op, http);
+                bb.invoke("createDirectories")
+                        .withArgumentFromField("tmp").ofThis()
+                        .on("Files");
+                bb.declare("in").initializedByInvoking("getResourceAsStream")
+                        .withStringLiteral("markup.zip")
+                        .on(markup.className() + ".class")
+                        .as("InputStream");
+                ClassBuilder.IfBuilder<?> iff = bb.ifNotNull("in");
+                iff.trying(tri -> {
+                    tri.declare("zip")
+                            .initializedWithNew().withArgument("in").ofType("ZipInputStream")
+                            .as("ZipInputStream");
+                    tri.declare("en").as("ZipEntry");
+                    tri.whileLoop((ClassBuilder.WhileBuilder<?> loop) -> {
+
+                        loop.declare("name").initializedByInvoking("getName")
+                                .on("en").as("String");
+                        loop.declare("file").initializedByInvoking("resolve")
+                                .withArgument("name").onField("tmp").ofThis().as("Path");
+
+                        loop.iff().booleanExpression("!Files.exists(file.getParent())")
+                                .invoke("createDirectories")
+                                .withArgumentFromInvoking("getParent")
+                                .on("file")
+                                .on("Files")
+                                .endIf();
+
+                        loop.declare("out").initializedByInvoking("newOutputStream")
+                                .withArgument("file")
+                                .withArgument("CREATE")
+                                .withArgument("WRITE")
+                                .withArgument("TRUNCATE_EXISTING")
+                                .on("Files")
+                                .as("OutputStream");
+                        loop.trying(tri2 -> {
+                            tri2.declare("bytes")
+                                    .initializedByInvoking("readAllBytes")
+                                    .on("zip")
+                                    .as("byte[]");
+
+                            tri2.invoke("write")
+                                    .withArgument("bytes")
+                                    .on("out");
+
+                            tri2.invoke("put")
+                                    .withArgument("name")
+                                    .withArgumentFromInvoking("encodeToString")
+                                    .withArgumentFromInvoking("digest")
+                                    .withArgument("bytes")
+                                    .onInvocationOf("getInstance")
+                                    .withStringLiteral("SHA-1")
+                                    .on("MessageDigest")
+                                    .onInvocationOf("getEncoder")
+                                    .on("Base64")
+                                    .on("names");
+
+                            tri2.fynalli().invoke("close").on("out").endBlock();
+                        });
+
+                        loop.invoke("setLastModifiedTime")
+                                .withArgument("file")
+                                .withArgumentFromInvoking("getLastModifiedTime")
+                                .on("en")
+                                .on("Files");
+
+                        loop.underCondition().booleanExpression("(en = zip.getNextEntry()) != null");
                     });
-                }
-                methodSets.addAll(paths.values());
-                methodSets.addAll(regexen.values());
-                return cors;
-            }).orElse(null);
-        }
-        
-        static int compareTreeSets(TreeSet<String> o1, TreeSet<String> o2) {
-            return o1.toString().compareTo(o2.toString());
-        }
+                    tri.fynalli().invoke("close").on("in").endBlock();
+                });
+                iff.endIf();
+            });
+        });
 
-        boolean isCors() {
-            return cors != null;
-        }
+        markup.method("hasMarkupFile")
+                .withModifier(PUBLIC)
+                .addArgument("String", "path")
+                .returning("boolean")
+                .body(bb -> {
+                    bb.iff(invocationOf("length").on("path").isGreaterThan(number(0)))
+                            .statement("path = path.substring(1)").endIf();
+                    bb.returningInvocationOf("containsKey")
+                            .withArgument("path")
+                            .on("names");
+                });
 
-        boolean ifCors(Runnable run) {
-            if (isCors()) {
-                run.run();
-                return true;
-            }
-            return false;
-        }
-        
-        String corsHandlerVariableForOperation(OperationShape op) {
-            
-        }
-        
-        String corsHandlerVariableForMethodSet(TreeSet<String> set) {
-            return "cors_" + Strings.join('_', set).toLowerCase();
-        }
+        markup.method("etag")
+                .withModifier(PUBLIC)
+                .addArgument("String", "path")
+                .returning("String")
+                .body(bb -> {
+                    bb.returningInvocationOf("get")
+                            .withArgumentFromInvoking("substring")
+                            .withArgument(1)
+                            .on("path")
+                            .on("names");
+                });
 
-        public <C, X, B extends BlockBuilderBase<C, B, X>> void generateCorsHandlerDeclarations(B bb) {
-            bb.blankLine()
-                    .lineComment("Create cors handlers for the exact sets of methods")
-                    .lineComment("handled by different paths:");
-            for (TreeSet<String> set : methodSets) {
-                String varName = corsHandlerVariableForMethodSet(set);
-                bb.declare(varName)
-                        .initializedByInvoking("addOrigin")
-                        .withStringLiteral(cors.getOrigin())
-                        .onInvocationOf("maxAgeSeconds")
-                        .withArgument(cors.getMaxAge())
-                        .onInvocationOf("exposedHeaders")
-                        .withArgument("exposedHeaders")
-                        .onInvocationOf("allowedHeaders")
-                        .withArgument("allowedHeaders")
-                        .onInvocationOf("allowedMethods")
-                        .withArgumentFromNew(nb -> {
-                            nb.withArgumentFromInvoking(
-                                    "asList", ib -> {
-                                        for (String m : set) {
-                                            ib.withArgumentFromField(m.toUpperCase())
-                                                    .of("HttpMethod");
-                                        }
-                                        ib.on("Arrays");
-                                    }).ofType("HashSet<>");
-                        })
-                        .onInvocationOf("allowCredentials")
-                        .withArgument(true)
-                        .onInvocationOf("allowPrivateNetwork")
-                        .withArgument(true)
-                        .onInvocationOf("create")
-                        .on("CorsHandler")
-                        .as("CorsHandler");
-//            corsHandlerVariableForMethodSet.put(set, varName);
-            }
+        markup.overridePublic("toString")
+                .returning("String")
+                .body().returningInvocationOf("toString")
+                .on("names").endBlock();
 
-        }
+        markup.method("markupDir")
+                .returning("Path")
+                .withModifier(PUBLIC)
+                .bodyReturning("tmp");
 
+        addTo.accept(markup);
+
+        cb.importing("io.vertx.ext.web.handler.StaticHandler",
+                "javax.inject.Singleton", "javax.inject.Provider",
+                "io.vertx.ext.web.handler.FileSystemAccess");
+
+        cb.innerClass("StaticHandlerProvider", ic -> {
+            ic.withModifier(PRIVATE, STATIC, FINAL)
+                    .annotatedWith("Singleton").closeAnnotation();
+            ic.field("staticHandler", fld -> {
+                fld.withModifier(PRIVATE, FINAL)
+                        .ofType("StaticHandler");
+            });
+            ic.implementing("Provider<StaticHandler>");
+            ic.constructor(con -> {
+                con.annotatedWith("Inject").closeAnnotation();
+                con.addArgument("Markup", "markup");
+                con.body(bb -> {
+                    bb.assign("staticHandler")
+                            .toInvocation("setAlwaysAsyncFS")
+                            .withArgument(true)
+                            .onInvocationOf("setMaxAgeSeconds")
+                            .withArgument(180000)
+                            .onInvocationOf("setSendVaryHeader")
+                            .withArgument(true)
+                            .onInvocationOf("setIncludeHidden")
+                            .withArgument(false)
+                            .onInvocationOf("setFilesReadOnly")
+                            .withArgument(true)
+                            .onInvocationOf("setDirectoryListing")
+                            .withArgument(false)
+                            .onInvocationOf("setDefaultContentEncoding")
+                            .withStringLiteral("UTF-8")
+                            .onInvocationOf("setEnableRangeSupport")
+                            .withArgument(true)
+                            .onInvocationOf("create")
+                            .withArgumentFromField("ROOT").of("FileSystemAccess")
+                            .withArgumentFromInvoking("toString")
+                            .onInvocationOf("markupDir")
+                            .on("markup")
+                            .on("StaticHandler");
+                });
+            });
+            ic.overridePublic("get", mth -> {
+                mth.returning("StaticHandler")
+                        .bodyReturning("staticHandler");
+            });
+        });
+        configureBody.invoke("toProvider")
+                .withClassArgument("StaticHandlerProvider")
+                .onInvocationOf("bind")
+                .withClassArgument("StaticHandler")
+                .on("binder");
     }
 
-    public <C, X, B extends BlockBuilderBase<C, B, X>> void generateCorsHandling(B bb,
-            ClassBuilder<String> cb, String verticleBuilderName,
-            Collection<? extends OperationShape> ops) {
-        shape.getTrait(CorsTrait.class).ifPresent(cors -> {
-            bb.lineComment("CORS handling");
+    private <C, X, B extends BlockBuilderBase<C, B, X>> void generateMarkupServing(B routerBody,
+            ClassBuilder<String> moduleClass,
+            Consumer<ClassBuilder<String>> addTo) {
+        String pkg = names().packageOf(shape) + ".impl";
+        ClassBuilder<String> cb = ClassBuilder.forPackage(pkg)
+                .named("MarkupHandler")
+                .implementing("Handler<RoutingContext>")
+                .importing("io.vertx.core.Handler",
+                        "io.vertx.ext.web.RoutingContext",
+                        "io.netty.handler.codec.http.HttpHeaderNames",
+                        "javax.inject.Inject",
+                        names().packageOf(shape) + ".Markup"
+                )
+                .withModifier(PUBLIC, FINAL);
+        cb.field("markup", fld -> {
+            fld.withModifier(PRIVATE, FINAL).ofType("Markup");
+        });
+        cb.constructor(con -> {
+            con.annotatedWith("Inject").closeAnnotation();
+            con.addArgument("Markup", "markup");
+            con.body(bb -> bb.statement("this.markup = markup"));
+        });
 
-            Map<String, Set<String>> paths = new TreeMap<>();
-            Map<String, Set<String>> regexen = new TreeMap<>();
-            Map<OperationShape, PathInfo> pathInfoForOperation = new HashMap<>();
-            Map<OperationShape, HttpTrait> httpTraitForOperation = new HashMap<>();
+        cb.overridePublic("handle")
+                .addArgument("RoutingContext", "event")
+                .body(bb -> {
+                    bb.declare("path").initializedByInvoking("normalizedPath")
+                            .on("event").as("String");
+                    ClassBuilder.IfBuilder<?> test = bb.iff(invocationOf("hasMarkupFile").withArgument("path").on("markup"));
 
-            for (OperationShape op : ops) {
-                op.getTrait(HttpTrait.class).ifPresent(http -> {
-                    StructureShape inputShape = op.getInput()
-                            .map(model::expectShape).flatMap(Shape::asStructureShape).orElse(null);
-                    PathInfo info = new PathInformationExtractor(model, http.getUri()).extractPathInfo(inputShape);
-                    if (info.isRegex()) {
-                        regexen.computeIfAbsent(info.text(), tx -> new TreeSet<>())
-                                .add(http.getMethod());
-                    } else {
-                        paths.computeIfAbsent(info.text(), tx -> new TreeSet<>())
-                                .add(http.getMethod());
-                    }
-                    pathInfoForOperation.put(op, info);
-                    httpTraitForOperation.put(op, http);
+                    test.declare("etag")
+                            .initializedByInvoking("etag")
+                            .withArgument("path")
+                            .on("markup")
+                            .as("String");
+                    test.assertingNotNull("etag");
+
+                    test.declare("inm")
+                            .initializedByInvoking("getHeader")
+                            .withArgumentFromField("IF_NONE_MATCH")
+                            .of("HttpHeaderNames")
+                            .onInvocationOf("request")
+                            .on("event")
+                            .as("String");
+
+                    test.iff().booleanExpression("etag.equals(inm) || etag.equals('\"' + inm + '\"')")
+                            .invoke("send")
+                            .onInvocationOf("setStatusCode")
+                            .withArgument(304)
+                            .onInvocationOf("response")
+                            .on("event")
+                            .statement("return")
+                            .endIf();
+
+                    test.invoke("putHeader")
+                            .withArgumentFromField("ETAG")
+                            .of("HttpHeaderNames")
+                            .withStringConcatentationArgument("\"")
+                            .appendExpression("etag")
+                            .append("\"").endConcatenation()
+                            .onInvocationOf("response")
+                            .on("event");
+
+                    test.invoke("putHeader")
+                            .withArgumentFromField("CACHE_CONTROL")
+                            .of("HttpHeaderNames")
+                            .withStringLiteral("public,must-revalidate,max-age=1440")
+                            .onInvocationOf("response")
+                            .on("event");
+
+                    test.invoke("next").on("event");
+                    ElseClauseBuilder<?> els = test.orElse();
+                    els.invoke("send")
+                            .onInvocationOf("setStatusCode")
+                            .withArgument(404)
+                            .onInvocationOf("response")
+                            .on("event")
+                            .endIf();
                 });
-            }
 
-            Set<Set<String>> methodSets = new TreeSet<>(new Comparator<>() {
-                @Override
-                public int compare(Set<String> o1, Set<String> o2) {
-                    return o1.toString().compareTo(o2.toString());
-                }
-            });
+        moduleClass.importing(cb.fqn());
 
-            methodSets.addAll(paths.values());
-            methodSets.addAll(regexen.values());
-            if (methodSets.isEmpty()) {
-                return;
-            }
+        routerBody.invoke("terminatedBy")
+                .withClassArgument("StaticHandler")
+                .onInvocationOf("withHandler")
+                .withClassArgument("MarkupHandler")
+                .onInvocationOf("withRegex")
+                .withStringLiteral(".*")
+                .onInvocationOf("forHttpMethod")
+                .withArgumentFromField("GET")
+                .of("HttpMethod")
+                .onInvocationOf("route")
+                .on("verticleBuilder");
 
-            cb.method("installCorsHandlers", mb -> {
-                mb.withModifier(PRIVATE)
-                        .addArgument("VerticleBuilder<VertxGuiceModule>", verticleBuilderName)
-                        .docComment("Installs handlers for CORS preflight requests."
-                                + "\n@param " + verticleBuilderName + " the verticle builder");
-                mb.body(mbb -> {
-                    generateInstallCorsHeadersBody(cb, mbb, cors, methodSets, ops,
-                            pathInfoForOperation, regexen, paths, verticleBuilderName);
-                });
-            });
+        addTo.accept(cb);
+    }
 
-            bb.invoke("installCorsHandlers").withArgument(verticleBuilderName).inScope();
+    private CorsInfo corsInfo;
+
+    private CorsInfo corsInfo() {
+        if (corsInfo == null) {
+            corsInfo = new CorsInfo(model, shape, ops);
+        }
+        return corsInfo;
+    }
+
+    public <C, X, B extends BlockBuilderBase<C, B, X>> void declareCorsHandlers(ClassBuilder<String> cb, B bb) {
+        corsInfo().ifCors(cors -> {
+            cors.declareExposedHeaders(cb, bb);
+            cors.declareAllowedHeaders(cb, bb);
+            cors.generateCorsHandlerDeclarations(cb, bb);
         });
     }
 
-    public <C, X, B extends BlockBuilderBase<C, B, X>> void generateInstallCorsHeadersBody(ClassBuilder<String> cb, B bb, CorsTrait cors, Set<Set<String>> methodSets, Collection<? extends OperationShape> ops, Map<OperationShape, PathInfo> pathInfoForOperation, Map<String, Set<String>> regexen, Map<String, Set<String>> paths, String verticleBuilderName) {
-        cb.importing("io.vertx.ext.web.handler.CorsHandler",
-                "io.vertx.core.http.HttpMethod", "java.util.Arrays",
-                "java.util.HashSet", "java.util.Set", "java.util.Collections");
-
-        Map<Set<String>, String> corsHandlerVariableForMethodSet
-                = new HashMap<>();
-
-        bb.lineComment("Headers defined in the @cors trait on the service");
-        bb.declare("exposedHeaders")
-                .initializedByInvoking("unmodifiableSet")
-                .withArgumentFromNew(nb -> {
-                    nb.withArgumentFromInvoking("asList", ib -> {
-                        for (String h : cors.getAdditionalExposedHeaders()) {
-                            ib.withStringLiteral(h);
-                        }
-                        ib.on("Arrays");
-                    }).ofType("HashSet<>");
-                }).on("Collections")
-                .as("Set<String>");
-
-        bb.declare("allowedHeaders")
-                .initializedByInvoking("unmodifiableSet")
-                .withArgumentFromNew(nb -> {
-                    nb.withArgumentFromInvoking("asList", ib -> {
-                        for (String h : cors.getAdditionalAllowedHeaders()) {
-                            ib.withStringLiteral(h);
-                        }
-                        ib.on("Arrays");
-                    }).ofType("HashSet<>");
-                }).on("Collections").as("Set<String>");
-
-        bb.blankLine()
-                .lineComment("Create cors handlers for the exact sets of methods")
-                .lineComment("handled by different paths:");
-        for (Set<String> set : methodSets) {
-            String varName = "cors_" + Strings.join('_', set).toLowerCase();
-            bb.declare(varName)
-                    .initializedByInvoking("addOrigin")
-                    .withStringLiteral(cors.getOrigin())
-                    .onInvocationOf("maxAgeSeconds")
-                    .withArgument(cors.getMaxAge())
-                    .onInvocationOf("exposedHeaders")
-                    .withArgument("exposedHeaders")
-                    .onInvocationOf("allowedHeaders")
-                    .withArgument("allowedHeaders")
-                    .onInvocationOf("allowedMethods")
-                    .withArgumentFromNew(nb -> {
-                        nb.withArgumentFromInvoking(
-                                "asList", ib -> {
-                                    for (String m : set) {
-                                        ib.withArgumentFromField(m.toUpperCase())
-                                                .of("HttpMethod");
-                                    }
-                                    ib.on("Arrays");
-                                }).ofType("HashSet<>");
-                    })
-                    .onInvocationOf("allowCredentials")
-                    .withArgument(true)
-                    .onInvocationOf("allowPrivateNetwork")
-                    .withArgument(true)
-                    .onInvocationOf("create")
-                    .on("CorsHandler")
-                    .as("CorsHandler");
-            corsHandlerVariableForMethodSet.put(set, varName);
-        }
-
-        Set<String> seenPaths = new HashSet<>();
-        for (OperationShape op : ops) {
-            PathInfo info = pathInfoForOperation.get(op);
-            if (info != null) {
-                if (!seenPaths.add(info.text())) {
-                    continue;
-                }
-
-                Set<String> methodSet;
-                if (info.isRegex()) {
-                    methodSet = regexen.get(info.text());
-                } else {
-                    methodSet = paths.get(info.text());
-                }
-                String corsHandler = corsHandlerVariableForMethodSet.get(methodSet);
-                InvocationBuilder<B> inv = bb.invoke("handledBy")
-                        .withArgument(corsHandler);
-                if (info.isRegex()) {
-                    inv = inv.onInvocationOf("withRegex")
-                            .withStringLiteral(info.text());
-                } else {
-                    inv = inv.onInvocationOf("withPath")
-                            .withStringLiteral(info.text());
-                }
-                inv.onInvocationOf("forHttpMethod")
-                        .withArgument("HttpMethod.OPTIONS")
-                        .onInvocationOf("route")
-                        .on(verticleBuilderName);
-            }
-        }
+    public <C, X, B extends BlockBuilderBase<C, B, X>> void generateCorsHandling(B bb,
+            ClassBuilder<String> cb, String verticleBuilderName) {
+        corsInfo().ifCors(corsInfo -> {
+            corsInfo.applyCorsHandlers(bb, verticleBuilderName);
+        });
     }
 
     public <C, X, B extends BlockBuilderBase<C, B, X>> void generateErrorHandlingRouterCustomizer(B bb, ClassBuilder<String> routerBuilder, String verticleBuilderName) {
@@ -1170,7 +1306,26 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                                 .withArgument("failure")
                                                 .inScope();
 
-                                        test.orElse().invoke("next").on("ctx").endIf();
+                                        test.elseIf().booleanExpression("failure != null")
+                                                .invoke("sendErrorResponse")
+                                                .withArgumentFromInvoking("getMessage")
+                                                .on("failure")
+                                                .withArgument(500)
+                                                .withArgument("ctx")
+                                                .withArgument("failure")
+                                                .inScope();
+
+                                        /// We do not want to invoke next() here - if we do
+                                        // and if the request was dropped on the floor, we will
+                                        // wind up in an endless loop.
+                                        test.orElse()
+                                                .invoke("sendErrorResponse")
+                                                .withStringLiteral("Unspecified error")
+                                                .withArgument(500)
+                                                .withArgument("ctx")
+                                                .withArgument("null")
+                                                .inScope()
+                                                .endIf();
                                     });
                                 }).on("rtr");
                     });
@@ -1251,7 +1406,12 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                     .addArgument("RoutingContext", "ctx")
                     .addArgument("Throwable", "thrown");
             m1.body(mbb -> {
-                mbb.lineComment("ResponseException may bear a header such as www-authenticate");
+                routerBuilder.importing("io.vertx.core.http.HttpServerResponse");
+                mbb.declare("resp")
+                        .initializedByInvoking("response")
+                        .on("ctx")
+                        .as("HttpServerResponse");
+                mbb.blankLine().lineComment("ResponseException may bear a header such as www-authenticate");
                 mbb.iff(variable("thrown").isInstance("ResponseException"))
                         .invoke("withHeaderNameAndValue")
                         .withLambdaArgument()
@@ -1261,25 +1421,22 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             lbb.invoke("putHeader")
                                     .withArgument("headerName")
                                     .withArgument("headerValue")
-                                    .onInvocationOf("response")
-                                    .on("ctx");
+                                    .on("resp");
                         })
                         .on("((ResponseException) thrown)")
                         .endIf();
                 mbb.lineComment("Send the response with the status code from the exception");
                 mbb.ifNull("message")
-                        .invoke("send")
+                        .invoke("end")
                         .onInvocationOf("setStatusCode")
                         .withArgument("statusCode")
-                        .onInvocationOf("response")
-                        .on("ctx")
+                        .on("resp")
                         .orElse()
-                        .invoke("send")
+                        .invoke("end")
                         .withArgument("message")
                         .onInvocationOf("setStatusCode")
                         .withArgument("statusCode")
-                        .onInvocationOf("response")
-                        .on("ctx")
+                        .on("resp")
                         .endIf();
             });
         });
@@ -1412,7 +1569,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .on("authenticator");
                     });
         });
-
         addTo.accept(cb);
         return authPackage + "." + authInterface;
     }
@@ -1434,7 +1590,9 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         InvocationBuilder<InvocationBuilder<ElseClauseBuilder<B>>> partialInvoke = els.invoke("submit")
                 .withArgumentFromInvoking("wrap")
-                .withMethodReference("next").on("event");
+                .withMethodReference("next").on("event")
+                .withMethodReference("fail").on("event");
+
         if (auth.isOptional()) {
             partialInvoke = partialInvoke.withArgumentFromInvoking("ofNullable")
                     .withArgument("user")
@@ -1501,7 +1659,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         }
 
         // Need the probe handler to be first in the handlers list
-        generateProbeHandler(op, handlers, others);
+        generateProbeHandler(op, handlers, input, others);
         op.getTrait(AuthenticatedTrait.class
         )
                 .map(auth -> {
@@ -1718,7 +1876,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     private <C, B extends BlockBuilderBase<C, B, ?>> void invokeNextAsync(B bb, String inputVar) {
         InvocationBuilder<InvocationBuilder<B>> partialInvoke = bb.invoke("submit")
                 .withArgumentFromInvoking("wrap")
-                .withMethodReference("next").on("context");
+                .withMethodReference("next").on("context")
+                .withMethodReference("fail").on("context");
 
         if (inputVar != null) {
             partialInvoke = partialInvoke.withArgument(inputVar);
@@ -1996,6 +2155,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         });
     }
 
+    @SuppressWarnings("null")
     private <B> void invokeRoute(BlockBuilder<B> bb, String verticleBuilderName,
             ClassBuilder<String> routerBuilder, List<String> handlers,
             OperationShape op) {
@@ -2009,46 +2169,56 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             }
         }
         InvocationBuilder<BlockBuilder<B>> inv = null;
-        if (handlers.size() == -1) {
-            inv = bb.invoke("handledBy")
-                    .withClassArgument(handlers.get(0));
-        } else {
-            // We need to iterate in reverse order, since we start
-            // with the last thing invoked and work backwards - as in
-            // invoke("last").onInvocationOf("middle").onInvocationOf("first")
-            // gets you first().middle().last().
-            for (int i = handlers.size() - 1; i >= 0; i--) {
-                String handler = handlers.get(i);
-//                if (i == handlers.size() - 1 && this.generateProbeCode) {
-//                    inv = bb.invoke("withHandler")
-//                            .withArgumentFromInvoking("endHandler")
-//                            .withArgument(operationEnumTypeName() + "." + operationEnumConstant(op))
-//                            .on("probe");
-//                }
-                if (i == 0 && generateProbeCode) {
-                    inv = inv.onInvocationOf("withHandler")
-                            .withArgumentFromInvoking("ofNullable")
-                            .withArgument("preHandler")
-                            .on("Optional");
-                }
-                switch (handler) {
-                    case BODY_PLACEHOLDER:
-                        assert inv != null;
+        // We need to iterate in reverse order, since we start
+        // with the last thing invoked and work backwards - as in
+        // invoke("last").onInvocationOf("middle").onInvocationOf("first")
+        // gets you first().middle().last().
+        for (int i = handlers.size() - 1; i >= 0; i--) {
+            String handler = handlers.get(i);
+            if (i == 0) {
+                CorsInfo ci = corsInfo();
+                if (ci.isCors()) {
+                    Optional<String> handlerVarOpt = ci.corsHandlerVariableForOperation(op);
+                    if (handlerVarOpt.isPresent()) {
                         inv = inv.onInvocationOf("withHandler")
-                                .withArgumentFromInvoking("apply")
-                                .withArgument(operationEnumTypeName() + "." + operationEnumConstant(op))
-                                .on("bodyFactory");
-                        break;
-                    default:
-                        if (i == handlers.size() - 1 && inv == null) {
-                            inv = bb.invoke("terminatedBy")
-                                    .withClassArgument(simpleNameOf(handler));
-                        } else {
-                            inv = inv.onInvocationOf("withHandler")
-                                    .withClassArgument(simpleNameOf(handler));
-                        }
+                                .withArgument(handlerVarOpt.get());
+                    }
                 }
             }
+            if (i == 0 && generateProbeCode) {
+                inv = inv.onInvocationOf("withHandler")
+                        .withArgumentFromInvoking("ofNullable")
+                        .withArgument("preHandler")
+                        .on("Optional");
+            }
+            switch (handler) {
+                case BODY_PLACEHOLDER:
+                    assert inv != null;
+                    inv = inv.onInvocationOf("withHandler")
+                            .withArgumentFromInvoking("apply")
+                            .withArgument(operationEnumTypeName() + "." + operationEnumConstant(op))
+                            .on("bodyFactory");
+                    break;
+                default:
+                    if (i == handlers.size() - 1 && inv == null) {
+                        inv = bb.invoke("terminatedBy")
+                                .withClassArgument(simpleNameOf(handler));
+                    } else {
+                        inv = inv.onInvocationOf("withHandler")
+                                .withClassArgument(simpleNameOf(handler));
+                    }
+            }
+//            if (i == handlers.size() - 1) {
+//                CorsInfo ci = corsInfo();
+//                if (ci.isCors()) {
+//                    Optional<String> handlerVarOpt = ci.corsHandlerVariableForOperation(op);
+//                    if (handlerVarOpt.isPresent()) {
+//                        inv = inv.onInvocationOf("withHandler")
+//                                .withArgument(handlerVarOpt.get());
+//                    }
+//                }
+//            }
+
         }
 
         Optional<HttpTrait> httpOpt = op.getTrait(HttpTrait.class);
@@ -2079,6 +2249,36 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             Shape sh = model.expectShape(id);
             return sh.asStructureShape();
         }).orElse(null);
+    }
+
+    private HttpTrait httpFor(OperationShape op) {
+        return op.getTrait(HttpTrait.class)
+                .orElseGet(() -> {
+                    UriPattern pat = UriPattern.parse("/" + op.getId().getName());
+                    return HttpTrait.builder().method(op.getInput().isPresent() ? "post" : "get")
+                            .uri(pat).code(200).sourceLocation(op)
+                            .build();
+                });
+    }
+
+    private List<OperationShape> sortedOperations() {
+        // Operation sort order matters for vertx - more specific to less specific
+        List<OperationShape> result = new ArrayList<>(ops);
+
+        result.sort((a, b) -> {
+            HttpTrait at = httpFor(a);
+            HttpTrait bt = httpFor(b);
+            List<Segment> asegs = at.getUri().getSegments();
+            List<Segment> bsegs = bt.getUri().getSegments();
+            int res = Integer.compare(bsegs.size(), asegs.size());
+            if (res != 0) {
+                return res;
+            }
+            String sa = Strings.join('/', asegs, Segment::getContent);
+            String sb = Strings.join('/', bsegs, Segment::getContent);
+            return sb.compareTo(sa);
+        });
+        return result;
     }
 
     private Input examineInput(OperationShape op, StructureShape input, ResourceGraph graph,
@@ -2198,7 +2398,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         return applyDeclaration(decl, type, required, isModelType, memberTarget, member, model, cb);
     }
 
-    static <B extends ClassBuilder.BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir extends ClassBuilder.InvocationBuilderBase<ClassBuilder.TypeAssignment<B>, Ir>>
+    static <B extends ClassBuilder.BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir extends InvocationBuilderBase<ClassBuilder.TypeAssignment<B>, Ir>>
             Declaration<B, Tr, Rr, ?>
             applyDeclaration(Declarer<B, Tr, Rr, Ir> dec, OriginType type, boolean required, boolean isModelType,
                     Shape memberTarget, MemberShape member, Model model, ClassBuilder<?> cb) {
@@ -2340,7 +2540,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         });
     }
 
-    private <C, B extends BlockBuilderBase<C, B, ?>> void generateAuthBindingMethodsAndCalls(B bb, ClassBuilder<?> cb, Set<OperationShape> ops) {
+    private <C, B extends BlockBuilderBase<C, B, ?>> void generateAuthBindingMethodsAndCalls(B bb, ClassBuilder<?> cb) {
         Set<String> mechanisms = new TreeSet<>();
         Bool hasOptional = Bool.create();
         Map<ShapeId, Set<OperationShape>> operationsForPayload = new HashMap<>();

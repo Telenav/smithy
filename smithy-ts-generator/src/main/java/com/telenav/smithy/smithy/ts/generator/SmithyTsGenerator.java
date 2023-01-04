@@ -23,13 +23,18 @@
  */
 package com.telenav.smithy.smithy.ts.generator;
 
+import static com.mastfrog.smithy.generators.FeatureBridge.MARKUP_GENERATION_PRESENT;
+import com.telenav.smithy.utils.EnumCharacteristics;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
+import com.mastfrog.smithy.generators.Problems;
+import com.mastfrog.smithy.generators.SmithyGenerationContext;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
+import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -39,7 +44,14 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
+import static software.amazon.smithy.model.shapes.ShapeType.BLOB;
 import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
+import static software.amazon.smithy.model.shapes.ShapeType.DOCUMENT;
+import static software.amazon.smithy.model.shapes.ShapeType.ENUM;
+import static software.amazon.smithy.model.shapes.ShapeType.LIST;
+import static software.amazon.smithy.model.shapes.ShapeType.MAP;
+import static software.amazon.smithy.model.shapes.ShapeType.SET;
+import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 
 /**
  *
@@ -59,6 +71,11 @@ public class SmithyTsGenerator implements SmithyGenerator {
     }
 
     @Override
+    public void prepare(Model model, SmithyGenerationContext ctx, Problems problems) {
+        ctx.computeIfAbsent(MARKUP_GENERATION_PRESENT, () -> true);
+    }
+
+    @Override
     public Collection<? extends ModelElementGenerator> generatorsFor(Shape shape, Model model,
             Path destSourceRoot, GenerationTarget targets, LanguageWithVersion language, SmithyGenerationSettings settings, SmithyGenerationLogger logger) {
         if (GenerationTarget.MODEL.equals(targets)) {
@@ -70,7 +87,8 @@ public class SmithyTsGenerator implements SmithyGenerator {
     }
 
     public Collection<? extends ModelElementGenerator> modelGeneratorsFor(Shape shape, Model model,
-            Path destSourceRoot, GenerationTarget target, LanguageWithVersion language, SmithyGenerationSettings settings, SmithyGenerationLogger logger) {
+            Path destSourceRoot, GenerationTarget target, LanguageWithVersion language, 
+            SmithyGenerationSettings settings, SmithyGenerationLogger logger) {        
         List<ModelElementGenerator> result = new ArrayList<>();
         switch (shape.getType()) {
             case SERVICE:
@@ -121,15 +139,47 @@ public class SmithyTsGenerator implements SmithyGenerator {
                 result.add(new NumberWrapperGenerator(shape.asBigIntegerShape().get(),
                         model, language, destSourceRoot, target));
                 break;
-            case TIMESTAMP:
-                break;
-            case UNION:
+            case INT_ENUM:
+                result.add(new IntEnumGenerator(shape.asIntEnumShape().get(),
+                        model, language, destSourceRoot, target));
                 break;
             case LIST:
             case SET:
                 result.add(new ListGenerator(shape.asListShape().get(),
                         model, language, destSourceRoot, target));
                 break;
+            case ENUM:
+                EnumCharacteristics chars = characterizeEnum(shape.asEnumShape().get());
+                switch (chars) {
+                    case STRING_VALUED_MATCHING_NAMES:
+                        result.add(new StringEnumGenerator(shape.asEnumShape().get(),
+                                model, language, destSourceRoot, target));
+                        break;
+                    case STRING_VALUED:
+                    case INT_VALUED:
+                        throw new UnsupportedOperationException("Huh?");
+                    case HETEROGENOUS:
+                    case NONE:
+                        result.add(new GeneralEnumGenerator(shape.asEnumShape().get(),
+                                model, language, destSourceRoot, target));
+                }
+                break;
+            case MAP:
+                result.add(new MapGenerator(shape.asMapShape().get(),
+                        model, language, destSourceRoot, target));
+                break;
+            case TIMESTAMP:
+                result.add(new TimestampWrapperGenerator(shape.asTimestampShape().get(),
+                        model, language, destSourceRoot, target));
+                break;
+            case UNION:
+                result.add(new UnionTypeGenerator(shape.asUnionShape().get(),
+                        model, language, destSourceRoot, target));
+                break;
+            case BLOB:
+            case DOCUMENT:
+                throw new UnsupportedOperationException("Type not supported: " + shape.getType()
+                        + " for " + shape.getId());
 
         }
         return result;

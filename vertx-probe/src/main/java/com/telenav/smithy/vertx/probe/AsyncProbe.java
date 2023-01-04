@@ -23,6 +23,7 @@
  */
 package com.telenav.smithy.vertx.probe;
 
+import io.netty.buffer.ByteBuf;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Verticle;
@@ -337,7 +338,15 @@ final class AsyncProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
     public void onBeforePayloadRead(Ops op, RoutingContext event,
             Class<? extends Handler<RoutingContext>> handler,
             Buffer buffer) {
-        buffer = Buffer.buffer(buffer.getByteBuf().duplicate());
+        if (buffer == null) {
+            System.err.println("before payload read, but no buffer.");
+            return;
+        }
+        ByteBuf bb = buffer.getByteBuf();
+        if (bb == null) {
+            return;
+        }
+        buffer = Buffer.buffer(bb.duplicate());
         push(new PayloadReadRecord<>(op, event, handler, buffer));
     }
 

@@ -54,6 +54,12 @@ public final class ResponseException extends RuntimeException {
         this.status = status;
         this.headerName = headerName;
         this.headerValue = headerValue;
+        if (this.status == 500) {
+            new Exception("Create exception with 500").printStackTrace();
+        }
+        if (cause instanceof ResponseException) {
+            new Exception("Creating a response exception for a response exception", cause).printStackTrace();
+        }
     }
 
     public int status() {

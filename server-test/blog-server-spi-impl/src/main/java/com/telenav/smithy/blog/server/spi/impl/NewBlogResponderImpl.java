@@ -49,6 +49,9 @@ public class NewBlogResponderImpl implements NewBlogResponder {
     @Override
     public void respond(SmithyRequest request, AuthUser authInfo,
             NewBlogInput input, SmithyResponse<NewBlogOutput> output) throws Exception {
+        
+        System.out.println("New Blog: " + input);
+        
         // XXX deleteme once cors handling is fixed
         output.add("access-control-allow-origin", "*");
         output.add("access-control-allow-methods", "GET,POST,PUT,OPTIONS");
@@ -58,6 +61,8 @@ public class NewBlogResponderImpl implements NewBlogResponder {
         
         BlogId newId = store.newBlog(input);
         output.complete(new NewBlogOutput(newId));
+        
+        System.out.println("Completed output " + newId);
     }
 
 }

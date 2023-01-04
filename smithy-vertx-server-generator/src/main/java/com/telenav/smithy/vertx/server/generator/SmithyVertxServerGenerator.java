@@ -26,6 +26,9 @@ package com.telenav.smithy.vertx.server.generator;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
+import com.mastfrog.smithy.generators.PostGenerateTask;
+import com.mastfrog.smithy.generators.SmithyGenerationContext;
+import static com.mastfrog.smithy.generators.SmithyGenerationContext.MARKUP_PATH_CATEGORY;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.generators.SmithyGenerationSettings;
 import com.mastfrog.smithy.generators.SmithyGenerator;
@@ -64,5 +67,5 @@ public class SmithyVertxServerGenerator implements SmithyGenerator {
             return singleton(gen);
         }
         return emptySet();
-    }
+    }   
 }

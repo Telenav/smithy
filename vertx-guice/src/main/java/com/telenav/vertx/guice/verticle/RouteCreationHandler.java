@@ -58,7 +58,18 @@ final class RouteCreationHandler {
 
         @Override
         public void handle(RoutingContext event) {
-            factory.get().handle(event);
+            try {
+                factory.get().handle(event);
+            } catch (IllegalStateException ex) {
+                // BodyHandler:
+                if (ex.getMessage() != null && ex.getMessage().contains("has already been read")) {
+                    System.out.println("IGNORE REQUEST READ");
+                    ex.printStackTrace();
+                    event.next();
+                } else {
+                    throw ex;
+                }
+            }
         }
 
         @Override

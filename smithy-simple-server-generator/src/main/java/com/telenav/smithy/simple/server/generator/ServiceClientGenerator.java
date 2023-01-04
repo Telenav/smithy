@@ -151,10 +151,13 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
         Optional<Shape> input = op.getInput().map(inId -> model.expectShape(inId));
         Optional<Shape> output = op.getOutput().map(outId -> model.expectShape(outId));
         Optional<HttpTrait> httpOpt = op.getTrait(HttpTrait.class);
-        if (!input.isPresent() && !output.isPresent()) {
-            throw new ConfigurationError(op.getId()
-                    + " has no input AND no output");
-        }
+        // "login" type calls may have no input or output - their only purpose is
+        // to trigger the browser's basic auth dialog.
+        
+//        if (!input.isPresent() && !output.isPresent()) {
+//            throw new ConfigurationError(op.getId()
+//                    + " has no input AND no output");
+//        }
         if (!httpOpt.isPresent()) {
             throw new ConfigurationError(op.getId()
                     + " has no http trait - will not infer url mapping (yet)");

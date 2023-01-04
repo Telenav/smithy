@@ -50,6 +50,7 @@ class StringWrapperGenerator extends AbstractTypescriptGenerator<StringShape> {
             cb.exported();
             cb.property("value")
                     .setPublic()
+                    .readonly()
                     .ofType("string");
             cb.exported().constructor(con -> {
                 con.withArgument("value").ofType("string")

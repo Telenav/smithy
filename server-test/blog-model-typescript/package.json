@@ -6,6 +6,7 @@
     "scripts": {
         "build": "rimraf ./target && tsc && cp src/domstuff.html target/domstuff.html",
         "test": "echo \"Error: no test specified\" && exit 1",
+        "clean-all": "rimraf ./src && rimraf ./target && rimraf ./dist",
         "clean": "rimraf ./target && rimraf ./dist",
         "dist": "rimraf ./dist && webpack -o ./dist && cp src/domstuff.html dist/domstuff.html && cp src/model/index.html dist/index.html",
         "dev": "rimraf ./dist && webpack -c dev.config.js -o ./dist --mode none && cp src/domstuff.html dist/domstuff.html && mkdir -p dist && cp src/index.html dist/index.html",

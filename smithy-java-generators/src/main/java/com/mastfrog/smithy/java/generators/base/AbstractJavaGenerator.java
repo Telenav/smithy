@@ -57,7 +57,7 @@ public abstract class AbstractJavaGenerator<S extends Shape>
         implements ModelElementGenerator {
 
     static final SettingsKey<ObjectSizes> OBJECT_SIZE_KEY = key(ObjectSizes.class, "sizes");
-    private SmithyGenerationContext ctx;
+    public SmithyGenerationContext ctx;
     protected SmithyGenerationLogger log;
     protected final S shape;
     protected final Model model;

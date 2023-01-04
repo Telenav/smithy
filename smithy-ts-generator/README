@@ -1,0 +1,154 @@
+Smithy Typescript Code Generators
+=================================
+
+This project contains a Smithy code generator implementations for
+generating model classes and a client SDK library for typescript.
+
+Typically you will build your Smithy model project, with this plugin
+included in the `<dependencies>` of smithy-maven-plugin, and configure
+a destination directory for `typescript.model` that points to an
+`npm` managed project set up to build Typescript into Javascript.
+
+This library can optionally emit an HTML page which exposes a crude
+UI for submitting requests and observing responses.
+
+### Creating a Project for your Typescript Code
+
+The following steps will create a skeleton project for your generated
+typescript.
+
+The result will be a project containing the following files and folders:
+
+```
+your-project/
+  src/    - where generated typescript files are put
+  target/ - where javascript files compiled from typescript are put when you build
+  dist/   - where javascript files munged by webpack go - these are what you distribute
+
+  package.json - node js project configuration (build dependencies and such)
+  package-lock.json - exact versions of node modules 
+                      (in early development, exclude with .gitignore; once stabilized
+                       commit it - it ensures anyone building the project gets exactly
+                       the same bits)
+  node_modules/ - npm libraries used by the build (exclude in your .gitignore)
+  tsconfig.json - typescript compiler config - example below
+  webpack.config.js - webpack config - example below
+```
+
+#### Creating the project
+
+```sh
+mkdir xyz-model-typescript
+cd xyz-model-typescript
+npm init
+
+# Answer the questions...
+
+npm install --save-dev rimraf typescript webpack webpack-cli xmlhttprequest
+mkdir src/
+```
+
+(`xmlhttprequest` is only needed if you want to write tests of your model using
+NodeJS - omit it otherwise).
+
+Edit a few scripts into the `package.json` file emitted by `npm init`:
+
+```json
+    "scripts": {
+        "build": "rimraf ./target && tsc",
+        "clean": "rimraf ./target && rimraf ./dist",
+        "dist": "rimraf ./dist && webpack -o ./dist && cp src/model/index.html dist/index.html"
+    }
+```
+
+(if you do not enable the generated HTML ui, skip the `cp src/model/index.html...` part)
+
+#### Configuring Webpack
+
+Then configure webpack (which merges and optimizes javascript) by adding a
+`webpack.config.js` file to the project root folder:
+
+```javascript
+const path = require('path');
+
+module.exports = {
+  mode: 'none',
+  entry: path.resolve(__dirname, 'target/model/testit.js'),
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'testit.js',
+  },
+};
+```
+
+#### Configuring the Typescript compiler
+
+and a typescript compiler config - for example (the `include` item is critical):
+
+```json
+{
+    "compilerOptions": {
+        "target": "es2020",
+        "lib": ["es2020", "DOM"],
+        "module": "es2020",
+        "rootDir": "src",
+        "resolveJsonModule": false,
+        "allowJs": true,
+        "outDir": "target",
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": false,
+        "strict": true,
+        "noImplicitAny": false,
+        "skipLibCheck": true
+    },
+    "include": ["src/**/*"]
+}
+```
+
+Generated Code Style
+--------------------
+
+In general it is similar to the generated Java model classes:
+
+ * The generated model code shall not depend on any third party libraries (which
+could cause breakage across versions - the goal of generated code is that it
+should work forever)
+
+ * Code generation is type-for-type 
+    * If you have a type that is a wrapper for an integer, you get a Typescript class which is a wrapper for an integer
+(the generated code takes care of making JSON serialization work correctly)
+    * Models that extend List, Set and Map get you subclasses of List, Set and Map
+ * JSON serialization/deserialization works out-of-the-box (non-trivial generated
+   types have a `fromJsonObject(obj : any)` static method to convert a JSON object
+   received over the wire into an object of the correct type;  `JSON.stringify()`
+   will _just work_.  Note, if you are using the generated SDK client library,
+   you will never directly need to deal with JSON serialization
+ * Object fields are immutable where possible
+ * Smithy `mixin` types are generated as interfaces which the concrete types that
+   use them implement.
+
+What Is Generated
+-----------------
+
+What gets generated is several typescript files, whose name is prefixed by the
+name of the Smithy *Service* they are in the closure of.  So, if your service
+is named `BlogService` (as in the example project here), you will see
+
+ * `src/model/BlogServiceModel.ts` - this contains all data types (shapes which 
+   are not services, resources or operations) in your model
+ * `src/model/BlogServiceClient.ts` - a client library - you instantiate a
+   `BlogServiceClient` (with optional configuration to set the URL for the
+    service - the default is the same host as the web page using it is served
+    from) which has one method for each Smithy *operation* your service
+    exposes
+ * `src/model/ServiceClient.ts` - contains common code the service client uses
+    to work with broswers' `XmlHttpRequest`
+
+If you enable generation of the experimental HTML UI, you will also see
+
+ * `src/model/testit.ts` - dynamically generates DOM elements to create an
+    input form for each operation
+ * `src/model/domstuff.ts` - a small component library used to manipulate the DOM
+ * `src/model/index.html` - the HTML UI itself (largely empty, since its content
+    is generated on the fly.
+

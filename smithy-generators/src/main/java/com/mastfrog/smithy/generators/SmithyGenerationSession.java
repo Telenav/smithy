@@ -38,7 +38,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
@@ -55,6 +57,7 @@ public final class SmithyGenerationSession {
     private final SmithyGenerationSettings settings;
     private final SmithyDestinations destinations;
     private final Set<GenerationTarget> generationTargets;
+    private final Map<String, PostGenerateTask> postTasks = new TreeMap<>();
 
     SmithyGenerationSession(SmithyGenerationSettings settings, Set<LanguageWithVersion> languages,
             SmithyDestinations destinations, Set<GenerationTarget> generationTargets) {
@@ -70,10 +73,15 @@ public final class SmithyGenerationSession {
         }
     }
 
+    public SmithyGenerationSession registerPostGenerationTask(String key, Supplier<? extends PostGenerateTask> supp) {
+        postTasks.computeIfAbsent(key, k -> supp.get());
+        return this;
+    }
+
     public GenerationResults generate(Model model, Predicate<ShapeId> test,
             SmithyGenerationLogger logger) throws Exception {
         SmithyGenerationContext ctx
-                = new SmithyGenerationContext(destinations, settings);
+                = new SmithyGenerationContext(destinations, settings, this);
         return ctx.run(() -> {
             Collection<? extends SmithyGenerator> generators = generators(logger);
             if (generators.isEmpty()) {
@@ -91,7 +99,6 @@ public final class SmithyGenerationSession {
 
             Map<LanguageWithVersion, Map<ShapeId, Set<ModelElementGenerator>>> generatorsForLanguage
                     = new HashMap<>();
-            Map<ShapeId, Shape> shapeForShapeId = new HashMap<>();
 
             Set<Path> dests = new HashSet<>();
             Set<SmithyGenerator> initialized = new HashSet<>();
@@ -104,7 +111,6 @@ public final class SmithyGenerationSession {
                     if (shape.isMemberShape()) {
                         continue;
                     }
-                    shapeForShapeId.put(shapeId, shape);
                     for (SmithyGenerator g : generators) {
                         if (initialized.add(g)) {
                             g.prepare(model, ctx, problems);
@@ -114,12 +120,13 @@ public final class SmithyGenerationSession {
                                 Set<GenerationTarget> availableTargets
                                         = targetsFor(g, generationTargets);
                                 for (GenerationTarget target : availableTargets) {
-
-                                    Path root = destinations.sourceRootFor(target, shape, lang, settings);
+                                    Path root = destinations.sourceRootFor(target,
+                                            shape, lang, settings);
                                     dests.add(root);
 
                                     Map<ShapeId, Set<ModelElementGenerator>> items
-                                            = generatorsForLanguage.computeIfAbsent(lang, l -> new LinkedHashMap<>());
+                                            = generatorsForLanguage.computeIfAbsent(
+                                                    lang, l -> new LinkedHashMap<>());
 
                                     Collection<? extends ModelElementGenerator> gens
                                             = g.generatorsFor(shape, model, root,
@@ -143,7 +150,8 @@ public final class SmithyGenerationSession {
                 throw new IOException(problems.toString());
             }
             List<GeneratedCode> generated = new ArrayList<>();
-            for (Map.Entry<LanguageWithVersion, Map<ShapeId, Set<ModelElementGenerator>>> e : generatorsForLanguage.entrySet()) {
+            for (Map.Entry<LanguageWithVersion, Map<ShapeId, Set<ModelElementGenerator>>> e
+                    : generatorsForLanguage.entrySet()) {
                 for (Map.Entry<ShapeId, Set<ModelElementGenerator>> e1 : e.getValue().entrySet()) {
                     for (ModelElementGenerator meg : e1.getValue()) {
                         generated.addAll(meg.generate(
@@ -152,7 +160,17 @@ public final class SmithyGenerationSession {
                     }
                 }
             }
-            return new GenerationResults(ctx, generated, dests);
+            GenerationResults uncommittedResults = new GenerationResults(ctx, generated, dests);
+            while (!postTasks.isEmpty()) {
+                // Post tasks can potentially add more post tasks
+                List<PostGenerateTask> tasks = new ArrayList<>(postTasks.values());
+                postTasks.clear();
+                for (PostGenerateTask task : tasks) {
+                    task.onAfterGenerate(ctx, model, uncommittedResults, ctx::registeredPaths,
+                            logger.child("post-tasks"));
+                }
+            }
+            return uncommittedResults;
         });
     }
 
@@ -190,7 +208,8 @@ public final class SmithyGenerationSession {
         return result;
     }
 
-    private Set<GenerationTarget> targetsFor(SmithyGenerator g, Set<GenerationTarget> generationTargets) {
+    private Set<GenerationTarget> targetsFor(SmithyGenerator g,
+            Set<GenerationTarget> generationTargets) {
         Set<GenerationTarget> result = new LinkedHashSet<>();
         for (GenerationTarget gt : generationTargets) {
             if (g.supportsGenerationTarget(gt)) {
@@ -199,5 +218,4 @@ public final class SmithyGenerationSession {
         }
         return result;
     }
-
 }

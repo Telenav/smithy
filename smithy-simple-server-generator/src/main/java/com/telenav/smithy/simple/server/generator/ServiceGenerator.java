@@ -33,23 +33,21 @@ import static com.mastfrog.java.vogon.ClassBuilder.number;
 import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
+import com.mastfrog.smithy.generators.PostGenerateTask;
+import com.mastfrog.smithy.generators.SmithyGenerationContext;
+import static com.mastfrog.smithy.generators.SmithyGenerationContext.MARKUP_PATH_CATEGORY;
 import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry;
 import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
 import static com.mastfrog.util.strings.Strings.decapitalize;
-import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
-import com.telenav.smithy.names.operation.OperationNames;
 import static com.telenav.smithy.names.operation.OperationNames.authPackage;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.ensureGraphs;
 import com.telenav.smithy.utils.ResourceGraph;
-import com.telenav.smithy.utils.ResourceGraphs;
 import static com.telenav.smithy.utils.ResourceGraphs.graph;
 import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
-import com.telenav.validation.ValidationExceptionProvider;
 import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
 import static java.lang.Character.isUpperCase;
 import java.nio.file.Path;
@@ -74,7 +72,6 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.shapes.ShapeType;
 import static software.amazon.smithy.model.shapes.ShapeType.OPERATION;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 
@@ -116,8 +113,17 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
         addBindingFieldsAndMethodsForAuthenticators(operations, cb);
 
         createExceptionEvaluatorImplementations(cb);
+        registerZipMarkupTask();
 
         addTo.accept(cb);
+    }
+
+    private void registerZipMarkupTask() {
+        SmithyGenerationContext context = ctx();
+        String packagePath = names().packageOf(shape).replace('.', '/');
+        String markupRelativePath = context.settings().getString("simple-server-markup-src-relative-path").orElse("../resources/" + packagePath + "/markup.zip");
+        ctx().session().registerPostGenerationTask(getClass().getName() + "-zip-markup",
+                () -> PostGenerateTask.zipCategory(MARKUP_PATH_CATEGORY, destSourceRoot.resolve(markupRelativePath).toAbsolutePath()));
     }
 
     @Override

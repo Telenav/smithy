@@ -23,8 +23,11 @@
  */
 package com.mastfrog.smithy.generators;
 
+import com.mastfrog.function.throwing.ThrowingConsumer;
+import static com.mastfrog.smithy.generators.GenerationSwitches.DONT_CLEAN_SOURCE_ROOTS;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DONT_GENERATE_WARNING_FILES;
 import static com.mastfrog.smithy.generators.GenerationSwitches.DRY_RUN;
+import com.mastfrog.smithy.generators.ModelElementGenerator.GeneratedCode;
 import static com.mastfrog.util.file.FileUtils.deltree;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -35,6 +38,7 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 import java.util.Collection;
+import static java.util.Collections.unmodifiableSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -47,20 +51,26 @@ import java.util.Set;
  */
 public final class GenerationResults {
 
-    private final List<ModelElementGenerator.GeneratedCode> generated;
+    private final List<GeneratedCode> generated;
     private final SmithyGenerationContext ctx;
     private final Set<Path> roots;
+    private final Set<ThrowingConsumer<Set<? extends Path>>> postCommitTasks = new LinkedHashSet<>();
 
     GenerationResults(SmithyGenerationContext ctx,
-            List<ModelElementGenerator.GeneratedCode> generated,
+            List<GeneratedCode> generated,
             Set<Path> roots) {
         this.generated = generated;
         this.ctx = ctx;
         this.roots = roots;
     }
 
+    public GenerationResults onAfterCommit(ThrowingConsumer<Set<? extends Path>> run) {
+        postCommitTasks.add(run);
+        return this;
+    }
+
     private void clean(boolean dryRun) throws IOException {
-        if (ctx.settings().is(GenerationSwitches.DONT_CLEAN_SOURCE_ROOTS)) {
+        if (ctx.settings().is(DONT_CLEAN_SOURCE_ROOTS)) {
             return;
         }
         if (!dryRun) {
@@ -80,6 +90,7 @@ public final class GenerationResults {
         }
     }
 
+    @Override
     public String toString() {
         return generated.size() + " source files.";
     }
@@ -102,7 +113,7 @@ public final class GenerationResults {
     public Set<Path> commit() throws Exception {
         boolean dryRun = ctx.settings().is(DRY_RUN);
         clean(dryRun);
-        Set<Path> paths = new HashSet<>();
+        Set<Path> paths = new LinkedHashSet<>();
         ctx.run(() -> {
             Set<Path> problems = new HashSet<>();
             for (ModelElementGenerator.GeneratedCode g : generated) {
@@ -120,6 +131,9 @@ public final class GenerationResults {
         });
         if (!ctx.settings().is(DONT_GENERATE_WARNING_FILES)) {
             generateWarningFiles(paths);
+        }
+        for (ThrowingConsumer<Set<? extends Path>> run : postCommitTasks) {
+            run.accept(unmodifiableSet(paths));
         }
         return paths;
     }

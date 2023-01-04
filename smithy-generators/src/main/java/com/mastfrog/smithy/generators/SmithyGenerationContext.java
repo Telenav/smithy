@@ -26,8 +26,13 @@ package com.mastfrog.smithy.generators;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.function.throwing.ThrowingSupplier;
 import static com.mastfrog.util.preconditions.Checks.notNull;
+import java.nio.file.Path;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -40,6 +45,8 @@ import java.util.function.Supplier;
  */
 public final class SmithyGenerationContext {
 
+    public static final String MARKUP_PATH_CATEGORY = "markup";
+    public static final String SWAGGER_PATH_CATEGORY = "swagger";
     private static final ThreadLocal<SmithyGenerationContext> CTX
             = new ThreadLocal<>();
     private final Map<SettingsKey<?>, Object> keySettings
@@ -47,11 +54,51 @@ public final class SmithyGenerationContext {
 
     private final SmithyDestinations dests;
     private final SmithyGenerationSettings settings;
+    private final SmithyGenerationSession session;
 
     SmithyGenerationContext(SmithyDestinations dests,
-            SmithyGenerationSettings settings) {
+            SmithyGenerationSettings settings,
+            SmithyGenerationSession session) {
         this.dests = dests;
         this.settings = settings;
+        this.session = session;
+    }
+
+    public SmithyGenerationSession session() {
+        return session;
+    }
+
+    private static SettingsKey<Set<Path>> pathSetKey(String category) {
+        return SettingsKey.key(Set.class, category);
+    }
+
+    /**
+     * Register a path in an ad-hoc category of paths (such as "markup") - used
+     * to allow generators for, say, servers to identify and copy static markup
+     * files into some location they can serve, when those files are generated
+     * by some other code generators that may or may not always be present.
+     *
+     * @param category
+     * @param path
+     * @return this
+     */
+    public SmithyGenerationContext registerPath(String category, Path path) {
+        SettingsKey<Set<Path>> key = pathSetKey(category);
+        computeIfAbsent(key, LinkedHashSet::new).add(path);
+        return this;
+    }
+
+    /**
+     * Get the set of paths registered for a given category. These sets will be
+     * available to PostGenerateTasks.
+     *
+     * @param category
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    Set<? extends Path> registeredPaths(String category) {
+        Set<? extends Path> paths = (Set<Path>) keySettings.get(pathSetKey(category));
+        return paths == null ? emptySet() : unmodifiableSet(paths);
     }
 
     /**
@@ -181,5 +228,4 @@ public final class SmithyGenerationContext {
     public static boolean isInContext() {
         return CTX.get() != null;
     }
-
 }

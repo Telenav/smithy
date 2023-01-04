@@ -208,7 +208,7 @@ public class VertxHeaderTypes extends HeaderTypes {
 
     @Override
     public HeaderSpec<CharSequence> wwwAuthenticate() {
-        return charSequenceHeader("www-authenticate");
+        return charSequenceHeader("WWW-Authenticate");
     }
 
     @Override

@@ -113,7 +113,7 @@
                             stack trace fragment comments into the sources
                             showing what line of what class caused given lines
                             of code to be generated. -->
-                            <debug>true</debug>
+                            <debug>false</debug>
                             <!-- Just to prove this works: -->
                             <settings>
                                 <foo>bar</foo>

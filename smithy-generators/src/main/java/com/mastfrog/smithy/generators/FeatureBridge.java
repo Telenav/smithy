@@ -32,6 +32,9 @@ public final class FeatureBridge {
     public static final SettingsKey<Boolean> SWAGGER_GENERATION_PRESENT
             = SettingsKey.key(Boolean.class, "swagger");
 
+    public static final SettingsKey<Boolean> MARKUP_GENERATION_PRESENT
+            = SettingsKey.key(Boolean.class, "markup");
+
     private FeatureBridge() {
         throw new AssertionError();
     }

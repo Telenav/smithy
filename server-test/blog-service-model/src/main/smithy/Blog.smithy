@@ -22,7 +22,7 @@ use com.telenav.smithy#genericRestProtocol
 service BlogService {
     version : "1.0"
     resources : [Blogs]
-    operations : [Health, Ping]
+    operations : [Health, Ping, Login]
 }
 
 /// Resource providing blog entries
@@ -93,6 +93,12 @@ operation ApproveComment {
     /// Whether or not the approved state of the comment
     /// was changed by applying this operation
     output: ApproveCommentOutput
+}
+
+@http(method:"GET", uri:"/login", code: 200)
+@authenticated(mechanism: "basic", payload : "com.telenav.blog#AuthUser")
+operation Login {
+    
 }
 
 /// Input to approving a comment, consisting of the blog id,
