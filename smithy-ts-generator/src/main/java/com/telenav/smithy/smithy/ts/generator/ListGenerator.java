@@ -26,9 +26,6 @@ package com.telenav.smithy.smithy.ts.generator;
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
-import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
@@ -74,12 +71,25 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                         // We can be called with a string where it should be string[],
                         // and if you create a new Set from a string, you get one
                         // element for each letter
-                        bb.invoke("super")
-                                .withArgument("items").inScope();
+                        if (memberTarget.getType() == STRING) {
+                            bb.invoke("super")
+                                    .withTernary("Array.isArray(items)")
+                                    .expression("items")
+                                    .expression("[items as string]")
+                                    .inScope();
+                        } else {
+                            bb.invoke("super")
+                                    .withArgument("items").inScope();
+                        }
                     } else {
                         if (memberTarget.getType() == STRING) {
                             bb.invoke("super")
-                                    .withArgument("items").inScope();
+                                    .withTernary("Array.isArray(items)")
+                                    .expression("items")
+                                    .expression("[items as string]")
+                                    .inScope();
+//                            bb.invoke("super")
+//                                    .withArgument("items").inScope();
                         } else {
                             bb.invoke("super").withArgument(isSet ? "items" : "...items").inScope();
                         }

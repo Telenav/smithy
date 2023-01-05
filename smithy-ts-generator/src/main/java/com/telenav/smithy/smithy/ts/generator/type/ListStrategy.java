@@ -23,7 +23,6 @@
  */
 package com.telenav.smithy.smithy.ts.generator.type;
 
-import static com.mastfrog.util.strings.Strings.decapitalize;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;

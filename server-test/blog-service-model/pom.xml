@@ -116,7 +116,7 @@
                             <debug>false</debug>
                             <!-- Just to prove this works: -->
                             <settings>
-                                <foo>bar</foo>
+                                <generate-test-ui>true</generate-test-ui>
                             </settings>
                             <targets>model,modeltest,server,server-spi,client,docs,vertx-server</targets>
                             <!--<targets>model,server</targets>-->

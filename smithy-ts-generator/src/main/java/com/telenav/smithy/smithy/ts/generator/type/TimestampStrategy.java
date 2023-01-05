@@ -23,7 +23,12 @@
  */
 package com.telenav.smithy.smithy.ts.generator.type;
 
-import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
+import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.NewBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.TimestampShape;
@@ -40,17 +45,17 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
+    public <T, B extends TSBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
                     String instantiatedVar, boolean declare) {
         boolean prim = TypeStrategies.isNotUserType(shape);
-        TypescriptSource.Assignment<B> decl = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
+        Assignment<B> decl = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         String targetType = prim ? "Date" : targetType();
         TsVariable rvAny = rawVar.as(TsPrimitiveTypes.ANY);
         if (rawVar.optional()) {
             decl.ofType(targetType + " | undefined");
             String ternaryTest = rawVar.isAnyType() ? "typeof " + rawVar.name() + " !== 'string'" : "typeof " + rawVar.name() + " !== 'undefined'";
-            TypescriptSource.ExpressionBuilder<B> rightSide = decl.assignedToTernary(ternaryTest).expression("undefined");
+            ExpressionBuilder<B> rightSide = decl.assignedToTernary(ternaryTest).expression("undefined");
             rightSide.instantiate(nb -> {
                 if (prim) {
                     instantiateDateFromString(nb, rvAny);
@@ -76,21 +81,27 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
         }
     }
 
-    private <T> void instantiateDateFromString(TypescriptSource.NewBuilder<Void> nb2, TsVariable rawVar) {
+    private <T> void instantiateDateFromString(NewBuilder<Void> nb2, TsVariable rawVar) {
         String arg;
         if (rawVar.isAnyType()) {
             arg = "(" + rawVar.name() + " as any) as string";
         } else {
             arg = rawVar.name();
         }
-        nb2.withArgumentFromInvoking("parse").withArgument(arg).on("Date").ofType("Date");
+        if (rawVar.optional()) {
+            nb2.withTernary(rawVar.name() + " === ''")
+                    .expression("undefined")
+                    .invoke("parse").withArgument(arg).on("Date").ofType("Date");
+        } else {
+            nb2.withArgumentFromInvoking("parse").withArgument(arg).on("Date").ofType("Date");
+        }
     }
 
     @Override
-    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>> void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
+    public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
         boolean prim = TypeStrategies.isNotUserType(shape);
         if (rawVar.optional()) {
-            TypescriptSource.ExpressionBuilder<B> rightSide;
+            ExpressionBuilder<B> rightSide;
             if (rawVar.isAnyType()) {
                 rightSide = inv.withUndefinedIfUndefinedOr(rawVar.name());
             } else {
@@ -121,7 +132,7 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         if (rawVar.optional()) {
             (declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar)).ofType("string | undefined").assignedToTernary("typeof " + rawVar.name() + "!== 'undefined'").invoke("toISOString").on(rawVar.name()).expression("undefined");
         } else {
@@ -145,7 +156,7 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void populateQueryParam(
+    public <T, B extends TSBlockBuilderBase<T, B>> void populateQueryParam(
             String fieldName, boolean required, B bb, String queryParam) {
         if (!required) {
             bb.ifFieldDefined(fieldName).ofThis()
@@ -164,13 +175,13 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     }
 
     @Override
-    public <A> A populateHttpHeader(TypescriptSource.Assignment<A> assig, String fieldName) {
+    public <A> A populateHttpHeader(Assignment<A> assig, String fieldName) {
         return assig.assignedToInvocationOf("toUTCString")
                 .onField(fieldName).ofThis();
     }
 
     @Override
-    public <T> T applyDefault(DefaultTrait def, TypescriptSource.ExpressionBuilder<T> ex) {
+    public <T> T applyDefault(DefaultTrait def, ExpressionBuilder<T> ex) {
         Node n = def.toNode();
         switch (n.getType()) {
             case NUMBER:

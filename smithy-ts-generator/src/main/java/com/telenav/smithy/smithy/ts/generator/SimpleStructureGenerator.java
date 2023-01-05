@@ -350,8 +350,12 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                             bb.statement("let " + dateField);
                         }
 
+                        bb.lineComment("We may have an empty string which will result in an ")
+                                .lineComment("invalid date, so test for that.");
+
                         ConditionalClauseBuilder<TsBlockBuilder<Void>> test
-                                = bb.ifTypeOf(fieldName, "string");
+                                = bb.iff("typeof " + an + " === 'string' && "
+                                        + an + " !== ''");
 
                         test.assign(dateField).assignedToNew(nb -> {
                             nb.withArgumentFromInvoking("parse")
@@ -361,16 +365,28 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                         });
 
                         test = test.orElse("typeof " + fieldName + " === 'number'");
+                        test = test.assign(dateField).assignedToNew().withArgument(
+                                fieldName + " as number").ofType("Date");
 
-                        test.assign(dateField).assignedToNew().withArgument(fieldName + " as number").ofType("Date");
                         if (required) {
-                            test.orElse().assign(dateField).assignedTo(fieldName).endIf();
+                            test.orElse()
+                                    .assign(dateField)
+                                    .assignedToTernary("typeof " + fieldName + " === 'number'")
+                                    .instantiate().withArgument(fieldName + " as number").ofType("Date")
+                                    .expression(fieldName + " as Date");
+//                            test.orElse().assign(dateField).assignedTo(fieldName).endIf();
 //                            test.orElse().statement(dateField + " = " + fieldName).endIf();
                         } else {
-                            test.orElse(argName)
-                                    .statement(dateField + " = " + fieldName + " as Date")
-                                    .endIf();
+//                            test.orElse(argName)
+//                                    .statement(dateField + " = " + fieldName + " as Date")
+//                                    .endIf();
+                            test.orElse()
+                                    .assign(dateField)
+                                    .assignedToTernary("typeof " + fieldName + " === 'number'")
+                                    .instantiate().withArgument(fieldName + " as number").ofType("Date")
+                                    .expression(fieldName + " as Date");
                         }
+
                         if (!isNotUserType(targetShape)) {
                             String nue = argName + "As" + strategy.targetType();
                             bb.declare(nue).ofType(strategy.targetType())
@@ -469,10 +485,13 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
 
                         TsVariable v = strategy.shapeType()
                                 .optional(needOptional)
-                                //                                .optional(!required || defaultedProperties.contains(name))
                                 .variable("obj['" + jsonName + "']");
+                        bb.blankLine().lineComment("MEMBER: " + name + " strategy "
+                                + target.getType() + " "
+                                + strategy.getClass().getSimpleName()
+                                + " required " + required);
                         strategy.instantiateFromRawJsonObject(bb, v, fieldName, true);
-//                        nb.withArgumentFromInvoking(name)
+
                         String arg = required ? fieldName + " as " + strategy.targetType() : fieldName;
                         nb.withArgument(arg);
                     });
@@ -563,10 +582,8 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
             return;
         }
         defaultGenerated = true;
-        cb.blockComment(Strings.toString(new Exception("Default Generation for " + shape.getId().getName())));
-
         cb.property("DEFAULT", p -> {
-            p.makeStatic().setPublic();
+            p.readonly().makeStatic().setPublic();
 
             Map<String, DefaultTrait> defaults = defaultTraits();
 

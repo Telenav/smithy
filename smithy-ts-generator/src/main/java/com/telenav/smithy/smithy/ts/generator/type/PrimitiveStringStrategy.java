@@ -23,8 +23,10 @@
  */
 package com.telenav.smithy.smithy.ts.generator.type;
 
-import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
+import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
+import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
 import software.amazon.smithy.model.shapes.StringShape;
 
 /**
@@ -38,18 +40,23 @@ final class PrimitiveStringStrategy extends AbstractTypeStrategy<StringShape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TSBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb,
+            TsVariable rawVar, String instantiatedVar, boolean declare) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
-            assig.ofType(targetType() + " | undefined").assignedToInvocationOf("toString").on(rawVar.name());
+            assig.ofType(targetType() + " | undefined")
+                    .assignedToUndefinedIfUndefinedOr(rawVar.name())
+                    .invoke("toString").on(rawVar.name());
         } else {
             assig.ofType(targetType()).assignedToInvocationOf("toString").on(rawVar.name());
         }
     }
 
     @Override
-    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>> void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
+    public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void
+            instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
         if (rawVar.optional()) {
+//            inv.withArgument("typeof " + rawVar.name() + " === 'undefined' ? undefined : " + rawVar.name() + ".toString(");
             inv.withUndefinedIfUndefinedOr(rawVar.name()).invoke("toString").on(rawVar.name());
         } else {
             inv.withArgumentFromInvoking("toString").on(rawVar.name());
@@ -57,7 +64,8 @@ final class PrimitiveStringStrategy extends AbstractTypeStrategy<StringShape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb,
+            TsVariable rawVar, String instantiatedVar, boolean declare) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         assig.ofType(rawVar.optional() ? rawVarType().asOptional().returnTypeSignature() : rawVarType().typeName());
         assig.assignedTo(rawVar.name() + " as string");
