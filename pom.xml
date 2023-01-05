@@ -45,7 +45,7 @@
         <module>smithy-server-generation-common</module>
         <module>vertx-probe</module>
         <module>smithy-ts-generator</module>
-        <module>ts-vogon</module>
+        <module>typescript-vogon</module>
     </modules>
 
     <properties>
@@ -172,7 +172,11 @@
                 <artifactId>vertx-probe</artifactId>
                 <version>${project.version}</version>
             </dependency>
-
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>typescript-vogon</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.mastfrog</groupId>
                 <artifactId>jackson-configuration</artifactId>

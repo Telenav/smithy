@@ -8,7 +8,7 @@
     </parent>
 
     <groupId>com.telenav.smithy</groupId>
-    <artifactId>ts-vogon</artifactId>
+    <artifactId>typescript-vogon</artifactId>
     <version>1.0.2</version>
 
     <properties>
@@ -23,5 +23,5 @@
             <artifactId>code-generation-common</artifactId>
         </dependency>
     </dependencies>
-
+    <name>typescript-vogon</name>
 </project>

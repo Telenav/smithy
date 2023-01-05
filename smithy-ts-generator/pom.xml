@@ -44,8 +44,7 @@
         </dependency>
         <dependency>
             <groupId>com.telenav.smithy</groupId>
-            <artifactId>ts-vogon</artifactId>
-            <version>1.0.2</version>
+            <artifactId>typescript-vogon</artifactId>
         </dependency>
     </dependencies>   
 </project>
