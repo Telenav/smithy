@@ -5,7 +5,7 @@
 
     <parent>
         <groupId>com.telenav.smithy</groupId>
-        <artifactId>server-test</artifactId>
+        <artifactId>blog-example</artifactId>
         <version>1.0.2</version>
     </parent>
 
@@ -125,11 +125,11 @@
 
                             <destinations>
                                 <typescript.model>${basedir}/../blog-model-typescript/src/model</typescript.model>
-                                <client>${basedir}/../blog-client-demo/src/main/java</client>
-                                <server>${basedir}/../blog-server-generated-impl/src/main/java</server>
-                                <docs>${basedir}/../blog-server-generated-impl/src/main/resources</docs>
-                                <server-spi>${basedir}/../blog-server-spi/src/main/java/</server-spi>
-                                <vertx-server>${basedir}/../blog-server-vertx/src/main/java/</vertx-server>
+                                <client>${basedir}/../blog-generated-client-sdk/src/main/java</client>
+                                <server>${basedir}/../blog-generated-acteur-server/src/main/java</server>
+                                <docs>${basedir}/../blog-generated-acteur-server/src/main/resources</docs>
+                                <server-spi>${basedir}/../blog-generated-business-logic-spi/src/main/java/</server-spi>
+                                <vertx-server>${basedir}/../blog-generated-vertx-server/src/main/java/</vertx-server>
                             </destinations>
 
                         </configuration>
@@ -259,18 +259,15 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>simple-smithy-extensions</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>smithy-java-http-extensions</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>

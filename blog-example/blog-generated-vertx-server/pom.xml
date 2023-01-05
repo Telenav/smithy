@@ -3,11 +3,11 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.telenav.smithy</groupId>
-        <artifactId>server-test</artifactId>
+        <artifactId>blog-example</artifactId>
         <version>1.0.2</version>
     </parent>
 
-    <artifactId>blog-server-vertx</artifactId>
+    <artifactId>blog-generated-vertx-server</artifactId>
 
     <dependencies>
 
@@ -29,7 +29,7 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>blog-server-spi-impl</artifactId>
+            <artifactId>blog-spi-over-demo-backend</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -39,4 +39,5 @@
         </dependency>
 
     </dependencies>
+    <name>blog-generated-vertx-server</name>
 </project>

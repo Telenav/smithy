@@ -3,10 +3,10 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.telenav.smithy</groupId>
-        <artifactId>server-test</artifactId>
+        <artifactId>blog-example</artifactId>
         <version>1.0.2</version>
     </parent>
-    <artifactId>blog-server-generated-impl</artifactId>
+    <artifactId>blog-generated-acteur-server</artifactId>
     <dependencies>
         <dependency>
             <groupId>com.mastfrog</groupId>
@@ -31,7 +31,8 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>blog-server-spi</artifactId>
+            <artifactId>blog-generated-business-logic-spi</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -74,4 +75,5 @@
             </plugin>
         </plugins>
     </build>
+    <name>blog-generated-acteur-server</name>
 </project>

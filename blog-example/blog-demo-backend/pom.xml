@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.telenav.smithy</groupId>
-        <artifactId>server-test</artifactId>
+        <artifactId>blog-example</artifactId>
         <version>1.0.2</version>
     </parent>
     <artifactId>blog-demo-backend</artifactId>

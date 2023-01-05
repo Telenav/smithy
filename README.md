@@ -183,11 +183,11 @@ you direct the destination of source generation by generation target:
 <targets>model,modeltest,server,server-spi,client,docs,vertx-server</targets>
 
 <destinations>
-    <client>${basedir}/../blog-client-demo/src/main/java</client>
+    <client>${basedir}/../blog-generated-client-sdk/src/main/java</client>
     <docs>${basedir}/../blog-server-generated-impl/src/main/resources</docs>
-    <server>${basedir}/../blog-server-generated-impl/src/main/java</server>
-    <server-spi>${basedir}/../blog-server-spi/src/main/java/</server-spi>
-    <vertx-server>${basedir}/../blog-server-vertx/src/main/java/</vertx-server>
+    <server>${basedir}/../blog-generated-acteur-server/src/main/java</server>
+    <server-spi>${basedir}/../blog-generated-business-logic-spi/src/main/java/</server-spi>
+    <vertx-server>${basedir}/../blog-generated-vertx-server/src/main/java/</vertx-server>
 </destinations>
 ```
 
@@ -322,7 +322,7 @@ Smithy tooling, specifically:
    javadoc contributions for them.
  * `smithy-java-generators` - The motherlode - Java code generators for Smithy
    model classes - things that aren't server-specific shapes such as operations,
-   but result in generic pojos.  Covers
+   and resources, but result in generic pojos.  Covers
    * Generating validating wrapper types for all of the basic smithy types
    * Generating validating wrapper types for lists, maps and sets
    * Generating structure types that aggregate primitive or model-defined types
@@ -339,9 +339,60 @@ Smithy tooling, specifically:
    server code to in order to differentiate validation problems as bad requests;
    eventually will contain generic APIs for a few other things to avoid code
    generation from being tied to a specific server framework.
-* `smithy-openapi-wrapper` - if included in the `<dependencies>` section where
+ * `smithy-openapi-wrapper` - if included in the `<dependencies>` section where
    using the Maven plugin, will generate Swagger documentation from your smithy model
- * `smithy-simple-server-generator` - generates an HTTP server
+ * `smithy-server-generation-common` - shared code for processing a model into generated
+   HTTP operation implementations which is used by both the Acteur and VertX server
+   generation libraries
+ * `smithy-simple-server-generator` - generates an HTTP server using the Acteur framework
+ * `smithy-vertx-server-generator` - generates an HTTP server using the Vertx framework
+ * `smithy-ts-generator` - generates Smithy model classes and an SDK library 
+    for Typescript and Javascript (typically you generate typescript code into an adjacent `npm`
+    managed project which uses `tsc` to compile Typescript and `webpack` to convert that
+    into a single javascript source);  if present when building, the generated code will
+    be zipped and included and made servable by any generated server projects.  Optionally,
+    by including `<generate-test-ui>true</generate-test-ui>` in the `<settings>` section
+    of your `smithy-maven-plugin` configuration, it can generate a *minimal* but functional
+    HTML web UI with forms for calling each operation the model defines.
+ * `typescript-vogon` - low level code generation library for generating Typescript
+   code, with a similar API to that of `com.mastfrog:java-vogon` which we use for Java
+   code generation.
+ * `blog-example` - subprojects that utilize all of the above to generate an API
+   for a blog engine, implements it, and contains both Acteur and VertX server
+   applications (projects in **`bold`**, listed first, are ones containing user-editable 
+   code)
+    * **`blog-service-model`** - Contains the Smithy model for the blog web API in
+      `src/main/smithy/BlogService.smithy`.  The classes that model data for the blog
+      model are generated into `src/main/java` here; generated tests for those classes
+      are generated into `src/test/java` here.
+    * **`blog-acteur-application`** - Application launcher which binds the business
+      logic SPI implementation in `blog-spi-over-demo-backend` for the Acteur server
+    * **`blog-vertx-application`** - Application launcher which binds the business
+      logic SPI implementation in `blog-spi-over-demo-backend` for the VertX server
+    * **`blog-demo-backend`** - A simple back-end that serves blog entries from a
+      symlink farm of local files;  contains a starter set of blog entries which are
+      unpacked into a temporary directory on first launch so the demo server applications
+      are usable immediately.      
+    * **`blog-spi-over-demo-backend`** - Implements the generated server SPI interfaces
+      for responding to HTTP requests (used by both server implementations) that is
+      generated into `blog-generated-business-logic-spi` to call `blog-demo-backend` to
+      retrieve data.
+    * `blog-generated-business-logic-spi` - single-method SPI interfaces you implement and
+      bind in your server launcher to implement the business logic of each Operation (HTTP
+      request type) defined in the Smithy model.
+    * `blog-generated-acteur-server` - a generated server application, which is launchable
+      by itself, which implements and HTTP server using the Acteur framework, for the blog
+      web API.  Contains a Guice module called `BlogService` which you can call methods on
+      to bind SPI implementation classes and launch the server;  the application projects
+      simply do that.
+    * `blog-generated-vertx-server` - a generated server application, which is launchable
+      by itself, which implements and HTTP server using the VertX framework, for the blog
+      web API.  Contains a Guice module called `BlogService` which you can call methods on
+      to bind SPI implementation classes and launch the server;  the application projects
+      simply do that.
+    * `blog-generated-client-sdk` - A generated Java SDK library which can call any server
+      that implements the web API described in `BlogService.smithy`. using the JDK's built-in
+      HTTP client
 
 Other Stuff
 -----------

@@ -30,7 +30,6 @@
         <module>simple-smithy-extensions</module>
         <module>simple-smithy-extensions-java</module>
         <module>smithy-java-http-extensions</module>
-        <module>server-test</module>
 
         <!-- Leaving this out of the initial build -->
         <!--<module>test</module>-->
@@ -46,6 +45,7 @@
         <module>vertx-probe</module>
         <module>smithy-ts-generator</module>
         <module>typescript-vogon</module>
+        <module>blog-example</module>
     </modules>
 
     <properties>

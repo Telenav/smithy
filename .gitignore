@@ -20,6 +20,7 @@ target/
 node_modules/
 build/
 package-lock.json
+nbproject/
 
 # System Files
 Thumbs.db
@@ -48,26 +49,26 @@ Thumbs.db
 /demo/demo-client/src/
 /demo/demo-model/src/
 /test/maven-plugin-test/nbproject/
-/server-test/blog-service-model/nbproject/
+/blog-example/blog-service-model/nbproject/
 
 # These files are generated on every build - do not
 # commit them
 /test/maven-plugin-test/src/test/
-/server-test/blog-service-model/src/test/*
-/server-test/blog-service-model/src/main/*
-/server-test/blog-client-demo/src/main/java/*
-/server-test/blog-server-generated-impl/src/main/java/*
-/server-test/blog-server-spi/src/main/java/*
-/smithy-simple-server-generator/nbproject/
-/server-test/blog-server-generated-impl/src/main/java/*
-/server-test/blog-server-generated-impl/src/test/java/*
-/server-test/blog-server-generated-impl/src/main/resources/com
-/vertx-guice/nbproject/
-/server-test/blog-server-vertx/src/main/java
-/server-test/blog-server-vertx/src/main/resources
-/server-test/blog-server-vertx/src/test/java
-/server-test/blog-demo-backend/nbproject/
-/server-test/blog-model-typescript/src/
-/server-test/blog-model-typescript/build/
-/server-test/blog-model-typescript/dist/
-/server-test/blog-web-ui
+/blog-example/blog-service-model/src/test/*
+/blog-example/blog-service-model/src/main/*
+/blog-example/blog-generated-client-sdk/src/main/java/*
+/blog-example/blog-generated-acteur-server/src/main/java/*
+/blog-example/blog-generated-business-logic-spi/src/main/java/*
+/blog-example/blog-generated-acteur-server/src/main/java/*
+/blog-example/blog-generated-acteur-server/src/test/java/*
+/blog-example/blog-generated-acteur-server/src/main/resources/com
+/blog-example/blog-generated-vertx-server/src/main/java
+/blog-example/blog-generated-vertx-server/src/main/resources
+/blog-example/blog-generated-vertx-server/src/test/java
+/blog-example/blog-demo-backend/nbproject/
+/blog-example/blog-model-typescript/src/
+/blog-example/blog-model-typescript/build/
+/blog-example/blog-model-typescript/dist/
+/blog-example/blog-model-typescript/node_modules/
+/blog-example/blog-web-ui
+/blog-example/blog-demo-backend/nbproject/

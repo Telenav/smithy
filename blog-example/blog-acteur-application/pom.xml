@@ -3,50 +3,52 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.telenav.smithy</groupId>
-        <artifactId>server-test</artifactId>
+        <artifactId>blog-example</artifactId>
         <version>1.0.2</version>
     </parent>
-    <artifactId>blog-client-demo</artifactId>
+    <artifactId>blog-acteur-application</artifactId>
+    <properties>
+        <exec.mainClass>com.telenav.smithy.blog.demo.BlogDemo</exec.mainClass>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>smithy-client-base</artifactId>
+            <artifactId>blog-demo-backend</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>blog-generated-business-logic-spi</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>blog-service-model</artifactId>
+            <artifactId>blog-spi-over-demo-backend</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>blog-server-generated-impl</artifactId>
+            <artifactId>blog-generated-acteur-server</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>blog-server-spi</artifactId>
+            <artifactId>smithy-acteur-adapter</artifactId>
             <version>${project.version}</version>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
-            <artifactId>smithy-client-base</artifactId>
+            <artifactId>smithy-java-http-extensions</artifactId>
             <version>${project.version}</version>
+            <scope>compile</scope>
         </dependency>
-        
+
     </dependencies>
-    
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>revision-info-plugin</artifactId>
-                <configuration>
-                    <auto>true</auto>
-                    <genClass>com.telenav.blog.client.Revision</genClass>
-                    <genSourcesDir>${basedir}/src/main/java</genSourcesDir>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+    <name>blog-acteur-application</name>
 </project>

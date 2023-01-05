@@ -9,7 +9,7 @@
         <version>1.0.2</version>
     </parent>
 
-    <artifactId>server-test</artifactId>
+    <artifactId>blog-example</artifactId>
 
     <properties>
         <enforcer.skip>true</enforcer.skip>
@@ -19,14 +19,14 @@
 
     <modules>
         <module>blog-service-model</module>
-        <module>blog-demo</module>
-        <module>blog-client-demo</module>
-        <module>blog-server-generated-impl</module>
-        <module>blog-server-spi</module>
-        <module>blog-server-vertx</module>
         <module>blog-demo-backend</module>
-        <module>blog-demo-vertx</module>
-        <module>blog-server-spi-impl</module>
+        <module>blog-vertx-application</module>
+        <module>blog-acteur-application</module>
+        <module>blog-generated-client-sdk</module>
+        <module>blog-generated-acteur-server</module>
+        <module>blog-generated-business-logic-spi</module>
+        <module>blog-spi-over-demo-backend</module>
+        <module>blog-generated-vertx-server</module>
     </modules>
-
+    <name>blog-example</name>
 </project>

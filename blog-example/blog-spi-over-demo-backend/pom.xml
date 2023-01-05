@@ -3,25 +3,32 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.telenav.smithy</groupId>
-        <artifactId>server-test</artifactId>
+        <artifactId>blog-example</artifactId>
         <version>1.0.2</version>
     </parent>
-    <artifactId>blog-server-spi</artifactId>
-    <packaging>jar</packaging>
+    
+    <artifactId>blog-spi-over-demo-backend</artifactId>
+    <name>blog-spi-over-demo-backend</name>
+
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>blog-service-model</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>blog-generated-business-logic-spi</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.google.inject</groupId>
-            <artifactId>guice</artifactId>
-            <version>5.1.0</version>
-            <scope>provided</scope>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>blog-demo-backend</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-web</artifactId>
         </dependency>
     </dependencies>
-    <properties>
-        <exec.mainClass>com.telenav.smithy.blog.server.spi.BlogServerSpi</exec.mainClass>
-    </properties>
+    
 </project>
