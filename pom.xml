@@ -45,6 +45,7 @@
         <module>smithy-server-generation-common</module>
         <module>vertx-probe</module>
         <module>smithy-ts-generator</module>
+        <module>ts-vogon</module>
     </modules>
 
     <properties>
@@ -224,6 +225,11 @@
             <dependency>
                 <groupId>com.mastfrog</groupId>
                 <artifactId>util-streams</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>code-generation-common</artifactId>
                 <version>${mastfrog.version}</version>
             </dependency>
             <dependency>
