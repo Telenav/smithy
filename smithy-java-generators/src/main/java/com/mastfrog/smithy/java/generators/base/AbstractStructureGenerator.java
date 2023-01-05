@@ -26,6 +26,7 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
 
 /**
+ * Base class for generators for Structure shapes.
  *
  * @author Tim Boudreau
  */

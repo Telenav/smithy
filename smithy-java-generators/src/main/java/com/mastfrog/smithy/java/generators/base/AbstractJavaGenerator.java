@@ -117,14 +117,30 @@ public abstract class AbstractJavaGenerator<S extends Shape>
         return ctx;
     }
 
+    /**
+     * Accessor for a TypeNames instance initialized against this generator's model
+     * (needed to resolve things like member elements of collections in order to reify
+     * the complete type of Smithy shapes).
+     * @return A TypeNames
+     */
     public final TypeNames names() {
         return ctx.get(TYPE_NAMES).get();
     }
 
+    /**
+     * The logger for the generation session. <b>NOT AVAILABLE IN UNTIL generate() IS CALLED!</b>
+     * @return A logger
+     */
     protected final SmithyGenerationLogger log() {
         return log;
     }
 
+    /**
+     * Main entry point - generate some code.
+     * @param ctx The generation context, which has mechanisms for plugins to share information.
+     * @param log The logger for the generation session
+     * @return A collection of GeneratedCode instances.
+     */
     @Override
     public final Collection<? extends GeneratedCode> generate(
             SmithyGenerationContext ctx, SmithyGenerationLogger log) {
@@ -141,10 +157,27 @@ public abstract class AbstractJavaGenerator<S extends Shape>
         return result;
     }
 
+    /**
+     * Allows subclasses to append to the generated class documentation in a call
+     * to applyDocumentation() while preserving the ability to pull in the documentation
+     * from the Smithy model.
+     *
+     * @return A string or null
+     */
     protected String additionalDocumentation() {
         return null;
     }
 
+    /**
+     * Generate class javadoc comments from the smithy documentation for the shape,
+     * and augment that with any documentation returned from additionalDocumentation().
+     *
+     * @param cb A class builder
+     * @return The class builder
+     * @param <T> The return type of the class builder (determined by whether it is
+     *           an inner or top-level class, and typically ignored by code that
+     *           just wants to modify it).
+     */
     protected <T> ClassBuilder<T> applyDocumentation(ClassBuilder<T> cb) {
         StringBuilder sb = new StringBuilder();
         shape.getTrait(DocumentationTrait.class).ifPresent(doc -> {
@@ -359,6 +392,12 @@ public abstract class AbstractJavaGenerator<S extends Shape>
         bldr.iff(condition).returning(false).endIf();
     }
 
+    /**
+     * Fails the build if there are range or length constraints on a shape that
+     * will result in something uninstantiable.
+     *
+     * @param shape A shape
+     */
     protected void sanityCheckMemberConstraints(MemberShape shape) {
         Shape realShape = model.expectShape(shape.getTarget());
         Optional<RangeTrait> memberRanges = shape.getTrait(RangeTrait.class);
@@ -377,6 +416,14 @@ public abstract class AbstractJavaGenerator<S extends Shape>
         }
     }
 
+    /**
+     * Import a shape's type into a class builder, checking that the result will not be
+     * a Java primitive, a class in java.lang or an import from the same package, and doing
+     * nothing in that case.
+     *
+     * @param currentClassBuilder A class builder
+     * @param shape A shape
+     */
     protected void ensureImported(ClassBuilder<?> currentClassBuilder, Shape shape) {
         String shapeNs = shape.getId().getNamespace();
         if ("smithy.api".equals(shapeNs) || shape == this.shape) {
@@ -414,6 +461,10 @@ public abstract class AbstractJavaGenerator<S extends Shape>
         }
     }
 
+    /**
+     * Sanity check that this generator's shape does not contain constraints that
+     * are contradictory or would otherwise make it uninstantiable.
+     */
     protected void sanityCheckConstraints() {
         checkRangeSane(shape);
         shape.getAllMembers().forEach((memberName, memberShape) -> {

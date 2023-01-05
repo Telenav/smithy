@@ -67,6 +67,7 @@ import static software.amazon.smithy.model.shapes.ShapeType.MEMBER;
 import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 
 /**
+ * Base class for generators for JUnit 5 tests of classes that implement model shapes.
  *
  * @author Tim Boudreau
  */
