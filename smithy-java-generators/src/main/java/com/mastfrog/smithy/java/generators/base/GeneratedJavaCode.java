@@ -27,7 +27,7 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.smithy.generators.ModelElementGenerator.GeneratedCode;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import java.io.IOException;
-import static java.lang.System.out;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -50,16 +50,24 @@ final class GeneratedJavaCode implements GeneratedCode {
 
     @Override
     public Path destination() {
-//        return destDir.resolve(classBuilder.sourceRootRelativePath());
         return destDir.resolve(classBuilder.packageName().replace('.', '/'))
                 .resolve(classBuilder.className() + ".java");
     }
 
     @Override
     public void write(boolean dryRun) throws IOException {
-        log.debug((dryRun ? "(dry-run) " : "") + "Save " + destination());
         if (!dryRun) {
-            classBuilder.save(destination().getParent());
+            if (!Files.exists(destDir)) {
+                Files.createDirectories(destDir);
+            }
+        }
+        Path dest = destination().toAbsolutePath();
+        log.debug((dryRun ? "(dry-run) " : "") + "Save " + dest);
+        if (!dryRun) {
+            if (!Files.exists(dest.getParent())) {
+                Files.createDirectories(dest.getParent());
+            }
+            classBuilder.save(dest.getParent());
         }
     }
 
