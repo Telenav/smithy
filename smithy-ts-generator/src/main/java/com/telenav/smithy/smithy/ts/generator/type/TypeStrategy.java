@@ -23,12 +23,11 @@
  */
 package com.telenav.smithy.smithy.ts.generator.type;
 
-import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.traits.DefaultTrait;
@@ -46,13 +45,13 @@ import software.amazon.smithy.model.traits.DefaultTrait;
  */
 public interface TypeStrategy<S extends Shape> {
 
-    <T, B extends TSBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(
+    <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(
             B block, TsVariable rawVar, String instantiatedVar, boolean declare);
 
     <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>>
             void instantiateFromRawJsonObject(B block, TsVariable rawVar);
 
-    <T, B extends TSBlockBuilderBase<T, B>> void convertToRawJsonObject(
+    <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(
             B block, TsVariable rawVar, String instantiatedVar, boolean declare);
 
     TsSimpleType rawVarType();
@@ -63,7 +62,7 @@ public interface TypeStrategy<S extends Shape> {
 
     Shape shape();
 
-    <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void populateQueryParam(
+    <T, B extends TsBlockBuilderBase<T, B>> void populateQueryParam(
             String fieldName, boolean required, B bb, String queryParam);
 
     <A> A populateHttpHeader(Assignment<A> assig, String fieldName);

@@ -365,7 +365,7 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                 .assignedTo("[]");
         bb.iff("this.config.pathPrefix")
                 .invoke("push")
-                .withArgumentFromField("pathPrefix")
+                .withField("pathPrefix")
                 .ofField("config").ofThis()
                 .on("uriElements")
                 .endIf();
@@ -387,14 +387,14 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                     case LIST:
                     case SET:
                         bb.invoke("push")
-                                .withArgumentFromInvoking("toString")
+                                .withInvocationOf("toString")
                                 .onField(fieldName)
                                 .of("input")
                                 .on("uriElements");
                         break;
                     default:
                         bb.invoke("push")
-                                .withArgumentFromField(fieldName)
+                                .withField(fieldName)
                                 .of("input")
                                 .on("uriElements");
                         break;
@@ -441,10 +441,10 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                 .withObjectLiteral(lit -> {
                     lit.assigning("uri")
                             .toInvocationOf("assembleUri")
-                            .withArgumentFromInvoking("join")
+                            .withInvocationOf("join")
                             .withStringLiteralArgument("/")
                             .on("uriElements")
-                            .withArgumentFromField("config").ofThis()
+                            .withField("config").ofThis()
                             .inScope();
 
                     hasQueryParams.ifTrue(() -> {
@@ -460,7 +460,7 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                 if (member == null) {
                     return partialInvocation.withArgument("input");
                 } else {
-                    return partialInvocation.withArgumentFromField(name).of("input");
+                    return partialInvocation.withField(name).of("input");
                 }
             }
             );

@@ -40,7 +40,7 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
                     String instantiatedVar, boolean declare) {
         Assignment<B> assig = createTargetAssignment(rawVar, declare, bb, instantiatedVar);
@@ -65,14 +65,14 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
                     .withArgument(rawVar.name() + " as number")
                     .inScope();
         } else {
-            inv.withArgumentFromInvoking(validationFunctionName(strategies.model(), shape))
+            inv.withInvocationOf(validationFunctionName(strategies.model(), shape))
                     .withArgument(rawVar.name() + " as number")
                     .inScope();
         }
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>>
             void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? rawVarType().typeName() + " | undefined" : rawVarType().typeName();
         Assignment<B> assig = (declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar));

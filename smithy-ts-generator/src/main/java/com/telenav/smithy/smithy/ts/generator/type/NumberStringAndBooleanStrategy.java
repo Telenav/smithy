@@ -38,7 +38,7 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String targetType = targetType() + (rawVar.optional() ? " | undefined" : "");
         TypescriptSource.Assignment<B> decl = (declare ? bb.declare(instantiatedVar) : bb.assign(instantiatedVar)).ofType(targetType);
         if (rawVar.optional()) {
@@ -58,7 +58,7 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String varType = rawVar.optional() ? (rawVarType() + " | undefined") : rawVarType().typeName();
         TypescriptSource.Assignment<B> decl = declare ? bb.declare(instantiatedVar).ofType(varType) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {

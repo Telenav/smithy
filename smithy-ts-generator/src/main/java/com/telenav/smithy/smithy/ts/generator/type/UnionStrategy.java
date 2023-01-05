@@ -42,7 +42,7 @@ class UnionStrategy extends AbstractTypeStrategy<UnionShape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType() + " | undefined";
         Assignment<B> assig = declare ? bb.declare(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
@@ -53,12 +53,12 @@ class UnionStrategy extends AbstractTypeStrategy<UnionShape> {
     @Override
     public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>>
             void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        inv.withArgumentFromInvoking(decodeMethodName(shape, strategies.tsTypeName(shape)))
+        inv.withInvocationOf(decodeMethodName(shape, strategies.tsTypeName(shape)))
                 .withArgument(rawVar.name()).inScope();
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         if (declare) {
             bb.declare(instantiatedVar).ofType(targetType() + " | undefined").unassigned();
         }

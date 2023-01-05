@@ -25,8 +25,6 @@ package com.telenav.smithy.smithy.ts.generator;
 
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.telenav.smithy.smithy.ts.generator.type.TsPrimitiveTypes;
-import com.telenav.smithy.smithy.ts.generator.type.TsVariable;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import java.nio.file.Path;
 import java.util.function.Consumer;
@@ -109,7 +107,7 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                             .withArgument("item").inferringType()
                             .body(lbb -> {
                                 lbb.invoke("push")
-                                        .withArgumentFromInvoking("toString")
+                                        .withInvocationOf("toString")
                                         .on("item")
                                         .on("strings");
                             }).onThis();
@@ -163,7 +161,7 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                                 .withLambda()
                                 .withArgument("item").ofType("any")
                                 .body(lbb -> {
-                                    lbb.invoke("push").withArgumentFromInvoking("fromJsonObject")
+                                    lbb.invoke("push").withInvocationOf("fromJsonObject")
                                             .withArgument("item")
                                             .on(targetTypeName)
                                             .on("result");
@@ -195,7 +193,7 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                     con.withArgument("items").ofType(typeNameOf(target, false));
                     con.body(bb -> {
                         bb.invoke("super")
-                                .withArgumentFromInvoking("convert")
+                                .withInvocationOf("convert")
                                 .on(cb.name())
                                 .inScope();
 
@@ -240,7 +238,7 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                         } else {
                             lbb.lineComment("TN ne prim - use toJson");
                             lbb.invoke("push")
-                                    .withArgumentFromInvoking(TO_JSON)
+                                    .withInvocationOf(TO_JSON)
                                     .on("item")
                                     .on("objs");
                         }

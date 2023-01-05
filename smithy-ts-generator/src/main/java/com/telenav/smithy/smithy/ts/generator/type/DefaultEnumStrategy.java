@@ -38,7 +38,7 @@ class DefaultEnumStrategy extends AbstractEnumStrategy {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 
@@ -48,7 +48,7 @@ class DefaultEnumStrategy extends AbstractEnumStrategy {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 

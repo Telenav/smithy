@@ -28,7 +28,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.NewBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.TimestampShape;
@@ -45,7 +45,7 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>>
+    public <T, B extends TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
                     String instantiatedVar, boolean declare) {
         boolean prim = TypeStrategies.isNotUserType(shape);
@@ -93,7 +93,7 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
                     .expression("undefined")
                     .invoke("parse").withArgument(arg).on("Date").ofType("Date");
         } else {
-            nb2.withArgumentFromInvoking("parse").withArgument(arg).on("Date").ofType("Date");
+            nb2.withInvocationOf("parse").withArgument(arg).on("Date").ofType("Date");
         }
     }
 
@@ -132,7 +132,7 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         if (rawVar.optional()) {
             bb.statement("let " + instantiatedVar + " : string | undefined");
             bb.trying(tri -> {
@@ -168,7 +168,7 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>> void populateQueryParam(
+    public <T, B extends TsBlockBuilderBase<T, B>> void populateQueryParam(
             String fieldName, boolean required, B bb, String queryParam) {
 
         bb.trying(tri -> {
@@ -207,7 +207,7 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
                 return ex.instantiate().withArgument(n.expectNumberNode().getValue().longValue())
                         .ofType("Date");
             case STRING:
-                return ex.instantiate().withArgumentFromInvoking("parse")
+                return ex.instantiate().withInvocationOf("parse")
                         .withStringLiteralArgument(def.toNode().expectStringNode().getValue())
                         .on("Date")
                         .ofType("Date");

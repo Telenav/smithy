@@ -66,7 +66,7 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void populateQueryParam(
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void populateQueryParam(
             String fieldName, boolean required, B bb, String queryParam) {
         if (isNotUserType(shape)) {
             populateQueryParamForTsCollection(fieldName, required, bb, queryParam);
@@ -100,7 +100,7 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
         return convertToArrayOfStrings(assig, fieldName, true, true);
     }
 
-    protected <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void populateQueryParamForTsCollection(
+    protected <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void populateQueryParamForTsCollection(
             String fieldName, boolean required, B bb, String queryParam) {
         if (!required) {
             Assignment<TypescriptSource.ConditionalClauseBuilder<B>> assig = bb.ifFieldDefined(fieldName).ofThis()
@@ -151,7 +151,7 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
         bb.returningInvocationOf("join").withStringLiteralArgument(",").on("arr");
     }
 
-    protected <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void iterAdd(B bb, TsVariable rawVar, String instantiatedVar) {
+    protected <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void iterAdd(B bb, TsVariable rawVar, String instantiatedVar) {
         bb.invoke("forEach").withLambda().withArgument("item").inferringType()
                 .body(lbb -> {
                     TsVariable itemVar = memberStrategy.shapeType().variable("item");

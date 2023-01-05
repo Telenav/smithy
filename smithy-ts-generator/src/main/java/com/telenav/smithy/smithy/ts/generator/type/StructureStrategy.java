@@ -38,7 +38,7 @@ class StructureStrategy extends AbstractTypeStrategy<StructureShape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String targetType = rawVar.optional() ? targetType() + " | undefined" : targetType();
         TypescriptSource.Assignment<B> assig = 
                 declare ? block.declareConst(instantiatedVar) : block.assign(instantiatedVar);
@@ -50,7 +50,7 @@ class StructureStrategy extends AbstractTypeStrategy<StructureShape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? rawVarType().typeName() + " | undefined" : rawVarType().typeName();
         TypescriptSource.Assignment<B> assig = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
@@ -65,7 +65,7 @@ class StructureStrategy extends AbstractTypeStrategy<StructureShape> {
         if (rawVar.optional()) {
             inv.withTernary("typeof " + rawVar.name() + " === 'undefined'").expression("undefined").invoke("fromJsonObject").withArgument(rawVar.name()).on(targetType());
         } else {
-            inv.withArgumentFromInvoking("fromJsonObject").withArgument(rawVar.name()).on(targetType());
+            inv.withInvocationOf("fromJsonObject").withArgument(rawVar.name()).on(targetType());
         }
     }
 

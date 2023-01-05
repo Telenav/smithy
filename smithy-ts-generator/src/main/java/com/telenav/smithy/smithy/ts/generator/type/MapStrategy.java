@@ -39,7 +39,7 @@ final class MapStrategy extends AbstractMapStrategy {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
 //        new Exception(rawVar.name() + " opt " + rawVar.optional() + " for " + targetType()).printStackTrace();
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
@@ -64,14 +64,14 @@ final class MapStrategy extends AbstractMapStrategy {
                     .withArgument(rawVar.name())
                     .on(targetType());
         } else {
-            inv.withArgumentFromInvoking("fromJsonObject")
-                    .withArgumentFromInvoking(rawVar.name())
+            inv.withInvocationOf("fromJsonObject")
+                    .withInvocationOf(rawVar.name())
                     .on(targetType());
         }
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>>
             void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? rawVarType().typeName() + " | undefined" : rawVarType().typeName();
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);

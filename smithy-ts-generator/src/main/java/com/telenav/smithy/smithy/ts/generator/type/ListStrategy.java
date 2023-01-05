@@ -28,7 +28,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
 
@@ -43,7 +43,7 @@ final class ListStrategy extends AbstractListOrSetStrategy {
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>>
+    public <T, B extends TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
         Assignment<B> decl = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
@@ -65,13 +65,13 @@ final class ListStrategy extends AbstractListOrSetStrategy {
                     .invoke("fromJsonObject")
                     .withArgument(rawVar.name()).on(targetType());
         } else {
-            inv.withArgumentFromInvoking("fromJsonObject")
+            inv.withInvocationOf("fromJsonObject")
                     .withArgument(rawVar.name()).on(targetType());
         }
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>> void
+    public <T, B extends TsBlockBuilderBase<T, B>> void
             convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = rawVar.returnTypeSignature();
         TypescriptSource.Assignment<B> decl = declare ? bb.declareConst(instantiatedVar)

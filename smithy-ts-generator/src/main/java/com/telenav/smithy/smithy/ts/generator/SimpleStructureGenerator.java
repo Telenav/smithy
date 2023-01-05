@@ -23,7 +23,6 @@
  */
 package com.telenav.smithy.smithy.ts.generator;
 
-import com.mastfrog.code.generation.common.LinesBuilder;
 import com.mastfrog.function.QuadConsumer;
 import com.mastfrog.function.PetaConsumer;
 import com.mastfrog.function.TriFunction;
@@ -42,9 +41,9 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.FunctionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InterfaceBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.NewBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.PropertyBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
-import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
+
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,7 +56,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
@@ -372,7 +370,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                                         + an + " !== ''");
 
                         test.assign(dateField).assignedToNew(nb -> {
-                            nb.withArgumentFromInvoking("parse")
+                            nb.withInvocationOf("parse")
                                     .withArgument(fieldName + " as string")
                                     .on("Date")
                                     .ofType("Date");
@@ -448,7 +446,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                     .withArgument("json").ofType("string");
             mth.returning(typeName(), bb -> {
                 bb.returningInvocationOf("fromJsonObject")
-                        .withArgumentFromInvoking("parse")
+                        .withInvocationOf("parse")
                         .withArgument("json")
                         .on("JSON")
                         .on(cb.name());
@@ -582,8 +580,8 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                 .map(jn -> jn.getValue()).orElse(name);
     }
 
-    public <C, B extends TSBlockBuilderBase<C, B>> void generateObjectFieldAssignment(Shape target, MemberShape member,
-            B bb, String name, TypeStrategy strategy, boolean required) {
+    public <C, B extends TsBlockBuilderBase<C, B>> void generateObjectFieldAssignment(Shape target, MemberShape member,
+                                                                                      B bb, String name, TypeStrategy strategy, boolean required) {
         String jn = jsonName(name, member);
         String nm = escape("__" + jn);
         strategy.convertToRawJsonObject(bb, strategy.shapeType().optional(!required).variable("this." + name),
@@ -599,7 +597,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         }
         defaultGenerated = true;
         cb.property("DEFAULT", p -> {
-            p.readonly().makeStatic().setPublic();
+            p.readonly().setStatic().setPublic();
 
             Map<String, DefaultTrait> defaults = defaultTraits();
 

@@ -38,7 +38,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.FunctionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InterfaceBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TSGetterBlockBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.typescript;
@@ -64,9 +64,6 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
-import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
-import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.AuthTrait;
 import software.amazon.smithy.model.traits.DocumentationTrait;
@@ -289,7 +286,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                     ConditionalClauseBuilder<TsBlockBuilder<Void>> test = bb.iff("!loginAttempted");
                     test.statement("const pathComponents : string[] = []");
                     test.iff(URL_PANEL_VAR + ".value().length > 0")
-                            .invoke("push").withArgumentFromInvoking("value")
+                            .invoke("push").withInvocationOf("value")
                             .on(URL_PANEL_VAR).on("pathComponents")
                             .endIf();
                     for (SmithyPattern.Segment part : http.getUri().getSegments()) {
@@ -300,7 +297,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                             .withArgument("pathComponents").on("console");
                     test.invoke("attach").withStringLiteralArgument("main")
                             .onNew(nb -> {
-                                nb.withArgumentFromInvoking("join")
+                                nb.withInvocationOf("join")
                                         .withStringLiteralArgument("/")
                                         .on("pathComponents");
                                 nb.ofType("IFrame");
@@ -430,7 +427,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                     lbb.declareConst("panelModel")
                             .ofType("UIModel<any, any> | undefined")
                             .assignedToInvocationOf("get")
-                            .withArgumentFromField("id")
+                            .withField("id")
                             .of("panel")
                             .on(MODEL_FOR_PANEL_MAP);
 
@@ -542,14 +539,14 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                     lbb.declareConst("currModel")
                             .ofType("UIModel<any, any> | undefined")
                             .assignedToInvocationOf("get")
-                            .withArgumentFromField("id")
+                            .withField("id")
                             .of("currPanel")
                             .on(MODEL_FOR_PANEL_MAP);
                     lbb.iff("!currModel").statement("return").endIf();
                     lbb.declare("result")
                             .ofType("Promise<any>")
                             .assignedToInvocationOf("submit")
-                            .withArgumentFromField("client")
+                            .withField("client")
                             .of(clientHolderVar)
                             .withArgument(true)
                             .on("currModel");
@@ -570,7 +567,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                                     wc.assignField("text")
                                             .of(OUTPUT_COMPONENT_VAR)
                                             .toInvocationOf("stringify")
-                                            .withArgumentFromInvoking("parse")
+                                            .withInvocationOf("parse")
                                             .withArgument("res")
                                             .on("JSON")
                                             .withArgument("null")
@@ -703,7 +700,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                     .inScope();
 
             createUiBody.invoke("set")
-                    .withArgumentFromField("id")
+                    .withField("id")
                     .of(panel)
                     .withArgument(modelInstance)
                     .on(MODEL_FOR_PANEL_MAP);
@@ -761,7 +758,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                 }
                 String methodName = escape(decapitalize(op.getId().getName()));
                 bb.returningInvocationOf(methodName)
-                        .withArgumentFromField("model").ofThis()
+                        .withField("model").ofThis()
                         .on("client");
             });
 
@@ -1170,7 +1167,7 @@ export function floatListField(id: string): TransformedTextField<number[]>
         }
     }
 
-    private <B extends TSBlockBuilderBase<?, B>> void generateValidationStanzaImpl(
+    private <B extends TsBlockBuilderBase<?, B>> void generateValidationStanzaImpl(
             LinkedList<String> l, String fieldName, String key, MemberShape value,
             Shape target, B bb, ClassBuilder<TypescriptSource> ifaceImpl,
             TypescriptSource src) {

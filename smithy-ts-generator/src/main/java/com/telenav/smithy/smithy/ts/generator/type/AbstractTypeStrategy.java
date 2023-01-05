@@ -27,22 +27,10 @@ import com.mastfrog.code.generation.common.LinesBuilder;
 import static com.telenav.smithy.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.node.Node;
-import static software.amazon.smithy.model.node.NodeType.ARRAY;
-import static software.amazon.smithy.model.node.NodeType.NULL;
-import static software.amazon.smithy.model.node.NodeType.NUMBER;
-import static software.amazon.smithy.model.node.NodeType.OBJECT;
-import static software.amazon.smithy.model.node.NodeType.STRING;
 import software.amazon.smithy.model.shapes.Shape;
-import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
-import static software.amazon.smithy.model.shapes.ShapeType.BYTE;
-import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
-import static software.amazon.smithy.model.shapes.ShapeType.INTEGER;
-import static software.amazon.smithy.model.shapes.ShapeType.INT_ENUM;
-import static software.amazon.smithy.model.shapes.ShapeType.LONG;
-import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
 import software.amazon.smithy.model.traits.DefaultTrait;
 
 /**
@@ -59,7 +47,7 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
         this.strategies = strategies;
     }
 
-    protected <T, B extends TSBlockBuilderBase<T, B>> Assignment<B>
+    protected <T, B extends TsBlockBuilderBase<T, B>> Assignment<B>
             createTargetAssignment(TsVariable rawVar, boolean declare, B bb, String instantiatedVar) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
         Assignment<B> assig = declare ? bb.declare(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
@@ -76,7 +64,7 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
         return new TsShapeType(shape, strategies.types(), false, false);
     }
 
-    public <T, B extends TSBlockBuilderBase<T, B>> void populateQueryParam(
+    public <T, B extends TsBlockBuilderBase<T, B>> void populateQueryParam(
             String fieldName, boolean required, B bb, String queryParam) {
         if (!required) {
             bb.ifFieldDefined(fieldName).ofThis()

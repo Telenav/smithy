@@ -27,7 +27,7 @@ import static com.telenav.smithy.smithy.ts.generator.type.TsPrimitiveTypes.bestM
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.Shape;
 
 /**
@@ -41,8 +41,8 @@ final class PrimitiveStrategy<S extends Shape> extends AbstractTypeStrategy<S> {
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb,
-            TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb,
+                                                                                     TsVariable rawVar, String instantiatedVar, boolean declare) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
             assig.ofType(targetType() + " | undefined").assignedTo(rawVar.name());
@@ -58,8 +58,8 @@ final class PrimitiveStrategy<S extends Shape> extends AbstractTypeStrategy<S> {
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb,
-            TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb,
+                                                                               TsVariable rawVar, String instantiatedVar, boolean declare) {
         (declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar)).ofType(rawVar.optional() ? rawVarType().asOptional().returnTypeSignature() : rawVarType().typeName()).assignedTo(rawVar.name());
     }
 

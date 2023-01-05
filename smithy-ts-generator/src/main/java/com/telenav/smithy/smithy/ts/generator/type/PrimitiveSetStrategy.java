@@ -28,7 +28,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
 
@@ -43,7 +43,7 @@ final class PrimitiveSetStrategy extends AbstractListOrSetStrategy {
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>>
+    public <T, B extends TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
                     String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
@@ -82,7 +82,7 @@ final class PrimitiveSetStrategy extends AbstractListOrSetStrategy {
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>> void convertToRawJsonObject(
+    public <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(
             B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = memberStrategy.rawVarType() + "[]";
         Assignment<B> decl = declare ? bb.declareConst(instantiatedVar)

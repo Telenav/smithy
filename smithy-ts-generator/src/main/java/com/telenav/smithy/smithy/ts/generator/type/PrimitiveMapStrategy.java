@@ -27,7 +27,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.Shape;
 
@@ -46,7 +46,7 @@ final class PrimitiveMapStrategy extends AbstractMapStrategy {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
+    public <T, B extends TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
@@ -61,7 +61,7 @@ final class PrimitiveMapStrategy extends AbstractMapStrategy {
         }
     }
 
-    private <T, B extends TSBlockBuilderBase<T, B>> void copyRawObjectProperties(
+    private <T, B extends TsBlockBuilderBase<T, B>> void copyRawObjectProperties(
             B bb, String instantiatedVar, TsVariable rawVar) {
         bb.forVar("k", loop -> {
             keyStrategy.instantiateFromRawJsonObject(loop, keyStrategy
@@ -80,7 +80,7 @@ final class PrimitiveMapStrategy extends AbstractMapStrategy {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
+    public <T, B extends TsBlockBuilderBase<T, B>>
             void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? rawVarType().typeName() + " | undefined" : rawVarType().typeName();
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
@@ -95,7 +95,7 @@ final class PrimitiveMapStrategy extends AbstractMapStrategy {
         }
     }
 
-    private <T, B extends TSBlockBuilderBase<T, B>> void applyKeyValuePairsToRawObject(
+    private <T, B extends TsBlockBuilderBase<T, B>> void applyKeyValuePairsToRawObject(
             B bb, String instantiatedVar) {
         bb.invoke("forEach")
                 .withLambda()

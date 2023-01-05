@@ -40,7 +40,7 @@ final class PrimitiveListStrategy extends AbstractListOrSetStrategy {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
                     String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
@@ -76,7 +76,7 @@ final class PrimitiveListStrategy extends AbstractListOrSetStrategy {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void convertToRawJsonObject(
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void convertToRawJsonObject(
             B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = memberStrategy.rawVarType() + "[]";
         TypescriptSource.Assignment<B> decl = declare ? bb.declareConst(instantiatedVar)

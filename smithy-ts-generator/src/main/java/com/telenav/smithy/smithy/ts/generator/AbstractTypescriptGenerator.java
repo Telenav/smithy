@@ -56,24 +56,6 @@ import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
-import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
-import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
-import static software.amazon.smithy.model.shapes.ShapeType.BYTE;
-import static software.amazon.smithy.model.shapes.ShapeType.DOCUMENT;
-import static software.amazon.smithy.model.shapes.ShapeType.DOUBLE;
-import static software.amazon.smithy.model.shapes.ShapeType.ENUM;
-import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
-import static software.amazon.smithy.model.shapes.ShapeType.INTEGER;
-import static software.amazon.smithy.model.shapes.ShapeType.INT_ENUM;
-import static software.amazon.smithy.model.shapes.ShapeType.LIST;
-import static software.amazon.smithy.model.shapes.ShapeType.LONG;
-import static software.amazon.smithy.model.shapes.ShapeType.MAP;
-import static software.amazon.smithy.model.shapes.ShapeType.SET;
-import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
-import static software.amazon.smithy.model.shapes.ShapeType.STRING;
-import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
-import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 
 /**
  *
@@ -223,7 +205,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
             mth.makePublic()
                     .returning("string", bb -> {
                         bb.returningInvocationOf("stringify")
-                                .withArgumentFromInvoking(TO_JSON)
+                                .withInvocationOf(TO_JSON)
                                 .on("this")
                                 .on("JSON");
                     });

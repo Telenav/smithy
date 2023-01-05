@@ -62,7 +62,7 @@ final class StringEnumGenerator extends AbstractTypescriptGenerator<EnumShape> {
             });
             ie.exported();
             shape.getEnumValues().forEach((name, val) -> {
-                ie.withConstant(name);
+                ie.withMember(name);
             });
         });
 

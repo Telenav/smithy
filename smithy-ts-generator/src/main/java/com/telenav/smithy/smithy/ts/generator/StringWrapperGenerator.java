@@ -76,7 +76,7 @@ class StringWrapperGenerator extends AbstractTypescriptGenerator<StringShape> {
         cb.method(TO_JSON_STRING, mth -> {
             mth.returning("string", bb -> {
                 bb.returningInvocationOf("stringify")
-                        .withArgumentFromField("value")
+                        .withField("value")
                         .ofThis()
                         .on("JSON");
             });

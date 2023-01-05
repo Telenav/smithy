@@ -49,30 +49,6 @@ public final class TypescriptSource implements SourceFileBuilder {
         return new TypescriptSource(sourceName);
     }
 
-    public static void main(String[] args) {
-        TypescriptSource src = new TypescriptSource("x");
-        src.function("thing", f -> {
-            f.withArgument("x").ofType("number");
-            f.body(bb -> {
-                CaseBuilder<SwitchBuilder<TsBlockBuilder<Void>>> cs = null;
-                for (int i = 10; i < 14; i++) {
-                    if (cs == null) {
-                        cs = bb.switchCase(i);
-                    } else {
-                        cs = cs.endBlock().inCase(i);
-                    }
-                    int val = i;
-                    cs.invoke("log").withStringConcatenation(cat -> {
-                        cat.append("The number is " + val + " and I was passed ").appendExpression("x");
-                    }).on("console");
-                }
-                cs.endBlock().inDefaultCase()
-                        .invoke("log").withStringLiteralArgument("You lose.").on("console")
-                        .endBlock().on("x");
-            });
-        });
-    }
-
     TypescriptSource add(CodeGenerator gen) {
         emitDebugComment();
         // Order contents safely: functions may reference defined types;
@@ -467,11 +443,8 @@ public final class TypescriptSource implements SourceFileBuilder {
         public void generateInto(LinesBuilder lines) {
             lines.wrappable(lb -> {
                 lb.generateOrPlaceholder(test);
-//                lb.onNewLine().indent(lbb -> lbb.word("?"));
                 lb.onNewLine().word("?").space();
                 lb.generateOrPlaceholder(leftSide);
-//                lb.onNewLine();
-//                lb.onNewLine().indent(lbb -> lbb.word(":"));
                 lb.onNewLine().word(":").space();
                 lb.generateOrPlaceholder(rightSide);
             });
@@ -1321,7 +1294,7 @@ public final class TypescriptSource implements SourceFileBuilder {
             return this;
         }
 
-        public StringEnumBuilder<T> withConstant(String what) {
+        public StringEnumBuilder<T> withMember(String what) {
             this.consts.add(notNull("what", what));
             return this;
         }
@@ -1560,7 +1533,8 @@ public final class TypescriptSource implements SourceFileBuilder {
     }
 
     public static class TypeIntersectionBuilder<T> extends TypescriptCodeGenerator {
-
+        // PENDING: This class is not really doing anything that couldn't be done
+        // with PropertyBuilder.  Should merge it into that.
         private final Function<? super TypeIntersectionBuilder<T>, T> conv;
         private boolean exported;
         private final String name;
@@ -1631,7 +1605,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    static class Append extends TypescriptCodeGenerator {
+    private static class Append extends TypescriptCodeGenerator {
 
         private final String what;
 
@@ -1663,15 +1637,15 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         I withLambda(Consumer<? super FunctionBuilder<Void>> c);
 
-        A withArgumentFromInvoking(String what);
+        A withInvocationOf(String what);
 
         NewBuilder<I> withNew();
 
         I withNew(Consumer<? super NewBuilder<Void>> c);
 
-        FieldReferenceBuilder<I> withArgumentFromField(String fieldName);
+        FieldReferenceBuilder<I> withField(String fieldName);
 
-        I withArgumentFromField(String fieldName, Consumer<? super FieldReferenceBuilder<Void>> c);
+        I withField(String fieldName, Consumer<? super FieldReferenceBuilder<Void>> c);
 
         StringConcatenation<I> withStringConcatenation();
 
@@ -1822,7 +1796,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public FieldReferenceBuilder<NewBuilder<T>> withArgumentFromField(String fieldName) {
+        public FieldReferenceBuilder<NewBuilder<T>> withField(String fieldName) {
             return new FieldReferenceBuilder<>(fieldName, frb -> {
                 arguments.add(frb);
                 return this;
@@ -1830,7 +1804,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public NewBuilder<T> withArgumentFromField(String fieldName, Consumer<? super FieldReferenceBuilder<Void>> c) {
+        public NewBuilder<T> withField(String fieldName, Consumer<? super FieldReferenceBuilder<Void>> c) {
             Holder<NewBuilder<T>> hold = new Holder<>();
             FieldReferenceBuilder<Void> result = new FieldReferenceBuilder<>(fieldName, frb -> {
                 arguments.add(frb);
@@ -1907,14 +1881,14 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public InvocationBuilder<NewBuilder<T>> withArgumentFromInvoking(String what) {
+        public InvocationBuilder<NewBuilder<T>> withInvocationOf(String what) {
             return new InvocationBuilder<>(ib -> {
                 arguments.add(ib);
                 return this;
             }, new Append(what));
         }
 
-        public NewBuilder<T> withArgumentFromInvoking(String what, Consumer<? super InvocationBuilder<Void>> c) {
+        public NewBuilder<T> withInvocationOf(String what, Consumer<? super InvocationBuilder<Void>> c) {
             Holder<NewBuilder<T>> hold = new Holder<>();
             InvocationBuilder<Void> result = new InvocationBuilder<>(inv -> {
                 arguments.add(inv);
@@ -2093,7 +2067,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public FieldReferenceBuilder<InvocationBuilder<T>> withArgumentFromField(String fieldName) {
+        public FieldReferenceBuilder<InvocationBuilder<T>> withField(String fieldName) {
             return new FieldReferenceBuilder<>(fieldName, frb -> {
                 arguments.add(frb);
                 return this;
@@ -2120,7 +2094,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public InvocationBuilder<T> withArgumentFromField(String fieldName, Consumer<? super FieldReferenceBuilder<Void>> c) {
+        public InvocationBuilder<T> withField(String fieldName, Consumer<? super FieldReferenceBuilder<Void>> c) {
             Holder<InvocationBuilder<T>> hold = new Holder<>();
             FieldReferenceBuilder<Void> result = new FieldReferenceBuilder<>(fieldName, frb -> {
                 arguments.add(frb);
@@ -2274,7 +2248,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public InvocationBuilder<InvocationBuilder<T>> withArgumentFromInvoking(String what) {
+        public InvocationBuilder<InvocationBuilder<T>> withInvocationOf(String what) {
             return new InvocationBuilder<>(ib -> {
                 arguments.add(ib);
                 return this;
@@ -2733,7 +2707,22 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static abstract class ReturnableBlockBuilderBase<T, B extends ReturnableBlockBuilderBase<T, B, R>, R> extends TSBlockBuilderBase<T, B> {
+    /**
+     * Base class for builders which support <code>return</code> statements (generally
+     * anything that is not a constructor).  The type returned by <code>return</code>
+     * statements is generic - there are some cases of code blocks - specifically try
+     * blocks that do not yet have a catch or finally clause and are therefore invalid
+     * to add to a source until they have one or the other - where exiting and adding
+     * the block to its parent on defining a <code>return</code> statement would be the
+     * wrong behavior.
+     * @param <T> The eventual return type when the block is completed, returned by the
+     *           function passed to the constructor.
+     * @param <B> The concrete subtype of this class - the thing returned by methods which
+     *           return the effective <code>this</code>
+     * @param <R> The type returned by return-like statements which, in most cases, indicate
+     *           an exit point.
+     */
+    public static abstract class ReturnableBlockBuilderBase<T, B extends ReturnableBlockBuilderBase<T, B, R>, R> extends TsBlockBuilderBase<T, B> {
 
         ReturnableBlockBuilderBase(Function<? super B, T> conv) {
             super(conv);
@@ -2990,18 +2979,18 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class TSBlockBuilderBase<T, B extends TSBlockBuilderBase<T, B>> extends TypescriptCodeGenerator {
+    public static class TsBlockBuilderBase<T, B extends TsBlockBuilderBase<T, B>> extends TypescriptCodeGenerator {
 
         private final boolean openBlock;
 
         final Function<? super B, T> conv;
         private final List<CodeGenerator> statements = new ArrayList<>();
 
-        TSBlockBuilderBase(Function<? super B, T> conv) {
+        TsBlockBuilderBase(Function<? super B, T> conv) {
             this(true, conv);
         }
 
-        TSBlockBuilderBase(boolean openBlock, Function<? super B, T> conv) {
+        TsBlockBuilderBase(boolean openBlock, Function<? super B, T> conv) {
             this.openBlock = openBlock;
             this.conv = conv;
         }
@@ -3911,9 +3900,9 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     private static final class SelfExecutingFunction extends TypescriptCodeGenerator {
 
-        private final TSBlockBuilderBase<?, ?> function;
+        private final TsBlockBuilderBase<?, ?> function;
 
-        SelfExecutingFunction(TSBlockBuilderBase<?, ?> function) {
+        SelfExecutingFunction(TsBlockBuilderBase<?, ?> function) {
             this.function = function;
         }
 
@@ -4355,8 +4344,6 @@ public final class TypescriptSource implements SourceFileBuilder {
             }
             if (kind.explicit()) {
                 lines.onNewLine();
-            } else {
-//                lines.doubleNewline();
             }
             super.generateInto(lines);
             if (fatArrow) {
@@ -4365,7 +4352,6 @@ public final class TypescriptSource implements SourceFileBuilder {
             if (body == null) {
                 lines.appendRaw("{}").onNewLine();
             } else {
-//                lines.doubleNewline();
                 body.generateInto(lines);
             }
         }
@@ -4415,19 +4401,6 @@ public final class TypescriptSource implements SourceFileBuilder {
                 });
                 lines.appendRaw('}');
             }
-
-            // Having trouble with newlines being appended:
-//            lines.block(false, lb -> {
-//                members.forEach((name, val) -> {
-//                    if (splitLines) {
-//                        lines.onNewLine();
-//                    }
-//                    lines.word(name);
-//                    lines.word(": ");
-//                    val.generateInto(lines);
-//                    lines.backup().appendRaw(", ");
-//                });
-//            });
         }
 
         public T endObjectLiteral() {
@@ -4572,7 +4545,7 @@ public final class TypescriptSource implements SourceFileBuilder {
             return this;
         }
 
-        public ClassPropertyBuilder<T> makeStatic() {
+        public ClassPropertyBuilder<T> setStatic() {
             this.isStatic = true;
             return this;
         }
@@ -4970,7 +4943,6 @@ public final class TypescriptSource implements SourceFileBuilder {
                     lines.space().delimit('{', '}', lb -> {
                         lb.doubleHangingWrap(hw -> {
                             lines.joining(", ", toImport);
-//                            lines.delimit(", ", toImport.toArray(new String[0]));
                         });
                     });
                 } else {
@@ -4980,9 +4952,6 @@ public final class TypescriptSource implements SourceFileBuilder {
                         lines.space().delimit('{', '}', lb -> {
                             lb.hangingWrap(hw -> {
                                 lines.joining(", ", toImport);
-//                                lines.space();
-//                                lines.delimit(", ", toImport.toArray(new String[0]));
-//                                lines.space();
                             });
                         });
                     }
@@ -5089,6 +5058,26 @@ public final class TypescriptSource implements SourceFileBuilder {
             rightSide = new NumberLiteral(expression);
             return conv.apply(this);
         }
+
+        public TsBlockBuilder<T> toSelfExecutingFunction() {
+            return new TsBlockBuilder<>(true, tsb -> {
+                rightSide = new SelfExecutingFunction(tsb);
+                return conv.apply(this);
+            });
+        }
+
+        public T toSelfExecutingFunction(Consumer<? super TsBlockBuilder<Void>> c) {
+            Holder<T> hold = new Holder<>();
+            TsBlockBuilder<Void> result = new TsBlockBuilder<>(true, tsb -> {
+                rightSide = new SelfExecutingFunction(tsb);
+                hold.set(conv.apply(this));
+                return null;
+            });
+            c.accept(result);
+            hold.ifUnset(result::endBlock);
+            return hold.get("Self executing function not completed");
+        }
+
 
         public T toStringLiteral(String stringLiteral) {
             rightSide = new StringLiteral(stringLiteral);

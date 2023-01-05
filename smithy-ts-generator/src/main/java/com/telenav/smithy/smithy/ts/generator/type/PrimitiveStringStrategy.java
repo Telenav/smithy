@@ -26,7 +26,7 @@ package com.telenav.smithy.smithy.ts.generator.type;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.StringShape;
 
 /**
@@ -40,8 +40,8 @@ final class PrimitiveStringStrategy extends AbstractTypeStrategy<StringShape> {
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb,
-            TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb,
+                                                                                     TsVariable rawVar, String instantiatedVar, boolean declare) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
             assig.ofType(targetType() + " | undefined")
@@ -59,13 +59,13 @@ final class PrimitiveStringStrategy extends AbstractTypeStrategy<StringShape> {
 //            inv.withArgument("typeof " + rawVar.name() + " === 'undefined' ? undefined : " + rawVar.name() + ".toString(");
             inv.withUndefinedIfUndefinedOr(rawVar.name()).invoke("toString").on(rawVar.name());
         } else {
-            inv.withArgumentFromInvoking("toString").on(rawVar.name());
+            inv.withInvocationOf("toString").on(rawVar.name());
         }
     }
 
     @Override
-    public <T, B extends TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb,
-            TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb,
+                                                                               TsVariable rawVar, String instantiatedVar, boolean declare) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         assig.ofType(rawVar.optional() ? rawVarType().asOptional().returnTypeSignature() : rawVarType().typeName());
         assig.assignedTo(rawVar.name() + " as string");
