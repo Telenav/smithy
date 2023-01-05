@@ -24,6 +24,7 @@
 package com.mastfrog.smithy.server.common;
 
 import com.mastfrog.java.vogon.ClassBuilder;
+import com.mastfrog.java.vogon.ClassBuilder.DeclarationBuilder;
 import static com.mastfrog.util.strings.Escaper.JAVA_IDENTIFIER_CAMEL_CASE;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import java.util.function.Consumer;
@@ -63,7 +64,7 @@ public final class RequestParameterOrigin extends Origin {
     @Override
     protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> String collectRawValue(ClassBuilder<?> cb, B bb, Shape forShape, MemberShape member) {
         String rawParam = type.prefix() + capitalize(JAVA_IDENTIFIER_CAMEL_CASE.escape(name));
-        ClassBuilder.DeclarationBuilder<B> decl = bb.declare(rawParam);
+        DeclarationBuilder<B> decl = bb.declare(rawParam);
         return ((Declaration) definer).declare(type, name, cb, bb);
     }
 

@@ -189,14 +189,13 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         // Pending - need to sort ops by path to avoid collisions?
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
                 .named(escape(shape.getId().getName(shape)));
-        cb
-                .docComment("Guice module to instantiate the " + shape.getId().getName() + " service. "
-                        + "A " + cb.className() + " can be used to launch the server, or simply as a Guice module "
-                        + "that is part of a larger configuration.  Modules to include on launch can be added via the "
-                        + "<code>installing(Module)</code> method, and the vertx and verticle can be customized using "
-                        + "<code>UnaryOperator</code>s passed to the appropriate methods."
-                        + "\nImplementations of the generated server SPI interfaces can be bound by "
-                        + "passing their types to the method for each one.")
+        cb.docComment("Guice module to instantiate the " + shape.getId().getName() + " service. "
+                + "A " + cb.className() + " can be used to launch the server, or simply as a Guice module "
+                + "that is part of a larger configuration.  Modules to include on launch can be added via the "
+                + "<code>installing(Module)</code> method, and the vertx and verticle can be customized using "
+                + "<code>UnaryOperator</code>s passed to the appropriate methods."
+                + "\nImplementations of the generated server SPI interfaces can be bound by "
+                + "passing their types to the method for each one.")
                 .withModifier(PUBLIC, FINAL)
                 .importing(
                         "com.telenav.vertx.guice.VertxGuiceModule",
@@ -329,7 +328,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 });
             });
             cb.method("withProbe", mth -> {
-                mth.addArgument("ProbeImplementation<? super " + operationEnumTypeName() + ">", "probe")
+                mth.addArgument("ProbeImplementation<? super " + operationEnumTypeName()
+                        + ">", "probe")
                         .returning(cb.className())
                         .withModifier(PUBLIC)
                         .docComment("Provide a probe implementation (for logging or similar) which will "
@@ -344,7 +344,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         });
             });
             cb.method("withProbe", mth -> {
-                mth.addArgument("Class<? extends ProbeImplementation<? super " + operationEnumTypeName() + ">>", "probe")
+                mth.addArgument("Class<? extends ProbeImplementation<? super "
+                        + operationEnumTypeName() + ">>", "probe")
                         .returning(cb.className())
                         .withModifier(PUBLIC)
                         .docComment("Provide a probe implementation (for logging or similar) which will "
@@ -410,7 +411,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         });
     }
 
-    public void generateConfigureOverride(ClassBuilder<String> cb, Consumer<ClassBuilder<String>> con) {
+    public void generateConfigureOverride(ClassBuilder<String> cb,
+            Consumer<ClassBuilder<String>> con) {
         String binderVar = "binder";
         cb.overridePublic("configure", mth -> {
             mth.addArgument("Binder", "binder");
@@ -505,7 +507,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             .withLambdaArgument(lb -> {
                                 lb.withArgument("res");
                                 lb.body(lbb -> {
-                                    ClassBuilder.IfBuilder<?> test = lbb.iff(invocationOf("cause").on("res").isNotNull());
+                                    ClassBuilder.IfBuilder<?> test = lbb.iff(
+                                            invocationOf("cause").on("res").isNotNull());
                                     test.invoke("onLaunchFailure")
                                             .withArgument("verticle")
                                             .withArgument("opts")
@@ -800,14 +803,16 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             cb.implementing("Function<" + operationEnumTypeName() + ", Handler<RoutingContext>>");
             cb.constructor(con -> {
                 con.addArgument("RequestScope", "scope")
-                        .addArgument("Function<? super " + operationEnumTypeName() + ", ? extends Handler<RoutingContext>>", "delegate");
+                        .addArgument("Function<? super " + operationEnumTypeName()
+                                + ", ? extends Handler<RoutingContext>>", "delegate");
                 con.body()
                         .statement("this.scope = scope")
                         .statement("this.delegate = delegate")
                         .endBlock();
             });
             cb.field("delegate").withModifier(PRIVATE, FINAL)
-                    .ofType("Function<? super " + operationEnumTypeName() + ", ? extends Handler<RoutingContext>>");
+                    .ofType("Function<? super " + operationEnumTypeName()
+                            + ", ? extends Handler<RoutingContext>>");
             cb.field("scope").withModifier(PRIVATE, FINAL)
                     .ofType("RequestScope");
             cb.overridePublic("apply")
@@ -852,10 +857,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 })
                                 .as("Function<? super " + operationsEnumName
                                         + ", ? extends Handler<RoutingContext>>");
-//                        bb.declare("bodyFactory")
-//                                .initializedFromField("bodyFactory")
-//                                .ofThis()
-//                                .as("Function<? super " + operationsEnumName + ", ? extends Handler<RoutingContext>>");
 
                         bb.blankLine().lineComment("Binds ObjectMapper configured to correctly "
                                 + " handle").lineComment("java.time types as ISO 8601 strings");
@@ -877,7 +878,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
                         sortedOperations().forEach(op -> {
                             List<String> handlers = new ArrayList<>();
-                            ClassBuilder<String> operationClass = generateOperation(op, graph, handlers, addTo);
+                            ClassBuilder<String> operationClass = generateOperation(op,
+                                    graph, handlers, addTo);
                             bb.blankLine().lineComment("Operation " + op.getId());
                             invokeRoute(bb, verticleBuilderName, routerBuilder, handlers, op);
                             addTo.accept(operationClass);
@@ -911,166 +913,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     private <C, X, B extends BlockBuilderBase<C, B, X>> void generateMarkupUnzipper(
             B configureBody, ClassBuilder<String> cb, Consumer<ClassBuilder<String>> addTo) {
         ClassBuilder<String> markup = ClassBuilder.forPackage(names().packageOf(shape))
-                .named("Markup").withModifier(PUBLIC, FINAL)
-                .importing("javax.inject.Singleton")
-                .annotatedWith("Singleton").closeAnnotation()
-                .importing("javax.inject.Singleton",
-                        "java.io.InputStream",
-                        "java.io.OutputStream",
-                        "java.nio.file.Files",
-                        "java.nio.file.Path",
-                        "java.nio.file.Paths",
-                        "static java.nio.file.StandardOpenOption.CREATE",
-                        "static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING",
-                        "static java.nio.file.StandardOpenOption.WRITE",
-                        "java.util.Map",
-                        "java.util.HashMap",
-                        "java.util.concurrent.ThreadLocalRandom",
-                        "java.util.zip.ZipEntry",
-                        "java.util.zip.ZipInputStream",
-                        "java.security.MessageDigest",
-                        "java.util.Base64"
-                );
-
-        markup.field("names", fld -> {
-            fld.withModifier(PRIVATE, FINAL)
-                    .initializedWithNew(nb -> {
-                        nb.ofType("HashMap<>");
-                    }).ofType("Map<String, String>");
-        });
-        markup.field("uid", fld -> {
-            fld.withModifier(PRIVATE, FINAL);
-            fld.initializedFromInvocationOf("toString")
-                    .withArgumentFromInvoking("currentTimeMillis")
-                    .on("System")
-                    .withArgument(36)
-                    .on("Long").ofType("String");
-        });
-        markup.field("tmp", fld -> {
-            fld.withModifier(PRIVATE, FINAL).ofType("Path");
-        });
-
-        markup.constructor(con -> {
-            con.throwing("Exception");
-            con.body(bb -> {
-                bb.assignField("tmp")
-                        .ofThis()
-                        .toInvocation("resolve")
-                        .withStringConcatentationArgument(shape.getId().getName() + "Markup_")
-                        .appendField("uid").ofThis().endConcatenation()
-                        .onInvocationOf("get")
-                        .withArgumentFromInvoking("getProperty")
-                        .withStringLiteral("java.io.tmpdir")
-                        .on("System")
-                        .on("Paths");
-
-                bb.invoke("createDirectories")
-                        .withArgumentFromField("tmp").ofThis()
-                        .on("Files");
-                bb.declare("in").initializedByInvoking("getResourceAsStream")
-                        .withStringLiteral("markup.zip")
-                        .on(markup.className() + ".class")
-                        .as("InputStream");
-                ClassBuilder.IfBuilder<?> iff = bb.ifNotNull("in");
-                iff.trying(tri -> {
-                    tri.declare("zip")
-                            .initializedWithNew().withArgument("in").ofType("ZipInputStream")
-                            .as("ZipInputStream");
-                    tri.declare("en").as("ZipEntry");
-                    tri.whileLoop((ClassBuilder.WhileBuilder<?> loop) -> {
-
-                        loop.declare("name").initializedByInvoking("getName")
-                                .on("en").as("String");
-                        loop.declare("file").initializedByInvoking("resolve")
-                                .withArgument("name").onField("tmp").ofThis().as("Path");
-
-                        loop.iff().booleanExpression("!Files.exists(file.getParent())")
-                                .invoke("createDirectories")
-                                .withArgumentFromInvoking("getParent")
-                                .on("file")
-                                .on("Files")
-                                .endIf();
-
-                        loop.declare("out").initializedByInvoking("newOutputStream")
-                                .withArgument("file")
-                                .withArgument("CREATE")
-                                .withArgument("WRITE")
-                                .withArgument("TRUNCATE_EXISTING")
-                                .on("Files")
-                                .as("OutputStream");
-                        loop.trying(tri2 -> {
-                            tri2.declare("bytes")
-                                    .initializedByInvoking("readAllBytes")
-                                    .on("zip")
-                                    .as("byte[]");
-
-                            tri2.invoke("write")
-                                    .withArgument("bytes")
-                                    .on("out");
-
-                            tri2.invoke("put")
-                                    .withArgument("name")
-                                    .withArgumentFromInvoking("encodeToString")
-                                    .withArgumentFromInvoking("digest")
-                                    .withArgument("bytes")
-                                    .onInvocationOf("getInstance")
-                                    .withStringLiteral("SHA-1")
-                                    .on("MessageDigest")
-                                    .onInvocationOf("getEncoder")
-                                    .on("Base64")
-                                    .on("names");
-
-                            tri2.fynalli().invoke("close").on("out").endBlock();
-                        });
-
-                        loop.invoke("setLastModifiedTime")
-                                .withArgument("file")
-                                .withArgumentFromInvoking("getLastModifiedTime")
-                                .on("en")
-                                .on("Files");
-
-                        loop.underCondition().booleanExpression("(en = zip.getNextEntry()) != null");
-                    });
-                    tri.fynalli().invoke("close").on("in").endBlock();
-                });
-                iff.endIf();
-            });
-        });
-
-        markup.method("hasMarkupFile")
-                .withModifier(PUBLIC)
-                .addArgument("String", "path")
-                .returning("boolean")
-                .body(bb -> {
-                    bb.iff(invocationOf("length").on("path").isGreaterThan(number(0)))
-                            .statement("path = path.substring(1)").endIf();
-                    bb.returningInvocationOf("containsKey")
-                            .withArgument("path")
-                            .on("names");
-                });
-
-        markup.method("etag")
-                .withModifier(PUBLIC)
-                .addArgument("String", "path")
-                .returning("String")
-                .body(bb -> {
-                    bb.returningInvocationOf("get")
-                            .withArgumentFromInvoking("substring")
-                            .withArgument(1)
-                            .on("path")
-                            .on("names");
-                });
-
-        markup.overridePublic("toString")
-                .returning("String")
-                .body().returningInvocationOf("toString")
-                .on("names").endBlock();
-
-        markup.method("markupDir")
-                .returning("Path")
-                .withModifier(PUBLIC)
-                .bodyReturning("tmp");
-
+                .named("Markup");
+        new MarkupClassGenerator("RoutingContext").accept(shape.getId().getName(), markup);
         addTo.accept(markup);
 
         cb.importing("io.vertx.ext.web.handler.StaticHandler",
@@ -1124,7 +968,16 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 .onInvocationOf("bind")
                 .withClassArgument("StaticHandler")
                 .on("binder");
+
+        configureBody.invoke("asEagerSingleton")
+                .onInvocationOf("bind")
+                .withClassArgument("Markup")
+                .on("binder");
     }
+
+    public static final String SETTINGS_KEY_MARKUP_FILE_REGEX = "markup-regex";
+    private static final String DEFAULT_MARKUP_FILE_REGEX
+            = "\\S+?\\.(?:html|css|js|ts|gif|jpg|png|sass|less|jsx|tsx|txt|json|md$)";
 
     private <C, X, B extends BlockBuilderBase<C, B, X>> void generateMarkupServing(B routerBody,
             ClassBuilder<String> moduleClass,
@@ -1156,22 +1009,9 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             .on("event").as("String");
                     ClassBuilder.IfBuilder<?> test = bb.iff(invocationOf("hasMarkupFile").withArgument("path").on("markup"));
 
-                    test.declare("etag")
-                            .initializedByInvoking("etag")
-                            .withArgument("path")
-                            .on("markup")
-                            .as("String");
-                    test.assertingNotNull("etag");
-
-                    test.declare("inm")
-                            .initializedByInvoking("getHeader")
-                            .withArgumentFromField("IF_NONE_MATCH")
-                            .of("HttpHeaderNames")
-                            .onInvocationOf("request")
-                            .on("event")
-                            .as("String");
-
-                    test.iff().booleanExpression("etag.equals(inm) || etag.equals('\"' + inm + '\"')")
+                    test.iff(invocationOf("isCacheHeaderMatch")
+                            .withArgument("event")
+                            .withArgument("path").on("markup"))
                             .invoke("send")
                             .onInvocationOf("setStatusCode")
                             .withArgument(304)
@@ -1179,22 +1019,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             .on("event")
                             .statement("return")
                             .endIf();
-
-                    test.invoke("putHeader")
-                            .withArgumentFromField("ETAG")
-                            .of("HttpHeaderNames")
-                            .withStringConcatentationArgument("\"")
-                            .appendExpression("etag")
-                            .append("\"").endConcatenation()
-                            .onInvocationOf("response")
-                            .on("event");
-
-                    test.invoke("putHeader")
-                            .withArgumentFromField("CACHE_CONTROL")
-                            .of("HttpHeaderNames")
-                            .withStringLiteral("public,must-revalidate,max-age=1440")
-                            .onInvocationOf("response")
-                            .on("event");
 
                     test.invoke("next").on("event");
                     ElseClauseBuilder<?> els = test.orElse();
@@ -1208,12 +1032,16 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         moduleClass.importing(cb.fqn());
 
+        String markupFileExtensionRegex = ctx.settings()
+                .getString(SETTINGS_KEY_MARKUP_FILE_REGEX)
+                .orElse(DEFAULT_MARKUP_FILE_REGEX);
+
         routerBody.invoke("terminatedBy")
                 .withClassArgument("StaticHandler")
                 .onInvocationOf("withHandler")
                 .withClassArgument("MarkupHandler")
                 .onInvocationOf("withRegex")
-                .withStringLiteral(".*")
+                .withStringLiteral(markupFileExtensionRegex)
                 .onInvocationOf("forHttpMethod")
                 .withArgumentFromField("GET")
                 .of("HttpMethod")
