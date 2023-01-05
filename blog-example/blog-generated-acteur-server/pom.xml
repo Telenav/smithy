@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+<project
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
         <groupId>com.telenav.smithy</groupId>
         <artifactId>blog-example</artifactId>
         <version>1.0.2</version>
     </parent>
+
     <artifactId>blog-generated-acteur-server</artifactId>
+
     <dependencies>
+
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>acteur</artifactId>
@@ -32,48 +40,58 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>blog-generated-business-logic-spi</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>smithy-acteur-adapter</artifactId>
         </dependency>
-        
+
     </dependencies>
+
     <build>
         <plugins>
+
             <!-- Needed to generate builders from Smithy sources - there
-            appears to be no way to convince javac to do it. -->
+                 appears to be no way to convince javac to do it. -->
+
             <plugin>
+
                 <groupId>org.bsc.maven</groupId>
                 <artifactId>maven-processor-plugin</artifactId>
                 <version>5.0-rc3</version>
                 <executions>
+
                     <execution>
+
                         <id>annogen</id>
                         <phase>process-resources</phase>
                         <goals>
                             <goal>process</goal>
                         </goals>
-                        <!--<inherited>false</inherited>-->
+
+                        <!-- <inherited>false</inherited> -->
+
                         <configuration>
                             <processors>
-                                <processor>
-                                    com.mastfrog.acteur.annotation.processors.HttpCallAnnotationProcessor
-                                </processor>
+                                <processor>com.mastfrog.acteur.annotation.processors.HttpCallAnnotationProcessor</processor>
                             </processors>
                             <outputDirectory>${project.build.directory}/generated-sources/annotations</outputDirectory>
                             <appendSourceArtifacts>true</appendSourceArtifacts>
                             <additionalSourceDirectories>
-                                <additionalSourceDirectory>
-                                    ${project.basedir}/target/generated-sources/annotations
-                                </additionalSourceDirectory>
+                                <additionalSourceDirectory>${project.basedir}/target/generated-sources/annotations</additionalSourceDirectory>
                             </additionalSourceDirectories>
                         </configuration>
+
                     </execution>
+
                 </executions>
+
             </plugin>
+
         </plugins>
+
     </build>
     <name>blog-generated-acteur-server</name>
+
 </project>
+

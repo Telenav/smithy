@@ -1,21 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+<project
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
         <groupId>com.telenav.smithy</groupId>
         <artifactId>blog-example</artifactId>
         <version>1.0.2</version>
     </parent>
+
     <artifactId>blog-acteur-application</artifactId>
+
     <properties>
         <exec.mainClass>com.telenav.smithy.blog.demo.BlogDemo</exec.mainClass>
     </properties>
 
     <dependencies>
+
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>blog-demo-backend</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
@@ -24,31 +31,28 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>blog-generated-business-logic-spi</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>blog-spi-over-demo-backend</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>blog-generated-acteur-server</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>smithy-acteur-adapter</artifactId>
-            <version>${project.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>smithy-java-http-extensions</artifactId>
-            <version>${project.version}</version>
             <scope>compile</scope>
         </dependency>
 
     </dependencies>
     <name>blog-acteur-application</name>
+
 </project>
+
