@@ -152,7 +152,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
         Set<GeneratedCode> code = new LinkedHashSet<>();
         generate(src -> {
             code.add(new TypescriptCode(dest, src, log, shape.getId()));
-            ctx.registerPath(SmithyGenerationContext.MARKUP_PATH_CATEGORY, dest);
+            ctx.registerPath("ts", dest);
         });
         generateAdditional(code::add);
         this.ctx = null;
@@ -361,7 +361,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
 
     protected final GeneratedCode resource(String relativePath, String resourceName) {
         ResourceCode result = new ResourceCode(relativePath, this.dest, getClass(), resourceName, log);
-        ctx.registerPath(SmithyGenerationContext.MARKUP_PATH_CATEGORY, result.path());
+        ctx.registerPath("ts", result.path());
         return result;
     }
 

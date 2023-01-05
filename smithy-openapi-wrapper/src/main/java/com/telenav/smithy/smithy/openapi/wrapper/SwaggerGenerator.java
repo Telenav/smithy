@@ -27,7 +27,7 @@ import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
 import com.mastfrog.smithy.generators.ModelElementGenerator;
 import com.mastfrog.smithy.generators.SmithyGenerationContext;
-import static com.mastfrog.smithy.generators.SmithyGenerationContext.SWAGGER_PATH_CATEGORY;
+import static com.mastfrog.smithy.generators.SmithyGenerationContext.MARKUP_PATH_CATEGORY;
 import com.mastfrog.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.smithy.simple.extensions.GenericRestProtocolTrait;
 import java.io.IOException;
@@ -103,7 +103,7 @@ final class SwaggerGenerator implements ModelElementGenerator {
         converter.config(config);
         OpenApi result = converter.convert(model);
         c.accept(new OpenApiCode(result, ctx, log));
-        ctx.registerPath(SWAGGER_PATH_CATEGORY, swaggerDestinationPath(ctx));
+        ctx.registerPath(MARKUP_PATH_CATEGORY, swaggerDestinationPath(ctx));
     }
 
     public static Path swaggerFileRelativePath(SmithyGenerationContext ctx) {
