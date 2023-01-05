@@ -195,7 +195,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
     @Override
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource tb = src();
-//        tb.generateDebugLogCode();
+        tb.generateDebugLogCode();
         _generate(tb, c);
 //        tb.disableDebugLogCode();
     }
@@ -307,18 +307,32 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                     String fieldName = escape(e.getValue().getKey());
                     boolean required = e.getValue().getValue().getMemberTrait(model, RequiredTrait.class).isPresent();
 
-                    if (!required) {
-                        Assignment<ConditionalClauseBuilder<TsBlockBuilder<Void>>> assig
-                                = bb.ifFieldDefined(fieldName).ofThis()
-                                        .assignLiteralRawProperty(queryParam)
-                                        .of("obj");
+                    if (isNotUserType(member) && member.getType() == ShapeType.TIMESTAMP) {
+                        // Need to refactor populateHttpHeader not to take an assignment,
+                        // since we can wind up with the string "undefined" if we have to
+                        // assign to *something*
+                        ConditionalClauseBuilder<TsBlockBuilder<Void>> testit = bb.iff((required ? "" : "typeof this."
+                                + fieldName + "!== 'undefined' && ") + "!isNaN(this." + fieldName + ".getTime())");
 
-                        strategy.populateHttpHeader(assig, fieldName).endIf();
-                    } else {
-                        Assignment<TsBlockBuilder<Void>> assig
-                                = bb.assignLiteralRawProperty(queryParam).of("obj");
+                        Assignment<ConditionalClauseBuilder<TsBlockBuilder<Void>>> assig
+                                = testit.assignLiteralRawProperty(queryParam).of("obj");
 
                         strategy.populateHttpHeader(assig, fieldName);
+                        testit.endIf();
+                    } else {
+                        if (!required) {
+                            Assignment<ConditionalClauseBuilder<TsBlockBuilder<Void>>> assig
+                                    = bb.ifFieldDefined(fieldName).ofThis()
+                                            .assignLiteralRawProperty(queryParam)
+                                            .of("obj");
+
+                            strategy.populateHttpHeader(assig, fieldName).endIf();
+                        } else {
+                            Assignment<TsBlockBuilder<Void>> assig
+                                    = bb.assignLiteralRawProperty(queryParam).of("obj");
+
+                            strategy.populateHttpHeader(assig, fieldName);
+                        }
                     }
                 }
             });
@@ -373,7 +387,8 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                                     .assign(dateField)
                                     .assignedToTernary("typeof " + fieldName + " === 'number'")
                                     .instantiate().withArgument(fieldName + " as number").ofType("Date")
-                                    .expression(fieldName + " as Date");
+                                    .expression(fieldName + " as Date")
+                                    .endIf();
 //                            test.orElse().assign(dateField).assignedTo(fieldName).endIf();
 //                            test.orElse().statement(dateField + " = " + fieldName).endIf();
                         } else {
@@ -384,7 +399,8 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                                     .assign(dateField)
                                     .assignedToTernary("typeof " + fieldName + " === 'number'")
                                     .instantiate().withArgument(fieldName + " as number").ofType("Date")
-                                    .expression(fieldName + " as Date");
+                                    .expression(fieldName + " as Date")
+                                    .endIf();
                         }
 
                         if (!isNotUserType(targetShape)) {

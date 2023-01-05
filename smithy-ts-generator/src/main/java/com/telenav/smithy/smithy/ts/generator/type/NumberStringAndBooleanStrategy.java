@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 package com.telenav.smithy.smithy.ts.generator.type;
 
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -71,7 +70,23 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.NUMBER;
+        switch (shape.getType()) {
+            case BOOLEAN:
+                return TsPrimitiveTypes.BOOLEAN;
+            case STRING:
+                return TsPrimitiveTypes.STRING;
+            case BIG_DECIMAL:
+            case BIG_INTEGER:
+            case LONG:
+            case INTEGER:
+            case FLOAT:
+            case SHORT:
+            case DOUBLE:
+            case BYTE:
+                return TsPrimitiveTypes.NUMBER;
+            default:
+                throw new AssertionError(shape.getType());
+        }
     }
 
     @Override

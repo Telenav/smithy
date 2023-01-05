@@ -25,6 +25,8 @@ package com.telenav.smithy.smithy.ts.generator;
 
 import com.mastfrog.smithy.generators.GenerationTarget;
 import com.mastfrog.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.smithy.ts.generator.type.TsPrimitiveTypes;
+import com.telenav.smithy.smithy.ts.generator.type.TsVariable;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import java.nio.file.Path;
 import java.util.function.Consumer;
@@ -86,10 +88,8 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                             bb.invoke("super")
                                     .withTernary("Array.isArray(items)")
                                     .expression("items")
-                                    .expression("[items as string]")
+                                    .expression((isSet ? "" : "...") + "[items as string]")
                                     .inScope();
-//                            bb.invoke("super")
-//                                    .withArgument("items").inScope();
                         } else {
                             bb.invoke("super").withArgument(isSet ? "items" : "...items").inScope();
                         }
@@ -141,14 +141,15 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                         .withArgument("input").ofType(jsTypeOf(shape));
                 mth.returning(typeName(), bb -> {
 
-                    bb.blankLine()
-                            .lineComment("can be prim " + canBePrimitive)
-                            .lineComment("primitive type " + primitiveType)
-                            .lineComment("jsType " + jsTypeOf(shape))
-                            .lineComment("jsType of shape " + jsTypeOf(target))
-                            .lineComment("targetType " + targetTypeName)
-                            .lineComment("isSet? " + isSet);
-
+//                    strategies.strategy(shape).instantiateFromRawJsonObject(bb, TsPrimitiveTypes.ANY.variable("input"), "result", true);
+//                    bb.returning("result");
+//                    bb.blankLine()
+//                            .lineComment("can be prim " + canBePrimitive)
+//                            .lineComment("primitive type " + primitiveType)
+//                            .lineComment("jsType " + jsTypeOf(shape))
+//                            .lineComment("jsType of shape " + jsTypeOf(target))
+//                            .lineComment("targetType " + targetTypeName)
+//                            .lineComment("isSet? " + isSet);
                     if (jsTypeOf(target).equals(targetTypeName)) {
                         bb.blankLine().lineComment("a");
                         bb.returningNew().withArgument("input").ofType(cb.name());

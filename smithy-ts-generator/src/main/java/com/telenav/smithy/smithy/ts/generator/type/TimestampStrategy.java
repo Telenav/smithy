@@ -134,9 +134,21 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     @Override
     public <T, B extends TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         if (rawVar.optional()) {
-            (declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar)).ofType("string | undefined").assignedToTernary("typeof " + rawVar.name() + "!== 'undefined'").invoke("toISOString").on(rawVar.name()).expression("undefined");
+            bb.statement("let " + instantiatedVar + " : string | undefined");
+            bb.trying(tri -> {
+                tri.assign(instantiatedVar)
+                        .assignedToTernary("typeof " + rawVar.name() + "!== 'undefined'"
+                                + " && !isNaN(" + rawVar.name() + ".getTime())")
+                        .invoke("toISOString").on(rawVar.name()).expression("undefined");
+                tri.catching("err").lineComment("Can be an empty string - ignore").endBlock();
+            });
         } else {
-            (declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar)).ofType("string").assignedToInvocationOf("toISOString").on(rawVar.name());
+            (declare
+                    ? bb.declareConst(instantiatedVar)
+                    : bb.assign(instantiatedVar))
+                    .ofType("string")
+                    .assignedToInvocationOf("toISOString")
+                    .on(rawVar.name());
         }
     }
 
@@ -158,26 +170,33 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     @Override
     public <T, B extends TSBlockBuilderBase<T, B>> void populateQueryParam(
             String fieldName, boolean required, B bb, String queryParam) {
-        if (!required) {
-            bb.ifFieldDefined(fieldName).ofThis()
-                    .assignLiteralRawProperty(queryParam).of("obj")
-                    .assignedToInvocationOf("toISOString")
-                    .onField(fieldName)
-                    .ofThis()
-                    .endIf();
-        } else {
-            bb.assignLiteralRawProperty(queryParam)
-                    .of("obj")
-                    .assignedToInvocationOf("toISOString")
-                    .onField(fieldName)
-                    .ofThis();
-        }
+
+        bb.trying(tri -> {
+            if (!required) {
+                tri.ifFieldDefined(fieldName).ofThis()
+                        .assignLiteralRawProperty(queryParam).of("obj")
+                        .assignedToInvocationOf("toISOString")
+                        .onField(fieldName)
+                        .ofThis()
+                        .endIf();
+            } else {
+                tri.assignLiteralRawProperty(queryParam)
+                        .of("obj")
+                        .assignedToInvocationOf("toISOString")
+                        .onField(fieldName)
+                        .ofThis();
+            }
+            tri.catching("err").lineComment("Can simply be an empty string - ignore.").endBlock();
+        });
     }
 
     @Override
     public <A> A populateHttpHeader(Assignment<A> assig, String fieldName) {
-        return assig.assignedToInvocationOf("toUTCString")
-                .onField(fieldName).ofThis();
+        return assig.assignedToSelfExecutingFunction(f -> {
+            f.iff("!isNaN(this." + fieldName + ".getTime())")
+                    .returningInvocationOf("toUTCString")
+                    .onField(fieldName).ofThis();
+        });
     }
 
     @Override

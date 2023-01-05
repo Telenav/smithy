@@ -23,11 +23,13 @@
  */
 package com.telenav.smithy.smithy.ts.generator.type;
 
+import static com.telenav.smithy.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
 
 /**
+ * Strategies for a list whose type is a typescript primitive type
  *
  * @author Tim Boudreau
  */
@@ -38,20 +40,61 @@ final class PrimitiveListStrategy extends AbstractListOrSetStrategy {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
+            void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
+                    String instantiatedVar, boolean declare) {
+        String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
+        TypescriptSource.Assignment<B> decl = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
+        if (rawVar.optional()) {
+            TypescriptSource.ExpressionBuilder<B> partial = decl.assignedToTernary("typeof " + rawVar.name() + " === undefined")
+                    .expression("undefined");
+            partial.ternary("Array.isArray(" + rawVar.name() + ")")
+                    .expression(rawVar.name())
+                    .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
+        } else {
+            decl.assignedToTernary("Array.isArray(" + rawVar.name() + ")")
+                    .expression(rawVar.name())
+                    .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
+        }
     }
 
     @Override
-    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>> void instantiateFromRawJsonObject(B block, TsVariable rawVar) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>>
+            void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
+        if (rawVar.optional()) {
+            TypescriptSource.ExpressionBuilder<B> partial = inv.withTernary("typeof " + rawVar.name() + " === undefined")
+                    .expression("undefined");
+            partial.ternary("Array.isArray(" + rawVar.name() + ")")
+                    .expression(rawVar.name())
+                    .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
+        } else {
+            inv.withTernary("Array.isArray(" + rawVar.name() + ")")
+                    .expression(rawVar.name())
+                    .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
+        }
+
     }
 
     @Override
-    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void convertToRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>> void convertToRawJsonObject(
+            B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+        String type = memberStrategy.rawVarType() + "[]";
+        TypescriptSource.Assignment<B> decl = declare ? bb.declareConst(instantiatedVar)
+                .ofType(type)
+                : bb.assign(instantiatedVar);
+        if (rawVar.optional()) {
+            decl.assignedToUndefinedIfUndefinedOr(rawVar.name())
+                    .instantiate().ofType(targetType());
+            TypescriptSource.ConditionalClauseBuilder<B> test = bb.ifDefined(rawVar.name());
+            iterAdd(test, rawVar, instantiatedVar);
+        } else {
+            decl.assignedToNew().ofType(targetType());
+            iterAdd(bb, rawVar, instantiatedVar);
+        }
+
     }
 
+    @Override
     public TsSimpleType shapeType() {
         return new TsShapeType(this.member, strategies.types(), true, false);
     }

@@ -23,7 +23,6 @@
  */
 package com.telenav.smithy.smithy.ts.generator.type;
 
-import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.utils.EnumCharacteristics;
 import static com.telenav.smithy.utils.EnumCharacteristics.HETEROGENOUS;
 import static com.telenav.smithy.utils.EnumCharacteristics.NONE;

@@ -44,7 +44,6 @@ class UnionStrategy extends AbstractTypeStrategy<UnionShape> {
     @Override
     public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
-//        throw new UnsupportedOperationException("Not supported yet.");
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType() + " | undefined";
         Assignment<B> assig = declare ? bb.declare(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
         assig.assignedToInvocationOf(decodeMethodName(shape, strategies.tsTypeName(shape)))

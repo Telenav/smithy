@@ -21,11 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 package com.telenav.smithy.smithy.ts.generator.type;
 
-import static com.mastfrog.util.strings.Strings.decapitalize;
+import static com.telenav.smithy.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TSBlockBuilderBase;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
 
@@ -43,7 +45,7 @@ final class SetStrategy extends AbstractListOrSetStrategy {
     public <T, B extends TypescriptSource.TSBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
-        TypescriptSource.Assignment<B> decl = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
+        Assignment<B> decl = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
             decl.assignedToUndefinedIfUndefinedOr(rawVar.name())
                     .invoke("fromJsonObject")
@@ -80,6 +82,5 @@ final class SetStrategy extends AbstractListOrSetStrategy {
             decl.assignedToInvocationOf("toJSON").on(rawVar.name());
         }
     }
-
-
+   
 }
