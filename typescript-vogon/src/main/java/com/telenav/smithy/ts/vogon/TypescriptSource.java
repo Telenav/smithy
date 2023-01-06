@@ -17,6 +17,8 @@ package com.telenav.smithy.ts.vogon;
 
 import com.mastfrog.code.generation.common.CodeGenerator;
 import com.mastfrog.code.generation.common.LinesBuilder;
+import static com.mastfrog.code.generation.common.LinesBuilder.escape;
+import static com.mastfrog.code.generation.common.LinesBuilder.stringLiteral;
 import com.mastfrog.code.generation.common.SourceFileBuilder;
 import com.mastfrog.code.generation.common.general.Adhoc;
 import com.mastfrog.code.generation.common.util.Holder;
@@ -24,10 +26,16 @@ import static com.mastfrog.code.generation.common.util.Utils.notNull;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.FunctionKind.CONSTRUCTOR;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.FunctionKind.FUNCTION;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.FunctionKind.GETTER;
+import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.PRIVATE;
+import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.PROTECTED;
+import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.PUBLIC;
+import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.READONLY;
+import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.STATIC;
+import static java.lang.Character.isWhitespace;
 import java.util.ArrayList;
-import java.util.Arrays;
+import static java.util.Arrays.asList;
 import static java.util.Collections.sort;
-import java.util.EnumSet;
+import static java.util.EnumSet.noneOf;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -36,14 +44,36 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
+ * Typescript code generation, with a fluent API very similar to java-vogon,
+ * which we use for Java code generation. Methods which are for constructing
+ * complex code structures typically come in both imperative and consumer-based
+ * forms - the advantage of the consumer-based ones is that the structure of the
+ * generation code winds up mirroring the structure of the code it generates -
+ * e.g.
+ * <pre>
+ * var src = typescript("SomeSource");
+ * src.declareClass("Foo", cb -> {
+ *    cb.docComment("A foo");
+ *    cb.method("bar").withArgument("baz").ofType("string")
+ *      .body(bb -> {
+ *        bb.declareConst("someVar").ofType("number").initializedWith(3);
+ *        bb.iff("blee === blah", iff -> {
+ *          iff.invoke("log").withStringLiteral("Blarg!").on("console");
+ *        });
+ *      });
+ * })
+ * </pre>
  *
  * @author Tim Boudreau
  */
@@ -365,6 +395,61 @@ public final class TypescriptSource implements SourceFileBuilder {
         return hold.get("Switch builder not completed");
     }
 
+    private static final class ArrayLiteralBuilder<T> extends TypescriptCodeGenerator {
+
+        private final List<CodeGenerator> elements = new ArrayList<>();
+        private final Function<ArrayLiteralBuilder<T>, T> conv;
+
+        ArrayLiteralBuilder(Function<ArrayLiteralBuilder<T>, T> conv) {
+            this.conv = conv;
+        }
+
+        @Override
+        public void generateInto(LinesBuilder lines) {
+            lines.squareBrackets(lb1 -> {
+                lb1.hangingWrap(lb2 -> lb2.joining(",", elements));
+            });
+        }
+
+        public ArrayElementBuilder<T> element() {
+            return new ElementFactory().initial();
+        }
+
+        final class ElementFactory implements Function<CodeGenerator, ArrayElementBuilder<T>>,
+                Supplier<T> {
+
+            ArrayElementBuilder<T> initial() {
+                return new ArrayElementBuilder<>(this, this);
+            }
+
+            @Override
+            public ArrayElementBuilder<T> apply(CodeGenerator t) {
+                elements.add(t);
+                return new ArrayElementBuilder<>(this, this);
+            }
+
+            @Override
+            public T get() {
+                return conv.apply(ArrayLiteralBuilder.this);
+            }
+        }
+    }
+
+    public static final class ArrayElementBuilder<T> extends ExpressionBuilder<ArrayElementBuilder<T>> {
+
+        private final Supplier<T> ender;
+
+        ArrayElementBuilder(Supplier<T> ender, Function<? super CodeGenerator, ? extends ArrayElementBuilder<T>> conv) {
+            super(conv);
+            this.ender = ender;
+        }
+
+        public T endArrayLiteral() {
+            return ender.get();
+        }
+
+    }
+
     public static final class RawPropertyBuilder<T> extends TypescriptCodeGenerator {
 
         private final Function<? super RawPropertyBuilder<T>, ? extends T> conv;
@@ -432,7 +517,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    private static class TernaryBuilder<T> extends TypescriptCodeGenerator {
+    private static final class TernaryBuilder<T> extends TypescriptCodeGenerator {
 
         private final Function<? super TernaryBuilder<T>, ? extends T> conv;
         private final CodeGenerator test;
@@ -472,7 +557,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         private final CodeGenerator target;
         private final String as;
 
-        public Cast(boolean parens, CodeGenerator target, String as) {
+        Cast(boolean parens, CodeGenerator target, String as) {
             this.parens = parens;
             this.target = target;
             this.as = as;
@@ -514,6 +599,24 @@ public final class TypescriptSource implements SourceFileBuilder {
             return this;
         }
 
+        public ArrayElementBuilder<T> arrayLiteral() {
+            return new ArrayLiteralBuilder<T>(alb -> {
+                return finish(alb);
+            }).element();
+        }
+
+        public T arrayLiteral(Consumer<? super ArrayElementBuilder<Void>> c) {
+            Holder<T> hold = new Holder<>();
+            ArrayLiteralBuilder<Void> result = new ArrayLiteralBuilder<>(alb -> {
+                hold.set(finish(alb));
+                return null;
+            });
+            ArrayElementBuilder<Void> el = result.element();
+            c.accept(el);
+            hold.ifUnset(el::endArrayLiteral);
+            return hold.get("Array literal not completed");
+        }
+
         public TsBlockBuilder<T> selfExecutingFunction() {
             return new TsBlockBuilder<>(true, tbb -> {
                 return finish(new SelfExecutingFunction(tbb));
@@ -546,7 +649,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public ExpressionBuilder<ExpressionBuilder<T>> ternary(String test) {
-            return new TernaryBuilder<T>(new Adhoc(test), this::finish).leftSide();
+            return new TernaryBuilder<>(new Adhoc(test), this::finish).leftSide();
         }
 
         public NewBuilder<T> instantiate() {
@@ -564,7 +667,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public StringConcatenation<T> concatenate(String what) {
-            return new StringConcatenation<T>(this::finish).append(what);
+            return new StringConcatenation<>(this::finish).append(what);
         }
 
         public FieldReferenceBuilder<T> field(String what) {
@@ -674,7 +777,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    static class BinaryOperation<T> extends TypescriptCodeGenerator {
+    static final class BinaryOperation<T> extends TypescriptCodeGenerator {
 
         private final CodeGenerator leftSide;
         private final BinaryOperations op;
@@ -717,6 +820,7 @@ public final class TypescriptSource implements SourceFileBuilder {
             this.operator = op;
         }
 
+        @Override
         public String toString() {
             return operator;
         }
@@ -741,6 +845,7 @@ public final class TypescriptSource implements SourceFileBuilder {
             this.operator = op;
         }
 
+        @Override
         public String toString() {
             return operator;
         }
@@ -752,7 +857,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    public static class StringConcatenation<T> extends TypescriptCodeGenerator {
+    public static final class StringConcatenation<T> extends TypescriptCodeGenerator {
 
         private final Function<? super StringConcatenation<T>, ? extends T> conv;
         private final List<CodeGenerator> elements = new ArrayList<>();
@@ -911,7 +1016,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    static class ThrowError<T> extends TypescriptCodeGenerator {
+    static final class ThrowError<T> extends TypescriptCodeGenerator {
 
         private final CodeGenerator what;
 
@@ -1197,7 +1302,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class IntEnumBuilder<T> extends TypescriptCodeGenerator {
+    public static final class IntEnumBuilder<T> extends TypescriptCodeGenerator {
 
         private final Map<String, Long> consts = new TreeMap<>();
         private final Map<String, DocComment> docCmtForMember = new HashMap<>();
@@ -1286,7 +1391,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class StringEnumBuilder<T> extends TypescriptCodeGenerator {
+    public static final class StringEnumBuilder<T> extends TypescriptCodeGenerator {
 
         private final Function<? super StringEnumBuilder<T>, T> conv;
         private final Set<String> consts = new TreeSet<>();
@@ -1315,7 +1420,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public T of(String... cnsts) {
-            this.consts.addAll(Arrays.asList(cnsts));
+            this.consts.addAll(asList(cnsts));
             return close();
         }
 
@@ -1342,7 +1447,7 @@ public final class TypescriptSource implements SourceFileBuilder {
                     if (!cnst.contains("'")) {
                         lb.word("'" + cnst + "'");
                     } else {
-                        lb.word(LinesBuilder.escape(cnst));
+                        lb.word(escape(cnst));
                     }
                     if (it.hasNext()) {
                         lb.word("|");
@@ -1352,7 +1457,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class EnumBuilder<T> extends TypescriptCodeGenerator {
+    public static final class EnumBuilder<T> extends TypescriptCodeGenerator {
 
         private final Map<String, Object> consts = new TreeMap<>();
         private final Map<String, DocComment> docCmtForMember = new HashMap<>();
@@ -1547,7 +1652,8 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    public static class TypeIntersectionBuilder<T> extends TypescriptCodeGenerator {
+    public static final class TypeIntersectionBuilder<T> extends TypescriptCodeGenerator {
+
         // PENDING: This class is not really doing anything that couldn't be done
         // with PropertyBuilder.  Should merge it into that.
         private final Function<? super TypeIntersectionBuilder<T>, T> conv;
@@ -1624,7 +1730,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         private final String what;
 
-        public Append(String what) {
+        Append(String what) {
             this.what = what;
         }
 
@@ -1634,6 +1740,13 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
+    /**
+     * An invocation - a thing which takes arguments and may return something.
+     *
+     * @param <T> The return type when this invocation is closed.
+     * @param <I> This type
+     * @param <A> The type returned by calls that do a nested invocation
+     */
     public interface Invocation<T, I extends Invocation<T, I, A>, A extends InvocationBuilder<I>> {
 
         I withStringLiteralArgument(String what);
@@ -1678,6 +1791,18 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         ExpressionBuilder<ElementExpression<I>> withElement();
 
+        ArrayElementBuilder<I> withArrayLiteral();
+
+        I withArrayLiteral(Consumer<? super ArrayElementBuilder<Void>> c);
+
+        TsBlockBuilder<I> withResultOfSelfExecutingFunction();
+
+        I withResultOfSelfExecutingFunction(Consumer<? super TsBlockBuilder<Void>> c);
+
+        ObjectLiteralBuilder<I> withObjectLiteral();
+
+        I withObjectLiteral(Consumer<? super ObjectLiteralBuilder<Void>> c);
+
         default ExpressionBuilder<I> withUndefinedIfUndefinedOr(String varName) {
             return withTernary("typeof " + varName + " === 'undefined'")
                     .expression("undefined");
@@ -1692,28 +1817,65 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class NewBuilder<T> extends TypescriptCodeGenerator
-            implements Invocation<T, NewBuilder<T>, InvocationBuilder<NewBuilder<T>>> {
+    /**
+     * Base class of both new instantiation builders and method/function
+     * invocation builders.
+     *
+     * @param <T> The type returned by calls that complete this builder
+     * @param <R> This type
+     */
+    public static abstract class AbstractInvocationBuilder<T, R extends AbstractInvocationBuilder<T, R>> extends TypescriptCodeGenerator
+            implements Invocation<T, R, InvocationBuilder<R>> {
 
-        private final Function<NewBuilder<T>, T> conv;
-        private final List<CodeGenerator> arguments = new ArrayList<>();
-        private CodeGenerator target;
+        final Function<R, T> conv;
+        final List<CodeGenerator> arguments = new ArrayList<>();
+        CodeGenerator target;
 
-        public NewBuilder(Function<NewBuilder<T>, T> conv) {
+        AbstractInvocationBuilder(Function<R, T> conv) {
             this.conv = conv;
         }
 
+        @SuppressWarnings("unchecked")
+        R cast() {
+            return (R) this;
+        }
+
+        R add(CodeGenerator arg) {
+            arguments.add(arg);
+            return cast();
+        }
+
         @Override
-        public ExpressionBuilder<NewBuilder<T>> withArgument() {
+        public ExpressionBuilder<R> withArgument() {
             return new ExpressionBuilder<>(eb -> {
-                arguments.add(eb);
-                return this;
+                return add(eb);
             });
         }
 
         @Override
-        public NewBuilder<T> withArgument(Consumer<? super ExpressionBuilder<Void>> c) {
-            Holder<NewBuilder<T>> hold = new Holder<>();
+        public ArrayElementBuilder<R> withArrayLiteral() {
+            return new ArrayLiteralBuilder<R>(alb -> {
+                return add(alb);
+            }).element();
+        }
+
+        @Override
+        public R withArrayLiteral(
+                Consumer<? super ArrayElementBuilder<Void>> c) {
+            Holder<R> hold = new Holder<>();
+            ArrayLiteralBuilder<Void> result = new ArrayLiteralBuilder<>(alb -> {
+                hold.set(add(alb));
+                return null;
+            });
+            ArrayElementBuilder<Void> el = result.element();
+            c.accept(el);
+            hold.ifUnset(el::endArrayLiteral);
+            return hold.get("Array literal not completed");
+        }
+
+        @Override
+        public R withArgument(Consumer<? super ExpressionBuilder<Void>> c) {
+            Holder<R> hold = new Holder<>();
             ExpressionBuilder<Void> result = new ExpressionBuilder<>(eb -> {
                 this.arguments.add(eb);
                 return null;
@@ -1722,22 +1884,22 @@ public final class TypescriptSource implements SourceFileBuilder {
             return hold.get("Argument expression not completed");
         }
 
-        public ExpressionBuilder<ElementExpression<NewBuilder<T>>> withElement() {
+        @Override
+        public ExpressionBuilder<ElementExpression<R>> withElement() {
             return new ExpressionBuilder<>(eb -> {
                 return new ElementExpression<>(eb, ee -> {
-                    arguments.add(ee);
-                    return this;
+                    return add(ee);
                 });
             });
         }
 
-        public NewBuilder<T> withElement(Consumer<? super ExpressionBuilder<ElementExpression<Void>>> c) {
-            Holder<NewBuilder<T>> hold = new Holder<>();
+        @Override
+        public R withElement(Consumer<? super ExpressionBuilder<ElementExpression<Void>>> c) {
+            Holder<R> hold = new Holder<>();
             ExpressionBuilder<ElementExpression<Void>> result
                     = new ExpressionBuilder<>(eb -> {
                         return new ElementExpression<>(eb, ee -> {
-                            this.arguments.add(ee);
-                            hold.set(this);
+                            hold.set(add(ee));
                             return null;
                         });
                     });
@@ -1746,19 +1908,36 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public RawPropertyBuilder<NewBuilder<T>> withRawProperty(String propertyName) {
-            return new RawPropertyBuilder<>(new StringLiteral(propertyName), rpb -> {
-                arguments.add(rpb);
-                return this;
+        public ObjectLiteralBuilder<R> withObjectLiteral() {
+            return new ObjectLiteralBuilder<>(olb -> {
+                return add(olb);
             });
         }
 
         @Override
-        public NewBuilder<T> withRawProperty(String propertyName, Consumer<? super RawPropertyBuilder<Void>> c) {
-            Holder<NewBuilder<T>> hold = new Holder<>();
+        public R withObjectLiteral(Consumer<? super ObjectLiteralBuilder<Void>> c) {
+            Holder<R> hold = new Holder<>();
+            ObjectLiteralBuilder<Void> result = new ObjectLiteralBuilder<>(olb -> {
+                hold.set(add(olb));
+                return null;
+            });
+            c.accept(result);
+            hold.ifUnset(result::endObjectLiteral);
+            return hold.get("Object literal not completed");
+        }
+
+        @Override
+        public RawPropertyBuilder<R> withRawProperty(String propertyName) {
+            return new RawPropertyBuilder<>(new StringLiteral(propertyName), rpb -> {
+                return add(rpb);
+            });
+        }
+
+        @Override
+        public R withRawProperty(String propertyName, Consumer<? super RawPropertyBuilder<Void>> c) {
+            Holder<R> hold = new Holder<>();
             RawPropertyBuilder<Void> result = new RawPropertyBuilder<>(new StringLiteral(propertyName), rpb -> {
-                this.arguments.add(rpb);
-                hold.set(this);
+                hold.set(add(rpb));
                 return null;
             });
             c.accept(result);
@@ -1766,19 +1945,17 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public ExpressionBuilder<ExpressionBuilder<NewBuilder<T>>> withTernary(String test) {
-            return new TernaryBuilder<NewBuilder<T>>(new Adhoc(test), tb -> {
-                arguments.add(tb);
-                return this;
+        public ExpressionBuilder<ExpressionBuilder<R>> withTernary(String test) {
+            return new TernaryBuilder<R>(new Adhoc(test), tb -> {
+                return add(tb);
             }).leftSide();
         }
 
         @Override
-        public NewBuilder<T> withTernary(String test, Consumer<? super ExpressionBuilder<ExpressionBuilder<Void>>> c) {
-            Holder<NewBuilder<T>> hold = new Holder<>();
+        public R withTernary(String test, Consumer<? super ExpressionBuilder<ExpressionBuilder<Void>>> c) {
+            Holder<R> hold = new Holder<>();
             TernaryBuilder<Void> result = new TernaryBuilder<>(new Adhoc(test), tb -> {
-                arguments.add(tb);
-                hold.set(this);
+                hold.set(add(tb));
                 return null;
             });
             c.accept(result.leftSide());
@@ -1786,19 +1963,17 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public StringConcatenation<NewBuilder<T>> withStringConcatenation() {
+        public StringConcatenation<R> withStringConcatenation() {
             return new StringConcatenation<>(str -> {
-                arguments.add(str);
-                return this;
+                return add(str);
             });
         }
 
         @Override
-        public NewBuilder<T> withStringConcatenation(Consumer<? super StringConcatenation<Void>> c) {
-            Holder<NewBuilder<T>> hold = new Holder<>();
+        public R withStringConcatenation(Consumer<? super StringConcatenation<Void>> c) {
+            Holder<R> hold = new Holder<>();
             StringConcatenation<Void> result = new StringConcatenation<>(str -> {
-                arguments.add(str);
-                hold.set(this);
+                hold.set(add(str));
                 return null;
             });
             c.accept(result);
@@ -1807,23 +1982,21 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         T close() {
-            return conv.apply(this);
+            return conv.apply(cast());
         }
 
         @Override
-        public FieldReferenceBuilder<NewBuilder<T>> withField(String fieldName) {
+        public FieldReferenceBuilder<R> withField(String fieldName) {
             return new FieldReferenceBuilder<>(fieldName, frb -> {
-                arguments.add(frb);
-                return this;
+                return add(frb);
             });
         }
 
         @Override
-        public NewBuilder<T> withField(String fieldName, Consumer<? super FieldReferenceBuilder<Void>> c) {
-            Holder<NewBuilder<T>> hold = new Holder<>();
+        public R withField(String fieldName, Consumer<? super FieldReferenceBuilder<Void>> c) {
+            Holder<R> hold = new Holder<>();
             FieldReferenceBuilder<Void> result = new FieldReferenceBuilder<>(fieldName, frb -> {
-                arguments.add(frb);
-                hold.set(this);
+                hold.set(add(frb));
                 return null;
             });
             c.accept(result);
@@ -1831,18 +2004,17 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public NewBuilder<NewBuilder<T>> withNew() {
+        public NewBuilder<R> withNew() {
             return new NewBuilder<>(nb -> {
-                arguments.add(nb);
-                return this;
+                return add(nb);
             });
         }
 
-        public NewBuilder<T> withNew(Consumer<? super NewBuilder<Void>> c) {
-            Holder<NewBuilder<T>> hold = new Holder<>();
+        @Override
+        public R withNew(Consumer<? super NewBuilder<Void>> c) {
+            Holder<R> hold = new Holder<>();
             NewBuilder<Void> result = new NewBuilder<>(nb -> {
-                arguments.add(nb);
-                hold.set(this);
+                hold.set(add(nb));
                 return null;
             });
             c.accept(result);
@@ -1850,45 +2022,59 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public NewBuilder<T> withStringLiteralArgument(String what) {
-            arguments.add(new StringLiteral(what));
-            return this;
+        public R withStringLiteralArgument(String what) {
+            return add(new StringLiteral(what));
         }
 
         @Override
-        public NewBuilder<T> withArgument(String what) {
-            arguments.add(new Adhoc(what));
-            return this;
+        public R withArgument(String what) {
+            return add(new Adhoc(what));
         }
 
         @Override
-        public NewBuilder<T> withArgument(Number num) {
-            arguments.add(new NumberLiteral(num));
-            return this;
+        public R withArgument(Number num) {
+            return add(new NumberLiteral(num));
         }
 
         @Override
-        public NewBuilder<T> withArgument(boolean bool) {
-            arguments.add(new Adhoc(Boolean.toString(bool)));
-            return this;
+        public R withArgument(boolean bool) {
+            return add(new Adhoc(Boolean.toString(bool)));
         }
 
         @Override
-        public FunctionBuilder<NewBuilder<T>> withLambda() {
+        public TsBlockBuilder<R> withResultOfSelfExecutingFunction() {
+            return new TsBlockBuilder<>(true, tsb -> {
+                return add(new SelfExecutingFunction(tsb));
+            });
+        }
+
+        @Override
+        public R withResultOfSelfExecutingFunction(Consumer<? super TsBlockBuilder<Void>> c) {
+            Holder<R> hold;
+            hold = new Holder<>();
+            TsBlockBuilder<Void> result = new TsBlockBuilder<>(true, tsb -> {
+                hold.set(add(new SelfExecutingFunction(tsb)));
+                return null;
+            });
+            c.accept(result);
+            hold.ifUnset(result::endBlock);
+            return hold.get("Self executing function not completed");
+        }
+
+        @Override
+        public FunctionBuilder<R> withLambda() {
             return new FunctionBuilder<>(false, fb -> {
                 fb.fatArrow();
-                arguments.add(fb);
-                return this;
+                return add(fb);
             }, null);
         }
 
         @Override
-        public NewBuilder<T> withLambda(Consumer<? super FunctionBuilder<Void>> c) {
-            Holder<NewBuilder<T>> hold = new Holder<>();
+        public R withLambda(Consumer<? super FunctionBuilder<Void>> c) {
+            Holder<R> hold = new Holder<>();
             FunctionBuilder<Void> result = new FunctionBuilder<>(false, fb -> {
                 fb.fatArrow();
-                arguments.add(fb);
-                hold.set(this);
+                hold.set(add(fb));
                 return null;
             }, null);
             c.accept(result);
@@ -1896,22 +2082,27 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
-        public InvocationBuilder<NewBuilder<T>> withInvocationOf(String what) {
+        public InvocationBuilder<R> withInvocationOf(String what) {
             return new InvocationBuilder<>(ib -> {
-                arguments.add(ib);
-                return this;
+                return add(ib);
             }, new Append(what));
         }
 
-        public NewBuilder<T> withInvocationOf(String what, Consumer<? super InvocationBuilder<Void>> c) {
-            Holder<NewBuilder<T>> hold = new Holder<>();
+        public R withInvocationOf(String what, Consumer<? super InvocationBuilder<Void>> c) {
+            Holder<R> hold = new Holder<>();
             InvocationBuilder<Void> result = new InvocationBuilder<>(inv -> {
-                arguments.add(inv);
-                hold.set(this);
+                hold.set(add(inv));
                 return null;
             }, what);
             hold.ifUnset(result::inScope);
             return hold.get(() -> "Invocation of " + what + " not completed");
+        }
+    }
+
+    public static final class NewBuilder<T> extends AbstractInvocationBuilder<T, NewBuilder<T>> {
+
+        NewBuilder(Function<NewBuilder<T>, T> conv) {
+            super(conv);
         }
 
         public T ofType(String what) {
@@ -1929,144 +2120,35 @@ public final class TypescriptSource implements SourceFileBuilder {
                 });
             });
         }
-
     }
 
-    public static class InvocationBuilder<T> extends TypescriptCodeGenerator
-            implements Invocation<T, InvocationBuilder<T>, InvocationBuilder<InvocationBuilder<T>>> {
+    public static final class InvocationBuilder<T> extends AbstractInvocationBuilder<T, InvocationBuilder<T>> {
 
-        private final Function<InvocationBuilder<T>, T> conv;
         private final CodeGenerator name;
-        private final List<CodeGenerator> arguments = new ArrayList<>();
-        private CodeGenerator target;
 
-        public InvocationBuilder(Function<InvocationBuilder<T>, T> conv, String name) {
-            this(conv, new Append(name));
+        InvocationBuilder(Function<InvocationBuilder<T>, T> conv, String name) {
+            this(conv, new Adhoc(name));
         }
 
-        public InvocationBuilder(Function<InvocationBuilder<T>, T> conv, CodeGenerator name) {
-            this.conv = conv;
+        InvocationBuilder(Function<InvocationBuilder<T>, T> conv, CodeGenerator name) {
+            super(conv);
             this.name = name;
-        }
-
-        @Override
-        public ExpressionBuilder<InvocationBuilder<T>> withArgument() {
-            return new ExpressionBuilder<>(eb -> {
-                arguments.add(eb);
-                return this;
-            });
-        }
-
-        @Override
-        public InvocationBuilder<T> withArgument(Consumer<? super ExpressionBuilder<Void>> c) {
-            Holder<InvocationBuilder<T>> hold = new Holder<>();
-            ExpressionBuilder<Void> result = new ExpressionBuilder<>(eb -> {
-                this.arguments.add(eb);
-                return null;
-            });
-            c.accept(result);
-            return hold.get("Argument expression not completed");
-        }
-
-        public ExpressionBuilder<ElementExpression<InvocationBuilder<T>>> withElement() {
-            return new ExpressionBuilder<>(eb -> {
-                return new ElementExpression<>(eb, ee -> {
-                    arguments.add(ee);
-                    return this;
-                });
-            });
-        }
-
-        public InvocationBuilder<T> withElement(
-                Consumer<? super ExpressionBuilder<ElementExpression<Void>>> c) {
-            Holder<InvocationBuilder<T>> hold = new Holder<>();
-            ExpressionBuilder<ElementExpression<Void>> result
-                    = new ExpressionBuilder<>(eb -> {
-                        return new ElementExpression<>(eb, ee -> {
-                            this.arguments.add(ee);
-                            hold.set(this);
-                            return null;
-                        });
-                    });
-            c.accept(result);
-            return hold.get("Element expression not completed");
-        }
-
-        @Override
-        public RawPropertyBuilder<InvocationBuilder<T>> withRawProperty(String propertyName) {
-            return new RawPropertyBuilder<>(new StringLiteral(propertyName), rpb -> {
-                arguments.add(rpb);
-                return this;
-            });
-        }
-
-        @Override
-        public InvocationBuilder<T> withRawProperty(String propertyName, Consumer<? super RawPropertyBuilder<Void>> c) {
-            Holder<InvocationBuilder<T>> hold = new Holder<>();
-            RawPropertyBuilder<Void> result = new RawPropertyBuilder<>(new StringLiteral(propertyName), rpb -> {
-                this.arguments.add(rpb);
-                hold.set(this);
-                return null;
-            });
-            c.accept(result);
-            return hold.get(() -> "Raw property reference " + propertyName + " not completed");
-        }
-
-        @Override
-        public ExpressionBuilder<ExpressionBuilder<InvocationBuilder<T>>> withTernary(String test) {
-            return new TernaryBuilder<InvocationBuilder<T>>(new Adhoc(test), tb -> {
-                arguments.add(tb);
-                return this;
-            }).leftSide();
-        }
-
-        @Override
-        public InvocationBuilder<T> withTernary(String test, Consumer<? super ExpressionBuilder<ExpressionBuilder<Void>>> c) {
-            Holder<InvocationBuilder<T>> hold = new Holder<>();
-            TernaryBuilder<Void> result = new TernaryBuilder<>(new Adhoc(test), tb -> {
-                arguments.add(tb);
-                hold.set(this);
-                return null;
-            });
-            c.accept(result.leftSide());
-            return hold.get("Ternary builder not completed");
-        }
-
-        @Override
-        public StringConcatenation<InvocationBuilder<T>> withStringConcatenation() {
-            return new StringConcatenation<>(str -> {
-                arguments.add(str);
-                return this;
-            });
-        }
-
-        @Override
-        public InvocationBuilder<T> withStringConcatenation(Consumer<? super StringConcatenation<Void>> c) {
-            Holder<InvocationBuilder<T>> hold = new Holder<>();
-            StringConcatenation<Void> result = new StringConcatenation<>(str -> {
-                arguments.add(str);
-                hold.set(this);
-                return null;
-            });
-            c.accept(result);
-            hold.ifUnset(result::endConcatenation);
-            return hold.get("String concatenation not completed");
         }
 
         public T on(String what) {
             target = new Adhoc(what);
-            return conv.apply(this);
+            return close();
         }
 
         public T onThis() {
             target = new Adhoc("this");
-            return conv.apply(this);
+            return close();
         }
 
         public FieldReferenceBuilder<T> onField(String fieldName) {
             return new FieldReferenceBuilder<>(fieldName, fld -> {
                 this.target = fld;
-                return conv.apply(this);
+                return close();
             });
         }
 
@@ -2074,76 +2156,18 @@ public final class TypescriptSource implements SourceFileBuilder {
             Holder<T> hold = new Holder<>();
             FieldReferenceBuilder<Void> result = new FieldReferenceBuilder<>(fieldName, frb -> {
                 target = frb;
-                hold.set(conv.apply(this));
+                hold.set(close());
                 return null;
             });
             c.accept(result);
             return hold.get(() -> "Field reference for '" + fieldName + "' not completed");
         }
 
-        @Override
-        public FieldReferenceBuilder<InvocationBuilder<T>> withField(String fieldName) {
-            return new FieldReferenceBuilder<>(fieldName, frb -> {
-                arguments.add(frb);
-                return this;
-            });
-        }
-
-        public ObjectLiteralBuilder<InvocationBuilder<T>> withObjectLiteral() {
-            return new ObjectLiteralBuilder<>(olb -> {
-                arguments.add(olb);
-                return this;
-            });
-        }
-
-        public InvocationBuilder<T> withObjectLiteral(Consumer<? super ObjectLiteralBuilder<Void>> c) {
-            Holder<InvocationBuilder<T>> hold = new Holder<>();
-            ObjectLiteralBuilder<Void> result = new ObjectLiteralBuilder<>(olb -> {
-                arguments.add(olb);
-                hold.set(this);
-                return null;
-            });
-            c.accept(result);
-            hold.ifUnset(result::endObjectLiteral);
-            return hold.get("Object literal not completed");
-        }
-
-        @Override
-        public InvocationBuilder<T> withField(String fieldName, Consumer<? super FieldReferenceBuilder<Void>> c) {
-            Holder<InvocationBuilder<T>> hold = new Holder<>();
-            FieldReferenceBuilder<Void> result = new FieldReferenceBuilder<>(fieldName, frb -> {
-                arguments.add(frb);
-                hold.set(this);
-                return null;
-            });
-            c.accept(result);
-            return hold.get(() -> "Field reference to '" + fieldName + "' not completed");
-        }
-
-        @Override
-        public NewBuilder<InvocationBuilder<T>> withNew() {
-            return new NewBuilder<>(nb -> {
-                arguments.add(nb);
-                return this;
-            });
-        }
-
-        public InvocationBuilder<T> withNew(Consumer<? super NewBuilder<Void>> c) {
-            Holder<InvocationBuilder<T>> hold = new Holder<>();
-            NewBuilder<Void> result = new NewBuilder<>(nb -> {
-                arguments.add(nb);
-                hold.set(this);
-                return null;
-            });
-            c.accept(result);
-            return hold.get("ofType never called on " + result);
-        }
-
         public T onNew(Consumer<? super NewBuilder<Void>> c) {
             Holder<T> hold = new Holder<>();
             NewBuilder<Void> result = new NewBuilder<>(nb -> {
                 this.target = nb;
-                hold.set(conv.apply(this));
+                hold.set(close());
                 return null;
             });
             c.accept(result);
@@ -2153,14 +2177,14 @@ public final class TypescriptSource implements SourceFileBuilder {
         public RawPropertyBuilder<T> onRawProperty(String what) {
             return new RawPropertyBuilder<>(new StringLiteral(what), rpb -> {
                 this.target = rpb;
-                return conv.apply(this);
+                return close();
             });
         }
 
         public ExpressionBuilder<T> on() {
             return new ExpressionBuilder<>(eb -> {
                 this.target = eb;
-                return conv.apply(this);
+                return close();
             });
         }
 
@@ -2168,17 +2192,18 @@ public final class TypescriptSource implements SourceFileBuilder {
             Holder<T> hold = new Holder<>();
             ExpressionBuilder<Void> result = new ExpressionBuilder<>(eb -> {
                 this.target = eb;
+                hold.accept(close());
                 return null;
             });
             c.accept(result);
             return hold.get("Invocation target expression not completed");
         }
 
-        public T returningRawProperty(String what, Consumer<? super RawPropertyBuilder<Void>> c) {
+        public T onRawProperty(String what, Consumer<? super RawPropertyBuilder<Void>> c) {
             Holder<T> hold = new Holder<>();
             RawPropertyBuilder<Void> result = new RawPropertyBuilder<>(new StringLiteral(what), rpb -> {
                 this.target = rpb;
-                hold.set(conv.apply(this));
+                hold.set(close());
                 return null;
             });
             c.accept(result);
@@ -2189,7 +2214,7 @@ public final class TypescriptSource implements SourceFileBuilder {
             return new ExpressionBuilder<>(eb -> {
                 return new ElementExpression<>(eb, ee -> {
                     target = ee;
-                    return conv.apply(this);
+                    return close();
                 });
             });
         }
@@ -2201,7 +2226,7 @@ public final class TypescriptSource implements SourceFileBuilder {
                     = new ExpressionBuilder<>(eb -> {
                         return new ElementExpression<>(eb, ee -> {
                             this.target = ee;
-                            hold.set(conv.apply(this));
+                            hold.set(close());
                             return null;
                         });
                     });
@@ -2212,68 +2237,14 @@ public final class TypescriptSource implements SourceFileBuilder {
         public NewBuilder<T> onNew() {
             return new NewBuilder<>(nb -> {
                 this.target = nb;
-                return conv.apply(this);
+                return close();
             });
-        }
-
-        @Override
-        public InvocationBuilder<T> withStringLiteralArgument(String what) {
-            arguments.add(new StringLiteral(what));
-            return this;
-        }
-
-        @Override
-        public InvocationBuilder<T> withArgument(String what) {
-            arguments.add(new Adhoc(what));
-            return this;
-        }
-
-        @Override
-        public InvocationBuilder<T> withArgument(Number num) {
-            arguments.add(new NumberLiteral(num));
-            return this;
-        }
-
-        @Override
-        public InvocationBuilder<T> withArgument(boolean bool) {
-            arguments.add(new Adhoc(Boolean.toString(bool)));
-            return this;
-        }
-
-        @Override
-        public FunctionBuilder<InvocationBuilder<T>> withLambda() {
-            return new FunctionBuilder<>(false, fb -> {
-                fb.fatArrow();
-                arguments.add(fb);
-                return this;
-            }, null);
-        }
-
-        @Override
-        public InvocationBuilder<T> withLambda(Consumer<? super FunctionBuilder<Void>> c) {
-            Holder<InvocationBuilder<T>> hold = new Holder<>();
-            FunctionBuilder<Void> result = new FunctionBuilder<>(false, fb -> {
-                fb.fatArrow();
-                arguments.add(fb);
-                hold.set(this);
-                return null;
-            }, null);
-            c.accept(result);
-            return hold.get("Lambda builder not completed");
-        }
-
-        @Override
-        public InvocationBuilder<InvocationBuilder<T>> withInvocationOf(String what) {
-            return new InvocationBuilder<>(ib -> {
-                arguments.add(ib);
-                return this;
-            }, new Append(what));
         }
 
         public InvocationBuilder<T> onInvocationOf(String what) {
             return new InvocationBuilder<>(ib -> {
                 this.target = ib;
-                return conv.apply(this);
+                return close();
             }, new Append(what));
         }
 
@@ -2283,7 +2254,6 @@ public final class TypescriptSource implements SourceFileBuilder {
                 target.generateInto(lines);
                 lines.appendRaw('.');
             }
-//            lines.backup();
             lines.generateOrPlaceholder(name);
             lines.parens(lb -> {
                 lines.joining(", ", arguments);
@@ -2291,11 +2261,11 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public T inScope() {
-            return conv.apply(this);
+            return close();
         }
     }
 
-    private static class TypeCheck extends TypescriptCodeGenerator {
+    private static final class TypeCheck extends TypescriptCodeGenerator {
 
         private final CodeGenerator what;
         private String type;
@@ -2351,12 +2321,12 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    static class LineComment extends TypescriptCodeGenerator {
+    private static final class LineComment extends TypescriptCodeGenerator {
 
         private final String txt;
         private final boolean leadingNewline;
 
-        public LineComment(String txt, boolean leadingNewline) {
+        LineComment(String txt, boolean leadingNewline) {
             this.txt = txt;
             this.leadingNewline = leadingNewline;
         }
@@ -2400,7 +2370,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         });
     }
 
-    public static class FieldReferenceBuilder<T> extends TypescriptCodeGenerator {
+    public static final class FieldReferenceBuilder<T> extends TypescriptCodeGenerator {
 
         private final String fieldName;
         private final Function<FieldReferenceBuilder<T>, T> conv;
@@ -2425,7 +2395,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public InvocationBuilder<T> ofInvocationOf(String what) {
-            return new InvocationBuilder<T>(ib -> {
+            return new InvocationBuilder<>(ib -> {
                 this.target = ib;
                 return conv.apply(this);
             }, what);
@@ -2473,7 +2443,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class ForInLoopBuilder<T> extends StandardReturnableBlockBuilderBase<T, ForInLoopBuilder<T>> {
+    public static final class ForInLoopBuilder<T> extends StandardReturnableBlockBuilderBase<T, ForInLoopBuilder<T>> {
 
         private final String loopVar;
         private CodeGenerator over;
@@ -2562,7 +2532,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class ConditionalClauseBuilder<T> extends StandardReturnableBlockBuilderBase<T, ConditionalClauseBuilder<T>> {
+    public static final class ConditionalClauseBuilder<T> extends StandardReturnableBlockBuilderBase<T, ConditionalClauseBuilder<T>> {
 
         private final CodeGenerator condition;
         private final ConditionalClauseBuilder<T> parent;
@@ -2645,7 +2615,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    static class BreakableCondition extends TypescriptCodeGenerator {
+    private static final class BreakableCondition extends TypescriptCodeGenerator {
 
         private final String test;
 
@@ -2705,7 +2675,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class ElseClauseBuilder<T> extends StandardReturnableBlockBuilderBase<T, ElseClauseBuilder<T>> {
+    public static final class ElseClauseBuilder<T> extends StandardReturnableBlockBuilderBase<T, ElseClauseBuilder<T>> {
 
         ElseClauseBuilder(boolean openBlock, Function<? super ElseClauseBuilder<T>, T> conv) {
             super(openBlock, conv);
@@ -2723,19 +2693,20 @@ public final class TypescriptSource implements SourceFileBuilder {
     }
 
     /**
-     * Base class for builders which support <code>return</code> statements (generally
-     * anything that is not a constructor).  The type returned by <code>return</code>
-     * statements is generic - there are some cases of code blocks - specifically try
-     * blocks that do not yet have a catch or finally clause and are therefore invalid
-     * to add to a source until they have one or the other - where exiting and adding
-     * the block to its parent on defining a <code>return</code> statement would be the
-     * wrong behavior.
-     * @param <T> The eventual return type when the block is completed, returned by the
-     *           function passed to the constructor.
-     * @param <B> The concrete subtype of this class - the thing returned by methods which
-     *           return the effective <code>this</code>
-     * @param <R> The type returned by return-like statements which, in most cases, indicate
-     *           an exit point.
+     * Base class for builders which support <code>return</code> statements
+     * (generally anything that is not a constructor). The type returned by
+     * <code>return</code> statements is generic - there are some cases of code
+     * blocks - specifically try blocks that do not yet have a catch or finally
+     * clause and are therefore invalid to add to a source until they have one
+     * or the other - where exiting and adding the block to its parent on
+     * defining a <code>return</code> statement would be the wrong behavior.
+     *
+     * @param <T> The eventual return type when the block is completed, returned
+     * by the function passed to the constructor.
+     * @param <B> The concrete subtype of this class - the thing returned by
+     * methods which return the effective <code>this</code>
+     * @param <R> The type returned by return-like statements which, in most
+     * cases, indicate an exit point.
      */
     public static abstract class ReturnableBlockBuilderBase<T, B extends ReturnableBlockBuilderBase<T, B, R>, R> extends TsBlockBuilderBase<T, B> {
 
@@ -2830,6 +2801,26 @@ public final class TypescriptSource implements SourceFileBuilder {
             return hold.get("Object literal not completed");
         }
 
+        public ArrayElementBuilder<R> returningArrayLiteral() {
+            return new ArrayLiteralBuilder<R>(alb -> {
+                add(new ReturnStatement(alb));
+                return onReturn();
+            }).element();
+        }
+
+        public R returningArrayLiteral(Consumer<? super ArrayElementBuilder<Void>> c) {
+            Holder<R> hold = new Holder<>();
+            ArrayLiteralBuilder<Void> result = new ArrayLiteralBuilder<>(alb -> {
+                add(new ReturnStatement(alb));
+                hold.set(onReturn());
+                return null;
+            });
+            ArrayElementBuilder<Void> el = result.element();
+            c.accept(el);
+            hold.ifUnset(el::endArrayLiteral);
+            return hold.get("Array literal not completed");
+        }
+
         public InvocationBuilder<R> returningInvocationOf(String what) {
             return new InvocationBuilder<>(ib -> {
                 add(new ReturnStatement(ib));
@@ -2913,7 +2904,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         private TsBlockBuilder<T> finalli() {
-            return new TsBlockBuilder<T>(true, tsb -> {
+            return new TsBlockBuilder<>(true, tsb -> {
                 this.finallyBlock = tsb;
                 return conv.apply(this);
             });
@@ -2947,7 +2938,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class CatchBuilder<T, R> extends ReturnableBlockBuilderBase<R, CatchBuilder<T, R>, R> {
+    public static final class CatchBuilder<T, R> extends ReturnableBlockBuilderBase<R, CatchBuilder<T, R>, R> {
 
         private final TryCatchBuilder<T> owner;
 
@@ -2980,11 +2971,11 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     public static class StandardReturnableBlockBuilderBase<T, B extends StandardReturnableBlockBuilderBase<T, B>> extends ReturnableBlockBuilderBase<T, B, T> {
 
-        public StandardReturnableBlockBuilderBase(Function<? super B, T> conv) {
+        StandardReturnableBlockBuilderBase(Function<? super B, T> conv) {
             super(conv);
         }
 
-        public StandardReturnableBlockBuilderBase(boolean openBlock, Function<? super B, T> conv) {
+        StandardReturnableBlockBuilderBase(boolean openBlock, Function<? super B, T> conv) {
             super(openBlock, conv);
         }
 
@@ -3015,6 +3006,7 @@ public final class TypescriptSource implements SourceFileBuilder {
             return statements.isEmpty();
         }
 
+        @SuppressWarnings("unchecked")
         B cast() {
             return (B) this;
         }
@@ -3373,7 +3365,6 @@ public final class TypescriptSource implements SourceFileBuilder {
         @Override
         public void generateInto(LinesBuilder lines) {
             if (openBlock) {
-//                lines.block(this::generateStatements);
                 lines.space().appendRaw('{');
                 lines.indent(lb -> {
                     for (CodeGenerator g : statements) {
@@ -3392,7 +3383,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         private final CodeGenerator what;
 
-        public ReturnStatement(CodeGenerator what) {
+        ReturnStatement(CodeGenerator what) {
             this.what = what;
         }
 
@@ -3428,7 +3419,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class ClassBuilder<T> extends TypescriptCodeGenerator {
+    public static final class ClassBuilder<T> extends TypescriptCodeGenerator {
 
         private final Function<? super ClassBuilder<T>, T> conv;
         private final String name;
@@ -3615,7 +3606,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    public static class InterfaceBuilder<T> extends TypescriptCodeGenerator {
+    public static final class InterfaceBuilder<T> extends TypescriptCodeGenerator {
 
         private final List<CodeGenerator> members = new ArrayList<>();
 
@@ -3797,6 +3788,7 @@ public final class TypescriptSource implements SourceFileBuilder {
             return cast();
         }
 
+        @SuppressWarnings("unchecked")
         F cast() {
             return (F) this;
         }
@@ -3815,7 +3807,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public InterfaceBuilder<F> withAnonymousInterfaceArgument(String argName) {
             return new InterfaceBuilder<>(ib -> {
-                PropertyBuilder<?> tdb = new PropertyBuilder(argName, null);
+                PropertyBuilder<?> tdb = new PropertyBuilder<>(argName, null);
                 tdb.types.add(ib);
                 arguments.add(tdb);
                 return cast();
@@ -4045,7 +4037,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         private final List<String> text;
 
-        public DocComment(String text) {
+        DocComment(String text) {
             this.text = reflow(text);
         }
 
@@ -4107,7 +4099,7 @@ public final class TypescriptSource implements SourceFileBuilder {
                         }
                         continue;
                     default:
-                        if (Character.isWhitespace(c)) {
+                        if (isWhitespace(c)) {
                             if (lastWasWhitespace) {
                                 continue;
                             }
@@ -4129,9 +4121,9 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    public static class MethodBuilder<T> extends FunctionBuilder<T> {
+    public static final class MethodBuilder<T> extends FunctionBuilder<T> {
 
-        private final Set<Modifiers> modifiers = EnumSet.noneOf(Modifiers.class);
+        private final Set<Modifiers> modifiers = noneOf(Modifiers.class);
 
         private DocComment docs;
 
@@ -4139,25 +4131,27 @@ public final class TypescriptSource implements SourceFileBuilder {
             super(false, conv, name);
         }
 
+        @Override
         public MethodBuilder<T> docComment(String what) {
             docs = new DocComment(what);
             return this;
         }
 
         public MethodBuilder<T> makePublic() {
-            modifiers.add(Modifiers.PUBLIC);
-            modifiers.remove(Modifiers.PRIVATE);
+            modifiers.add(PUBLIC);
+            modifiers.remove(PRIVATE);
             return this;
         }
 
         public MethodBuilder<T> makePrivate() {
-            modifiers.add(Modifiers.PRIVATE);
-            modifiers.remove(Modifiers.PUBLIC);
+            modifiers.add(PRIVATE);
+            modifiers.remove(PUBLIC);
             return this;
         }
 
+        @Override
         public MethodBuilder<T> makeStatic() {
-            modifiers.add(Modifiers.STATIC);
+            modifiers.add(STATIC);
             return this;
         }
 
@@ -4206,7 +4200,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class TsBlockBuilder<T> extends StandardReturnableBlockBuilderBase<T, TsBlockBuilder<T>> {
+    public static final class TsBlockBuilder<T> extends StandardReturnableBlockBuilderBase<T, TsBlockBuilder<T>> {
 
         TsBlockBuilder(Function<TsBlockBuilder<T>, T> conv) {
             super(conv);
@@ -4245,7 +4239,7 @@ public final class TypescriptSource implements SourceFileBuilder {
             Consumer<CodeGenerator> c = cb -> {
                 this.returning = cb;
             };
-            return new TSGetterBlockBuilder<T>(c, block -> {
+            return new TSGetterBlockBuilder<>(c, block -> {
                 body = block;
                 return conv.apply(cast());
             });
@@ -4372,12 +4366,12 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class ObjectLiteralBuilder<T> extends TypescriptCodeGenerator {
+    public static final class ObjectLiteralBuilder<T> extends TypescriptCodeGenerator {
 
         private final Function<ObjectLiteralBuilder<T>, T> conv;
         private final Map<String, CodeGenerator> members = new LinkedHashMap<>();
 
-        public ObjectLiteralBuilder(Function<ObjectLiteralBuilder<T>, T> conv) {
+        ObjectLiteralBuilder(Function<ObjectLiteralBuilder<T>, T> conv) {
             this.conv = conv;
         }
 
@@ -4424,7 +4418,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    public static class To<T> {
+    public static final class To<T> {
 
         private final Function<CodeGenerator, T> conv;
 
@@ -4530,33 +4524,33 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class ClassPropertyBuilder<T> extends PropertyBuilder<T> {
+    public static final class ClassPropertyBuilder<T> extends PropertyBuilder<T> {
 
         private CodeGenerator initializer;
         private boolean isStatic;
 
-        public ClassPropertyBuilder(String name, Function<? super PropertyBuilder<T>, T> conv) {
+        ClassPropertyBuilder(String name, Function<? super PropertyBuilder<T>, T> conv) {
             super(name, conv);
         }
 
         public ClassPropertyBuilder<T> setPublic() {
-            modifiers.remove(Modifiers.PRIVATE);
-            modifiers.remove(Modifiers.PROTECTED);
-            modifiers.add(Modifiers.PUBLIC);
+            modifiers.remove(PRIVATE);
+            modifiers.remove(PROTECTED);
+            modifiers.add(PUBLIC);
             return this;
         }
 
         public ClassPropertyBuilder<T> setPrivate() {
-            modifiers.remove(Modifiers.PUBLIC);
-            modifiers.remove(Modifiers.PROTECTED);
-            modifiers.add(Modifiers.PRIVATE);
+            modifiers.remove(PUBLIC);
+            modifiers.remove(PROTECTED);
+            modifiers.add(PRIVATE);
             return this;
         }
 
         public ClassPropertyBuilder<T> setProtected() {
-            modifiers.remove(Modifiers.PUBLIC);
-            modifiers.remove(Modifiers.PRIVATE);
-            modifiers.add(Modifiers.PROTECTED);
+            modifiers.remove(PUBLIC);
+            modifiers.remove(PRIVATE);
+            modifiers.add(PROTECTED);
             return this;
         }
 
@@ -4581,7 +4575,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         protected void applyModifiers(LinesBuilder lines) {
             boolean needReadonly = false;
             for (Modifiers m : this.modifiers) {
-                if (m == Modifiers.READONLY) {
+                if (m == READONLY) {
                     needReadonly = true;
                 } else {
                     lines.word(m.toString());
@@ -4667,7 +4661,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         final String name;
         final Function<? super PropertyBuilder<T>, T> conv;
         final List<CodeGenerator> types = new ArrayList<>();
-        final Set<Modifiers> modifiers = EnumSet.noneOf(Modifiers.class);
+        final Set<Modifiers> modifiers = noneOf(Modifiers.class);
         boolean optional;
         boolean and = true;
         DocComment docComment;
@@ -4702,7 +4696,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public PropertyBuilder<T> readonly() {
-            modifiers.add(Modifiers.READONLY);
+            modifiers.add(READONLY);
             return this;
         }
 
@@ -4807,11 +4801,11 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    static class Parenthesize implements CodeGenerator {
+    private static final class Parenthesize implements CodeGenerator {
 
         private final CodeGenerator delegate;
 
-        public Parenthesize(CodeGenerator delegate) {
+        Parenthesize(CodeGenerator delegate) {
             this.delegate = delegate;
         }
 
@@ -4821,7 +4815,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class ImportBuilder<T> extends TypescriptCodeGenerator implements Comparable<ImportBuilder<?>> {
+    public static final class ImportBuilder<T> extends TypescriptCodeGenerator implements Comparable<ImportBuilder<?>> {
 
         private final Set<ImportTarget> toImport = new TreeSet<>();
         private final Function<ImportBuilder<T>, T> conv;
@@ -4839,7 +4833,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
             private final String what;
 
-            public ImportTarget(String what) {
+            ImportTarget(String what) {
                 this.what = notNull("what", what);
             }
 
@@ -4983,7 +4977,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    private static class NumberLiteral implements CodeGenerator {
+    private static final class NumberLiteral implements CodeGenerator {
 
         private final Number num;
 
@@ -4998,11 +4992,11 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    static class StringLiteral extends TypescriptCodeGenerator implements Comparable<StringLiteral> {
+    private static final class StringLiteral extends TypescriptCodeGenerator implements Comparable<StringLiteral> {
 
         private final String text;
 
-        public StringLiteral(String text) {
+        StringLiteral(String text) {
             this.text = notNull("text", text);
         }
 
@@ -5017,12 +5011,12 @@ public final class TypescriptSource implements SourceFileBuilder {
                 lines.word("'" + text + "'");
                 return;
             }
-            lines.word(LinesBuilder.stringLiteral(text));
+            lines.word(stringLiteral(text));
         }
 
         @Override
         public String toString() {
-            return LinesBuilder.stringLiteral(text);
+            return stringLiteral(text);
         }
 
         @Override
@@ -5048,13 +5042,13 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class FieldAssignment<T> extends TypescriptCodeGenerator {
+    public static final class FieldAssignment<T> extends TypescriptCodeGenerator {
 
         private final CodeGenerator leftSide;
         private final Function<FieldAssignment<T>, T> conv;
         private CodeGenerator rightSide;
 
-        public FieldAssignment(CodeGenerator head, Function<FieldAssignment<T>, T> conv) {
+        FieldAssignment(CodeGenerator head, Function<FieldAssignment<T>, T> conv) {
             this.leftSide = head;
             this.conv = conv;
         }
@@ -5092,7 +5086,6 @@ public final class TypescriptSource implements SourceFileBuilder {
             hold.ifUnset(result::endBlock);
             return hold.get("Self executing function not completed");
         }
-
 
         public T toStringLiteral(String stringLiteral) {
             rightSide = new StringLiteral(stringLiteral);
@@ -5207,7 +5200,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    public static class Assignment<T> extends TypescriptCodeGenerator implements ExpressionAssignment {
+    public static final class Assignment<T> extends TypescriptCodeGenerator implements ExpressionAssignment {
 
         private CodeGenerator what = new Adhoc("undefined");
         private final Function<Assignment<T>, T> conv;
@@ -5410,6 +5403,26 @@ public final class TypescriptSource implements SourceFileBuilder {
             return hold.get("Invocation builder not completed");
         }
 
+        public ArrayElementBuilder<T> assignedToArrayLiteral() {
+            return new ArrayLiteralBuilder<T>(alb -> {
+                this.what = alb;
+                return conv.apply(this);
+            }).element();
+        }
+
+        public T assignedToArrayLiteral(Consumer<? super ArrayElementBuilder<Void>> c) {
+            Holder<T> hold = new Holder<>();
+            ArrayLiteralBuilder<Void> result = new ArrayLiteralBuilder<>(alb -> {
+                this.what = alb;
+                hold.set(conv.apply(this));
+                return null;
+            });
+            ArrayElementBuilder<Void> el = result.element();
+            c.accept(el);
+            hold.ifUnset(el::endArrayLiteral);
+            return hold.get("Array literal not completed");
+        }
+
         public ObjectLiteralBuilder<T> assignedToObjectLiteral() {
             return new ObjectLiteralBuilder<>(olb -> {
                 this.what = olb;
@@ -5557,7 +5570,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     @Override
     public Optional<String> namespace() {
-        return Optional.empty();
+        return empty();
     }
 
     private static boolean generateDebugCode;
@@ -5584,12 +5597,12 @@ public final class TypescriptSource implements SourceFileBuilder {
                     String cn = e.getClassName();
                     if (!cn.startsWith(PKG) && !cn.startsWith(PKG2)) {
                         String txt = stripPackage(e);
-                        return Optional.of(new LineComment(txt, true));
+                        return of(new LineComment(txt, true));
                     }
                 }
             }
         }
-        return Optional.empty();
+        return empty();
     }
 
     static String stripPackage(StackTraceElement el) {

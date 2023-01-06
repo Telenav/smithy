@@ -687,7 +687,7 @@ class Component implements HTMLComponent {
 
 let iframes = 0;
 export class IFrame extends Component {
-    constructor(src : string, id? : string) {
+    constructor(src: string, id?: string) {
         super(IFRAME.withAttribute("src", src).withStyles('sizeless'), id || ("iframe-" + iframes++));
     }
 }
