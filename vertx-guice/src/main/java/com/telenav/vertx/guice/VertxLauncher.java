@@ -19,7 +19,12 @@ import com.google.inject.ImplementedBy;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Starts and stops a vertx server.
@@ -36,9 +41,58 @@ public interface VertxLauncher {
      * @return The vertx instance
      */
     default Vertx start() {
-        return start(fut -> {
+        System.out.println("Start.");
+        final AtomicReference<Throwable> thrown = new AtomicReference<>();
+        Vertx result;
+        result = start(futs -> {
+            System.out.println("Received " + futs.size() + " futures");
+            Consumer<Throwable> thrownUpdater = thr -> {
+                System.out.println("Thrown " + thr);
+                thr.printStackTrace();
+                thrown.updateAndGet(old -> {
+                    if (old == null) {
+                        return thr;
+                    }
+                    synchronized (thrown) { // yes, needed.
+                        // Throwable.addSuppressed is not thread safe, so 
+                        // we need some object as a lock
+                        old.addSuppressed(thr);
+                    }
+                    return old;
+                });
+            };
+
+            CountDownLatch latch = new CountDownLatch(futs.size());
             // do nothing
+            for (Future<String> f : futs) {
+                f.onComplete(asyncResult -> {
+                    System.out.println("Fut complete? " + f.isComplete()
+                            + " succeeded? " + f.succeeded() + " failed? " + f.failed());
+                    System.out.println("RESULT " + f.result());
+                    try {
+                        if (asyncResult.cause() != null) {
+                            thrownUpdater.accept(asyncResult.cause());
+                        } else if (asyncResult.failed()) {
+                            thrownUpdater.accept(new Exception("Unspecified failure"));
+                        }
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+            }
+            try {
+                System.out.println("wait main thread on latch");
+                latch.await(20, TimeUnit.SECONDS);
+                System.out.println("wait completed");
+            } catch (InterruptedException ex) {
+                throw new IllegalStateException(ex);
+            }
         });
+
+        if (thrown.get() != null) {
+            throw new IllegalStateException(thrown.get());
+        }
+        return result;
     }
 
     /**
@@ -57,5 +111,5 @@ public interface VertxLauncher {
      * not already shut down)
      */
     boolean shutdown();
-    
+
 }
