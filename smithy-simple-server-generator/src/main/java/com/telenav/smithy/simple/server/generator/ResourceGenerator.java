@@ -24,9 +24,9 @@
 package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
-import com.mastfrog.smithy.generators.GenerationTarget;
-import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import com.telenav.smithy.generators.GenerationTarget;
+import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.telenav.smithy.simple.server.generator.SmithyServerGenerator.graph;
 import com.telenav.smithy.utils.ResourceGraph;
 import java.nio.file.Path;

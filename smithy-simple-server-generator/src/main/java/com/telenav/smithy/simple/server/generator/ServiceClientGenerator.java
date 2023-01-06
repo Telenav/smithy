@@ -6,12 +6,12 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
-import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
-import com.mastfrog.smithy.generators.GenerationTarget;
-import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.generators.SmithyGenerationSettings;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import static com.telenav.smithy.generators.GenerationSwitches.DEBUG;
+import com.telenav.smithy.generators.GenerationTarget;
+import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.generators.SmithyGenerationSettings;
+import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.telenav.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import com.mastfrog.util.preconditions.ConfigurationError;
 import static com.mastfrog.util.strings.Strings.decapitalize;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
@@ -100,8 +100,8 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                 .named(clientClassName())
                 .withModifier(PUBLIC, FINAL)
                 .importing(
-                        "com.mastfrog.smithy.client.base.BaseServiceClient",
-                        "com.mastfrog.smithy.client.result.ServiceResult",
+                        "com.telenav.smithy.client.base.BaseServiceClient",
+                        "com.telenav.smithy.client.result.ServiceResult",
                         "java.util.concurrent.CompletableFuture"
                 );
         if (generateDebugComments) {
@@ -347,7 +347,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                             Function<InvocationBuilder<?>, InvocationBuilder<?>> f = iv -> {
                                 switch (target.getType()) {
                                     case TIMESTAMP:
-                                        cb.importing("com.mastfrog.smithy.http.HeaderTypes");
+                                        cb.importing("com.telenav.smithy.http.HeaderTypes");
                                         InvocationBuilder<InvocationBuilder<?>> subIv = (InvocationBuilder) iv.withArgumentFromInvoking("toString")
                                                 .onInvocationOf("toCharSequence");
                                         if (!isRawType) {

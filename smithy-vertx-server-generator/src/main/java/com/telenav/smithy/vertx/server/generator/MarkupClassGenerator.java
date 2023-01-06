@@ -23,7 +23,7 @@
  */
 package com.telenav.smithy.vertx.server.generator;
 
-import com.mastfrog.smithy.server.common.AbstractMarkupClassGenerator;
+import com.telenav.smithy.server.common.AbstractMarkupClassGenerator;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;

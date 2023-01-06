@@ -23,11 +23,11 @@
  */
 package com.telenav.smithy.vertx.adapter;
 
-import com.mastfrog.smithy.http.SmithyRequest;
+import com.telenav.smithy.http.SmithyRequest;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import static io.netty.util.CharsetUtil.UTF_8;
 import io.vertx.core.http.HttpServerRequest;
-import java.util.Arrays;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;

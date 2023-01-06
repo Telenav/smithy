@@ -24,8 +24,8 @@
 package com.telenav.smithy.blog.server.spi.impl;
 
 import com.google.inject.Inject;
-import com.mastfrog.smithy.http.SmithyRequest;
-import com.mastfrog.smithy.http.SmithyResponse;
+import com.telenav.smithy.http.SmithyRequest;
+import com.telenav.smithy.http.SmithyResponse;
 import com.telenav.blog.model.AuthUser;
 import com.telenav.blog.model.BlogId;
 import com.telenav.blog.model.NewBlogInput;

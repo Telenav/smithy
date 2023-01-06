@@ -2,10 +2,10 @@ package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;
-import com.mastfrog.smithy.generators.GenerationTarget;
-import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import com.telenav.smithy.generators.GenerationTarget;
+import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.telenav.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import static com.telenav.smithy.names.TypeNames.packageOf;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
@@ -61,8 +61,8 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
             maybeImport(cb, names().qualifiedNameOf(out.get(), cb, true));
         });
 
-        cb.importing("com.mastfrog.smithy.http.SmithyRequest",
-                "com.mastfrog.smithy.http.SmithyResponse");
+        cb.importing("com.telenav.smithy.http.SmithyRequest",
+                "com.telenav.smithy.http.SmithyResponse");
 
         cb.method("respond", mth
                 -> applyMethodSignature(mth, cb, in, out))
@@ -88,8 +88,8 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
                         "is usable before all operations have been implemented.")
                 .implementing(cb.className())
                 .withModifier(FINAL)
-                .importing("com.mastfrog.smithy.http.SmithyRequest",
-                        "com.mastfrog.smithy.http.SmithyResponse");
+                .importing("com.telenav.smithy.http.SmithyRequest",
+                        "com.telenav.smithy.http.SmithyResponse");
         if (hasInput) {
             maybeImport(mock, names().qualifiedNameOf(in.get(), mock, true));
         }

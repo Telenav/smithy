@@ -1,16 +1,16 @@
 package com.telenav.smithy.simple.server.generator;
 
-import com.mastfrog.smithy.generators.GenerationTarget;
-import static com.mastfrog.smithy.generators.GenerationTarget.SERVER;
-import static com.mastfrog.smithy.generators.GenerationTarget.SERVER_SPI;
-import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.generators.ModelElementGenerator;
-import com.mastfrog.smithy.generators.SettingsKey;
-import static com.mastfrog.smithy.generators.SettingsKey.key;
-import com.mastfrog.smithy.generators.SmithyGenerationContext;
-import com.mastfrog.smithy.generators.SmithyGenerationLogger;
-import com.mastfrog.smithy.generators.SmithyGenerationSettings;
-import com.mastfrog.smithy.generators.SmithyGenerator;
+import com.telenav.smithy.generators.GenerationTarget;
+import static com.telenav.smithy.generators.GenerationTarget.SERVER;
+import static com.telenav.smithy.generators.GenerationTarget.SERVER_SPI;
+import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.generators.ModelElementGenerator;
+import com.telenav.smithy.generators.SettingsKey;
+import static com.telenav.smithy.generators.SettingsKey.key;
+import com.telenav.smithy.generators.SmithyGenerationContext;
+import com.telenav.smithy.generators.SmithyGenerationLogger;
+import com.telenav.smithy.generators.SmithyGenerationSettings;
+import com.telenav.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
 import com.telenav.smithy.utils.ResourceGraph;
 import static com.telenav.smithy.utils.ResourceGraphs.graphContaining;
@@ -26,8 +26,7 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import static software.amazon.smithy.model.shapes.ShapeType.OPERATION;
-import static software.amazon.smithy.model.shapes.ShapeType.RESOURCE;
+
 import static software.amazon.smithy.model.shapes.ShapeType.SERVICE;
 
 /**

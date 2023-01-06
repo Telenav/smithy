@@ -24,9 +24,7 @@
 package com.telenav.blog.client;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mastfrog.jackson.configuration.JacksonConfigurer;
-import com.mastfrog.smithy.client.result.ServiceResult;
+import com.telenav.smithy.client.result.ServiceResult;
 import com.telenav.blog.model.ListBlogsInput;
 import com.telenav.blog.model.ListBlogsOutput;
 import java.util.concurrent.CompletableFuture;

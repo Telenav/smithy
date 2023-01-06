@@ -25,10 +25,10 @@ package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.java.vogon.ClassBuilder;
-import com.mastfrog.smithy.generators.GenerationTarget;
-import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
+import com.telenav.smithy.generators.GenerationTarget;
+import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
+import com.telenav.smithy.extensions.AuthenticatedTrait;
 import static com.telenav.smithy.names.TypeNames.enumConstantName;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.telenav.smithy.names.operation.OperationNames;
@@ -112,8 +112,8 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
                 .docComment("Autheticate requests that expect a " + typeNameOf(sid) + " as the result")
                 .toInterface();
 
-        cb.importing("com.mastfrog.smithy.http.SmithyRequest",
-                "com.mastfrog.smithy.http.AuthenticationResultConsumer");
+        cb.importing("com.telenav.smithy.http.SmithyRequest",
+                "com.telenav.smithy.http.AuthenticationResultConsumer");
 
         String mockName = cb.className() + "Mock";
         cb.importing("com.google.inject.ImplementedBy")
@@ -153,8 +153,8 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
                 .implementing(cb.className())
                 .withModifier(FINAL)
                 .importing(
-                        "com.mastfrog.smithy.http.SmithyRequest",
-                        "com.mastfrog.smithy.http.AuthenticationResultConsumer")
+                        "com.telenav.smithy.http.SmithyRequest",
+                        "com.telenav.smithy.http.AuthenticationResultConsumer")
                 .importing(CompletableFuture.class);
         String[] fqns1 = new String[]{ppkg + "." + name};
         maybeImport(mock, fqns1);

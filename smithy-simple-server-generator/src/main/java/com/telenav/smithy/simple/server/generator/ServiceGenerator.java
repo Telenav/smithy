@@ -31,14 +31,14 @@ import com.mastfrog.java.vogon.ClassBuilder.Variable;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
 import static com.mastfrog.java.vogon.ClassBuilder.variable;
-import com.mastfrog.smithy.generators.GenerationTarget;
-import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.generators.PostGenerateTask;
-import com.mastfrog.smithy.generators.SmithyGenerationContext;
-import static com.mastfrog.smithy.generators.SmithyGenerationContext.MARKUP_PATH_CATEGORY;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
-import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
+import com.telenav.smithy.generators.GenerationTarget;
+import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.generators.PostGenerateTask;
+import com.telenav.smithy.generators.SmithyGenerationContext;
+import static com.telenav.smithy.generators.SmithyGenerationContext.MARKUP_PATH_CATEGORY;
+import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.telenav.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import com.telenav.smithy.extensions.AuthenticatedTrait;
 import static com.mastfrog.util.strings.Strings.decapitalize;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import static com.telenav.smithy.names.operation.OperationNames.authPackage;
@@ -48,7 +48,7 @@ import static com.telenav.smithy.simple.server.generator.OperationGenerator.ensu
 import com.telenav.smithy.utils.ResourceGraph;
 import static com.telenav.smithy.utils.ResourceGraphs.graph;
 import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
-import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
+import static com.telenav.smithy.validation.ValidationExceptionProvider.validationExceptions;
 import static java.lang.Character.isUpperCase;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -305,7 +305,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .on("binder");
 
                         bb.blankLine().lineComment("Install the acteur bindings for SmithyRequest and SmithyResponse.");
-                        cb.importing("com.telenav.smithy.smithy.acteur.adapter.SmithyActeurAdapter");
+                        cb.importing("com.telenav.smithy.acteur.adapter.SmithyActeurAdapter");
                         bb.invoke("install")
                                 .withArgumentFromNew(nb -> nb.ofType("SmithyActeurAdapter"))
                                 .on("binder");
@@ -396,7 +396,7 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                                     .on("ErrorResponse")
                                     .endIf();
 
-                            cb.importing("com.mastfrog.smithy.http.ResponseException");
+                            cb.importing("com.telenav.smithy.http.ResponseException");
                             bb.iff(variable("thrown").isInstance("ResponseException"))
                                     .returningInvocationOf("create")
                                     .withArgumentFromInvoking("valueOf")

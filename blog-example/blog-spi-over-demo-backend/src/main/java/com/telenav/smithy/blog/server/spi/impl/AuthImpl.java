@@ -25,10 +25,10 @@ package com.telenav.smithy.blog.server.spi.impl;
 
 import com.google.inject.Inject;
 import com.mastfrog.acteur.header.entities.BasicCredentials;
-import com.mastfrog.smithy.http.AuthenticationResultConsumer;
-import static com.mastfrog.smithy.http.HeaderTypes.headerTypes;
-import com.mastfrog.smithy.http.ResponseException;
-import com.mastfrog.smithy.http.SmithyRequest;
+import com.telenav.smithy.http.AuthenticationResultConsumer;
+import static com.telenav.smithy.http.HeaderTypes.headerTypes;
+import com.telenav.smithy.http.ResponseException;
+import com.telenav.smithy.http.SmithyRequest;
 import com.telenav.blog.auth.AuthenticateWithAuthUser;
 import com.telenav.blog.auth.BlogServiceAuthenticatedOperations;
 import com.telenav.blog.model.AuthUser;

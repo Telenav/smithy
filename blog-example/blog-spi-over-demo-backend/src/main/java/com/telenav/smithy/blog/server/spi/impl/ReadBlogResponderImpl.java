@@ -25,11 +25,11 @@ package com.telenav.smithy.blog.server.spi.impl;
 
 import com.telenav.smithy.blog.demo.data.BlogStore;
 import com.google.inject.Inject;
-import com.mastfrog.smithy.http.HeaderTypes;
-import static com.mastfrog.smithy.http.HeaderTypes.headerTypes;
-import com.mastfrog.smithy.http.ResponseException;
-import com.mastfrog.smithy.http.SmithyRequest;
-import com.mastfrog.smithy.http.SmithyResponse;
+import com.telenav.smithy.http.HeaderTypes;
+import static com.telenav.smithy.http.HeaderTypes.headerTypes;
+import com.telenav.smithy.http.ResponseException;
+import com.telenav.smithy.http.SmithyRequest;
+import com.telenav.smithy.http.SmithyResponse;
 import com.telenav.blog.model.ReadBlogInput;
 import com.telenav.blog.model.ReadBlogOutput;
 import com.telenav.blog.spi.ReadBlogResponder;

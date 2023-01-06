@@ -28,7 +28,7 @@ import static com.google.common.base.Charsets.UTF_8;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
-import com.mastfrog.smithy.http.InvalidInputException;
+import com.telenav.smithy.http.InvalidInputException;
 import com.mastfrog.util.file.FileUtils;
 import com.mastfrog.util.strings.Escaper;
 import com.telenav.blog.model.BlogId;

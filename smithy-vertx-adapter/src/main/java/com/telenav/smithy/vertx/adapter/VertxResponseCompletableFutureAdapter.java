@@ -23,9 +23,9 @@
  */
 package com.telenav.smithy.vertx.adapter;
 
-import com.mastfrog.smithy.http.HeaderSpec;
-import com.mastfrog.smithy.http.SmithyResponse;
-import com.mastfrog.smithy.http.SmithyResponse.SmithyResponseHead;
+import com.telenav.smithy.http.HeaderSpec;
+import com.telenav.smithy.http.SmithyResponse;
+import com.telenav.smithy.http.SmithyResponse.SmithyResponseHead;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.RoutingContext;
 import java.util.concurrent.CompletableFuture;

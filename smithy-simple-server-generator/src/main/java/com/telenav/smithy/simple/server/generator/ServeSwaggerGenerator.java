@@ -25,12 +25,12 @@ package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
-import static com.mastfrog.smithy.generators.FeatureBridge.SWAGGER_GENERATION_PRESENT;
-import com.mastfrog.smithy.generators.GenerationTarget;
-import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.generators.SmithyGenerationContext;
-import com.mastfrog.smithy.generators.SmithyGenerationSettings;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.telenav.smithy.generators.FeatureBridge.SWAGGER_GENERATION_PRESENT;
+import com.telenav.smithy.generators.GenerationTarget;
+import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.generators.SmithyGenerationContext;
+import com.telenav.smithy.generators.SmithyGenerationSettings;
+import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import static javax.lang.model.element.Modifier.FINAL;

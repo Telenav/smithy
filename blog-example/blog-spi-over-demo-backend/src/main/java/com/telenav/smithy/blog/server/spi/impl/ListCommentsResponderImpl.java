@@ -25,9 +25,9 @@ package com.telenav.smithy.blog.server.spi.impl;
 
 import com.telenav.smithy.blog.demo.data.BlogStore;
 import com.google.inject.Inject;
-import com.mastfrog.smithy.http.ResponseException;
-import com.mastfrog.smithy.http.SmithyRequest;
-import com.mastfrog.smithy.http.SmithyResponse;
+import com.telenav.smithy.http.ResponseException;
+import com.telenav.smithy.http.SmithyRequest;
+import com.telenav.smithy.http.SmithyResponse;
 import com.telenav.blog.model.AuthUser;
 import com.telenav.blog.model.ListCommentsInput;
 import com.telenav.blog.model.ListCommentsOutput;

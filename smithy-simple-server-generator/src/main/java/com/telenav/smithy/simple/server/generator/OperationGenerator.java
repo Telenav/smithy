@@ -10,32 +10,32 @@ import com.mastfrog.java.vogon.ClassBuilder.ConstructorBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.TypeAssignment;
-import com.mastfrog.smithy.generators.GenerationTarget;
-import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
-import com.mastfrog.smithy.server.common.Declaration;
-import com.mastfrog.smithy.server.common.DeclarationClose;
-import com.mastfrog.smithy.server.common.Declarer;
-import com.mastfrog.smithy.server.common.Input;
-import com.mastfrog.smithy.server.common.InputMemberObtentionStrategy;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToBigDecimal;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToBigInteger;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToBoolean;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToIntEnum;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToNewFromString;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToTimestamp;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.originMethod;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.originMethodCastTo;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.splitToMappedCollection;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.splitToStringSet;
-import com.mastfrog.smithy.server.common.OriginType;
-import static com.mastfrog.smithy.server.common.OriginType.HTTP_HEADER;
-import static com.mastfrog.smithy.server.common.OriginType.URI_PATH;
-import static com.mastfrog.smithy.server.common.OriginType.URI_QUERY;
-import com.mastfrog.smithy.server.common.PayloadOrigin;
-import com.mastfrog.smithy.server.common.RequestParameterOrigin;
-import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
+import com.telenav.smithy.generators.GenerationTarget;
+import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.telenav.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import com.telenav.smithy.server.common.Declaration;
+import com.telenav.smithy.server.common.DeclarationClose;
+import com.telenav.smithy.server.common.Declarer;
+import com.telenav.smithy.server.common.Input;
+import com.telenav.smithy.server.common.InputMemberObtentionStrategy;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToBigDecimal;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToBigInteger;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToBoolean;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToIntEnum;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToNewFromString;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToTimestamp;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.originMethod;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.originMethodCastTo;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.splitToMappedCollection;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.splitToStringSet;
+import com.telenav.smithy.server.common.OriginType;
+import static com.telenav.smithy.server.common.OriginType.HTTP_HEADER;
+import static com.telenav.smithy.server.common.OriginType.URI_PATH;
+import static com.telenav.smithy.server.common.OriginType.URI_QUERY;
+import com.telenav.smithy.server.common.PayloadOrigin;
+import com.telenav.smithy.server.common.RequestParameterOrigin;
+import com.telenav.smithy.extensions.AuthenticatedTrait;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.enumConstantName;
 import static com.telenav.smithy.names.TypeNames.packageOf;
@@ -48,7 +48,7 @@ import com.telenav.smithy.utils.ResourceGraph;
 import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import static com.telenav.smithy.utils.ShapeUtils.requiredOrHasDefault;
 import com.telenav.smithy.utils.path.PathInformationExtractor;
-import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
+import static com.telenav.smithy.validation.ValidationExceptionProvider.validationExceptions;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -172,9 +172,9 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                         "com.mastfrog.acteur.Acteur",
                         "javax.inject.Inject",
                         "com.mastfrog.util.function.EnhCompletableFuture",
-                        "com.mastfrog.smithy.http.AuthenticationResultConsumer",
+                        "com.telenav.smithy.http.AuthenticationResultConsumer",
                         pkg + "." + payloadType,
-                        "com.mastfrog.smithy.http.SmithyRequest")
+                        "com.telenav.smithy.http.SmithyRequest")
                 .withModifier(FINAL)
                 .extending("Acteur");
 
@@ -288,7 +288,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
         });
         if (!in.isPresent() || in.get().isEmpty()) {
             cb.docComment("Accepts the HTTP payload (if any) as input and invokes the SPI.");
-            cb.importing("com.mastfrog.smithy.http.SmithyRequest");
+            cb.importing("com.telenav.smithy.http.SmithyRequest");
             con.addArgument("SmithyRequest", "request");
             if (in.isPresent()) {
                 cb.importing(in.get().fqn());
@@ -362,8 +362,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                 .annotatedWith("Inject").closeAnnotation()
                 .throwing("Exception");
         cb.importing(
-                "com.mastfrog.smithy.http.SmithyRequest",
-                "com.mastfrog.smithy.http.SmithyResponse",
+                "com.telenav.smithy.http.SmithyRequest",
+                "com.telenav.smithy.http.SmithyResponse",
                 "com.mastfrog.acteur.Acteur",
                 "javax.inject.Inject"
         );
@@ -393,9 +393,9 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
     <T> void generateDeferralCode(ClassBuilder<T> cb, boolean hasInput, ConstructorBuilder<ClassBuilder<T>> con, BlockBuilder<ClassBuilder<T>> bb) {
 
-        cb.importing("static com.telenav.smithy.smithy.acteur.adapter.SmithyResponseAdapter.smithyResponse",
-                "com.mastfrog.smithy.http.SmithyResponse",
-                "com.mastfrog.smithy.http.SmithyRequest",
+        cb.importing("static com.telenav.smithy.acteur.adapter.SmithyResponseAdapter.smithyResponse",
+                "com.telenav.smithy.http.SmithyResponse",
+                "com.telenav.smithy.http.SmithyRequest",
                 "com.mastfrog.util.function.EnhCompletableFuture");
 
         String resultType = shape.getOutput().map(sid -> {

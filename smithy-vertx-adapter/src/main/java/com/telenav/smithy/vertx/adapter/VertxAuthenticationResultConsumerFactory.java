@@ -23,9 +23,9 @@
  */
 package com.telenav.smithy.vertx.adapter;
 
-import com.mastfrog.smithy.http.ResponseException;
-import com.mastfrog.smithy.http.AuthenticationResultConsumer;
-import com.mastfrog.smithy.http.AuthenticationResultConsumerFactory;
+import com.telenav.smithy.http.ResponseException;
+import com.telenav.smithy.http.AuthenticationResultConsumer;
+import com.telenav.smithy.http.AuthenticationResultConsumerFactory;
 import com.mastfrog.util.service.ServiceProvider;
 import com.mastfrog.util.strings.Strings;
 import java.util.concurrent.CompletableFuture;

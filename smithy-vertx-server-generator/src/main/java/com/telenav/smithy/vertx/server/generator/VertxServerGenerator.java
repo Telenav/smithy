@@ -38,39 +38,39 @@ import com.mastfrog.java.vogon.ClassBuilder.Variable;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
 import static com.mastfrog.java.vogon.ClassBuilder.variable;
-import static com.mastfrog.smithy.generators.FeatureBridge.MARKUP_GENERATION_PRESENT;
-import static com.mastfrog.smithy.generators.GenerationSwitches.DEBUG;
-import com.mastfrog.smithy.generators.GenerationTarget;
-import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.generators.PostGenerateTask;
-import com.mastfrog.smithy.generators.SmithyGenerationContext;
-import static com.mastfrog.smithy.generators.SmithyGenerationContext.MARKUP_PATH_CATEGORY;
-import com.mastfrog.smithy.generators.SmithyGenerationLogger;
-import com.mastfrog.smithy.generators.SmithyGenerationSettings;
-import com.mastfrog.smithy.java.generators.base.AbstractJavaGenerator;
-import static com.mastfrog.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
-import com.mastfrog.smithy.server.common.Declaration;
-import com.mastfrog.smithy.server.common.DeclarationClose;
-import com.mastfrog.smithy.server.common.Declarer;
-import com.mastfrog.smithy.server.common.Input;
-import com.mastfrog.smithy.server.common.InputMemberObtentionStrategy;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToBigDecimal;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToBigInteger;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToBoolean;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToIntEnum;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToNewFromString;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.mapToTimestamp;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.originMethod;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.originMethodCastTo;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.splitToMappedCollection;
-import static com.mastfrog.smithy.server.common.InvocationBuilderTransform.splitToStringSet;
-import com.mastfrog.smithy.server.common.OriginType;
-import static com.mastfrog.smithy.server.common.OriginType.HTTP_HEADER;
-import static com.mastfrog.smithy.server.common.OriginType.URI_PATH;
-import static com.mastfrog.smithy.server.common.OriginType.URI_QUERY;
-import com.mastfrog.smithy.server.common.PayloadOrigin;
-import com.mastfrog.smithy.server.common.RequestParameterOrigin;
-import com.mastfrog.smithy.simple.extensions.AuthenticatedTrait;
+import static com.telenav.smithy.generators.FeatureBridge.MARKUP_GENERATION_PRESENT;
+import static com.telenav.smithy.generators.GenerationSwitches.DEBUG;
+import com.telenav.smithy.generators.GenerationTarget;
+import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.generators.PostGenerateTask;
+import com.telenav.smithy.generators.SmithyGenerationContext;
+import static com.telenav.smithy.generators.SmithyGenerationContext.MARKUP_PATH_CATEGORY;
+import com.telenav.smithy.generators.SmithyGenerationLogger;
+import com.telenav.smithy.generators.SmithyGenerationSettings;
+import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
+import static com.telenav.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
+import com.telenav.smithy.server.common.Declaration;
+import com.telenav.smithy.server.common.DeclarationClose;
+import com.telenav.smithy.server.common.Declarer;
+import com.telenav.smithy.server.common.Input;
+import com.telenav.smithy.server.common.InputMemberObtentionStrategy;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToBigDecimal;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToBigInteger;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToBoolean;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToIntEnum;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToNewFromString;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.mapToTimestamp;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.originMethod;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.originMethodCastTo;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.splitToMappedCollection;
+import static com.telenav.smithy.server.common.InvocationBuilderTransform.splitToStringSet;
+import com.telenav.smithy.server.common.OriginType;
+import static com.telenav.smithy.server.common.OriginType.HTTP_HEADER;
+import static com.telenav.smithy.server.common.OriginType.URI_PATH;
+import static com.telenav.smithy.server.common.OriginType.URI_QUERY;
+import com.telenav.smithy.server.common.PayloadOrigin;
+import com.telenav.smithy.server.common.RequestParameterOrigin;
+import com.telenav.smithy.extensions.AuthenticatedTrait;
 import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
@@ -91,7 +91,7 @@ import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import static com.telenav.smithy.utils.ShapeUtils.requiredOrHasDefault;
 import com.telenav.smithy.utils.path.PathInfo;
 import com.telenav.smithy.utils.path.PathInformationExtractor;
-import static com.telenav.validation.ValidationExceptionProvider.validationExceptions;
+import static com.telenav.smithy.validation.ValidationExceptionProvider.validationExceptions;
 import static java.beans.Introspector.decapitalize;
 import java.nio.file.Path;
 import java.time.format.DateTimeParseException;
@@ -121,20 +121,6 @@ import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
-import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
-import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
-import static software.amazon.smithy.model.shapes.ShapeType.BYTE;
-import static software.amazon.smithy.model.shapes.ShapeType.DOUBLE;
-import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
-import static software.amazon.smithy.model.shapes.ShapeType.INTEGER;
-import static software.amazon.smithy.model.shapes.ShapeType.INT_ENUM;
-import static software.amazon.smithy.model.shapes.ShapeType.LIST;
-import static software.amazon.smithy.model.shapes.ShapeType.LONG;
-import static software.amazon.smithy.model.shapes.ShapeType.SET;
-import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
-import static software.amazon.smithy.model.shapes.ShapeType.STRING;
-import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.DefaultTrait;
 import software.amazon.smithy.model.traits.HttpHeaderTrait;
@@ -1108,7 +1094,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                                 .withArgument("failure")
                                                 .inScope();
 
-                                        routerBuilder.importing("com.mastfrog.smithy.http.ResponseException");
+                                        routerBuilder.importing("com.telenav.smithy.http.ResponseException");
 
                                         test = test.elseIf().variable("failure").instanceOf("ResponseException")
                                                 .lineComment("Convenience exception in smithy-java-http-extensions which")
@@ -1331,7 +1317,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 "io.vertx.core.Handler",
                 "io.vertx.ext.web.RoutingContext",
                 //                "java.util.Optional",
-                "com.mastfrog.smithy.http.AuthenticationResultConsumer",
+                "com.telenav.smithy.http.AuthenticationResultConsumer",
                 "static com.telenav.smithy.vertx.adapter.VertxRequestAdapter.smithyRequest",
                 "com.telenav.vertx.guice.scope.RequestScope");
         cb.field("authenticator")
@@ -1447,8 +1433,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 .importing(
                         "io.vertx.core.Handler",
                         "io.vertx.ext.web.RoutingContext",
-                        "com.mastfrog.smithy.http.SmithyRequest",
-                        "com.mastfrog.smithy.http.SmithyResponse",
+                        "com.telenav.smithy.http.SmithyRequest",
+                        "com.telenav.smithy.http.SmithyResponse",
                         "com.telenav.vertx.guice.scope.RequestScope",
                         "static com.telenav.smithy.vertx.adapter.VertxRequestAdapter.smithyRequest",
                         "javax.inject.Inject",
@@ -1459,7 +1445,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         SpiTypesAndArgs spiArgs = new SpiTypesAndArgs();
 
-        spiArgs.add("com.mastfrog.smithy.http.SmithyRequest", "smithyRequest");
+        spiArgs.add("com.telenav.smithy.http.SmithyRequest", "smithyRequest");
 
         initDebug(cb);
         cb.field("spi")
@@ -1574,8 +1560,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 .importing(
                         "io.vertx.core.Handler",
                         "io.vertx.ext.web.RoutingContext",
-                        "com.mastfrog.smithy.http.SmithyRequest",
-                        "com.mastfrog.smithy.http.SmithyResponse",
+                        "com.telenav.smithy.http.SmithyRequest",
+                        "com.telenav.smithy.http.SmithyResponse",
                         "static com.telenav.smithy.vertx.adapter.VertxRequestAdapter.smithyRequest",
                         "javax.inject.Inject",
                         "com.telenav.vertx.guice.scope.RequestScope",
@@ -1725,7 +1711,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         cb.importing(
                 "static com.telenav.smithy.vertx.adapter.VertxResponseCompletableFutureAdapter.smithyResponse"
         );
-        spiArgs.add("com.mastfrog.smithy.http.SmithyResponse", "response");
+        spiArgs.add("com.telenav.smithy.http.SmithyResponse", "response");
         String outputTypeName = op.getOutput().map(outId -> {
             Shape outShape = model.expectShape(outId);
             String result = typeNameOf(outShape);

@@ -23,15 +23,12 @@
  */
 package com.telenav.smithy.vertx.server.generator;
 
-import com.mastfrog.smithy.generators.GenerationTarget;
-import com.mastfrog.smithy.generators.LanguageWithVersion;
-import com.mastfrog.smithy.generators.ModelElementGenerator;
-import com.mastfrog.smithy.generators.PostGenerateTask;
-import com.mastfrog.smithy.generators.SmithyGenerationContext;
-import static com.mastfrog.smithy.generators.SmithyGenerationContext.MARKUP_PATH_CATEGORY;
-import com.mastfrog.smithy.generators.SmithyGenerationLogger;
-import com.mastfrog.smithy.generators.SmithyGenerationSettings;
-import com.mastfrog.smithy.generators.SmithyGenerator;
+import com.telenav.smithy.generators.GenerationTarget;
+import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.generators.ModelElementGenerator;
+import com.telenav.smithy.generators.SmithyGenerationLogger;
+import com.telenav.smithy.generators.SmithyGenerationSettings;
+import com.telenav.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
 import java.nio.file.Path;
 import java.util.Collection;

@@ -9,7 +9,7 @@
     <artifactId>smithy-ts-generator</artifactId>
     <packaging>jar</packaging>
     <properties>
-        <exec.mainClass>com.telenav.smithy.smithy.ts.generator.SmithyTsGenerator</exec.mainClass>
+        <exec.mainClass>com.telenav.smithy.ts.generator.SmithyTsGenerator</exec.mainClass>
     </properties>
     
     <dependencies>
