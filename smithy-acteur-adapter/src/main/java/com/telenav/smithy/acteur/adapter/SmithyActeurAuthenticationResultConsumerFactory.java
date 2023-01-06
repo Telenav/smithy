@@ -15,7 +15,6 @@
  */
 package com.telenav.smithy.acteur.adapter;
 
-
 import com.mastfrog.acteur.errors.ResponseException;
 import com.telenav.smithy.http.AuthenticationResultConsumer;
 import com.telenav.smithy.http.AuthenticationResultConsumerFactory;
