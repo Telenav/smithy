@@ -34,6 +34,7 @@ import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.STATIC;
 import static java.lang.Character.isWhitespace;
 import java.util.ArrayList;
 import static java.util.Arrays.asList;
+import java.util.Collection;
 import static java.util.Collections.sort;
 import static java.util.EnumSet.noneOf;
 import java.util.HashMap;
@@ -81,6 +82,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     private final String name;
     private final Set<ImportBuilder<?>> imports = new TreeSet<>();
+    private final List<CodeGenerator> top = new ArrayList<>();
     private final List<CodeGenerator> contents = new ArrayList<>();
     private final List<CodeGenerator> ifaces = new ArrayList<>();
     private final List<CodeGenerator> types = new ArrayList<>();
@@ -95,7 +97,6 @@ public final class TypescriptSource implements SourceFileBuilder {
     }
 
     TypescriptSource add(CodeGenerator gen) {
-        emitDebugComment();
         // Order contents safely: functions may reference defined types;
         // those types must be declared before the function.  Same for
         // classes that implement interfaces.  Otherwise the result will
@@ -104,15 +105,29 @@ public final class TypescriptSource implements SourceFileBuilder {
         // Doing things in the order statements : interfaces : classes : functions
         // should work for all cases.
         if (gen instanceof FunctionSignatureBuilderBase<?, ?, ?>) {
+            emitDebugComment(functions);
             functions.add(gen);
         } else if (gen instanceof InterfaceBuilder<?> || gen instanceof TypeIntersectionBuilder<?>) {
+            emitDebugComment(ifaces);
             ifaces.add(gen);
         } else if (gen instanceof ClassBuilder<?>) {
+            emitDebugComment(types);
             types.add(gen);
         } else {
+            emitDebugComment(contents);
             contents.add(gen);
         }
         return this;
+    }
+
+    TypescriptSource addTop(CodeGenerator gen) {
+        emitDebugComment(top);
+        top.add(gen);
+        return this;
+    }
+
+    void emitDebugComment(Collection<? super CodeGenerator> c) {
+        debugStackTraceElementComment().ifPresent(c::add);
     }
 
     void emitDebugComment() {
@@ -160,6 +175,12 @@ public final class TypescriptSource implements SourceFileBuilder {
     public Assignment<TypescriptSource> declareConst(String name) {
         return new Assignment<>("const", name, as -> {
             return add(as);
+        });
+    }
+
+    public Assignment<TypescriptSource> declareTopConst(String name) {
+        return new Assignment<>("const", name, as -> {
+            return addTop(as);
         });
     }
 
@@ -2571,6 +2592,18 @@ public final class TypescriptSource implements SourceFileBuilder {
             });
         }
 
+        public T orElse(String condition, Consumer<? super ConditionalClauseBuilder<?>> c) {
+            Holder<T> hold = new Holder<>();
+            ConditionalClauseBuilder<T> result = new ConditionalClauseBuilder<>(this, new Adhoc(condition), ccb -> {
+                children().add(ccb);
+                hold.set(top().endBlock());
+                return null;
+            });
+            c.accept(result);
+            hold.ifUnset(result::endBlock);
+            return hold.get(() -> "Else if '" + condition + "' not completed");
+        }
+
         public T endIf() {
             return endBlock();
         }
@@ -2583,6 +2616,21 @@ public final class TypescriptSource implements SourceFileBuilder {
                 children().add(ecb);
                 return top().endBlock();
             });
+        }
+
+        public T orElse(Consumer<? super ElseClauseBuilder<Void>> c) {
+            Holder<T> hold = new Holder<>();
+            ElseClauseBuilder<Void> result = new ElseClauseBuilder<>(true, ecb -> {
+                if (parent != null) {
+                    children().add(this);
+                }
+                children().add(ecb);
+                hold.set(top().endBlock());
+                return null;
+            });
+            c.accept(result);
+            hold.ifUnset(result::endBlock);
+            return hold.get("Else builder not completed");
         }
 
         @Override
@@ -5317,6 +5365,10 @@ public final class TypescriptSource implements SourceFileBuilder {
             });
         }
 
+        public T assignedToNew(String what) {
+            return assignedToNew().ofType(what);
+        }
+
         public NewBuilder<T> assignedToNew() {
             return new NewBuilder<>(nb -> {
                 this.what = nb;
@@ -5534,6 +5586,10 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
         if (!imports.isEmpty()) {
             lines.doubleNewline();
+        }
+        for (CodeGenerator cg : top) {
+            lines.onNewLine();
+            cg.generateInto(lines);
         }
         for (CodeGenerator cg : ifaces) {
             lines.doubleNewline();

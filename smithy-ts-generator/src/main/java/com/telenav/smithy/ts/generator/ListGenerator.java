@@ -17,7 +17,12 @@ package com.telenav.smithy.ts.generator;
 
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.names.NumberKind;
+import com.telenav.smithy.ts.generator.type.TsPrimitiveTypes;
+import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
@@ -128,38 +133,74 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
 
             cb.method("fromJsonObject", mth -> {
                 mth.makeStatic()
-                        .withArgument("input").ofType(jsTypeOf(shape));
+                        .withArgument("input").ofType("any");
                 mth.returning(typeName(), bb -> {
 
-//                    strategies.strategy(shape).instantiateFromRawJsonObject(bb, TsPrimitiveTypes.ANY.variable("input"), "result", true);
-//                    bb.returning("result");
-//                    bb.blankLine()
-//                            .lineComment("can be prim " + canBePrimitive)
-//                            .lineComment("primitive type " + primitiveType)
-//                            .lineComment("jsType " + jsTypeOf(shape))
-//                            .lineComment("jsType of shape " + jsTypeOf(target))
-//                            .lineComment("targetType " + targetTypeName)
-//                            .lineComment("isSet? " + isSet);
-                    if (jsTypeOf(target).equals(targetTypeName)) {
-                        bb.blankLine().lineComment("a");
-                        bb.returningNew().withArgument("input").ofType(cb.name());
-                    } else {
-                        bb.blankLine().lineComment("b");
-                        bb.declare("result")
-                                .ofType("Array<" + targetTypeName + ">")
-                                .assignedTo("[]");
+                    bb.statement("let items : " + tsTypeName(target) + "[] = []");
+                    TypeStrategy<?> strat = strategies.strategy(memberTarget);
 
-                        bb.invoke("forEach")
+                    ConditionalClauseBuilder<TsBlockBuilder<Void>> ia = bb.iff("Array.isArray(input)");
+
+                    ia.declare("values")
+                            .ofType("any[]")
+                            .assignedTo().as("any[]")
+                            .expression("input");
+
+                    ia.invoke("forEach")
+                            .withLambda()
+                            .withArgument("item").ofType("any")
+                            .body(lbb -> {
+                                strat.instantiateFromRawJsonObject(lbb,
+                                        TsPrimitiveTypes.ANY.variable("item"),
+                                        "converted", true);
+                                lbb.invoke("push").withArgument("converted").on("items");
+                            }).on("values");
+
+                    ConditionalClauseBuilder<TsBlockBuilder<Void>> els = ia.orElse("typeof input === 'string'");
+                    els.declare("rex").ofType("RegExp")
+                            .assignedToNew().withArgument("\\s*?,\\s*")
+                            .ofType("RegExp");
+                    els.declare("strings").ofType("string[]")
+                            .assignedToInvocationOf("split")
+                            .withArgument().as("string").expression("input");
+                    NumberKind nk = NumberKind.forShape(target);
+                    if (nk != null) {
+                        els.invoke("forEach")
                                 .withLambda()
-                                .withArgument("item").ofType("any")
+                                .withArgument("val").ofType("string")
+                                .withArgument("_index").ofType("number")
                                 .body(lbb -> {
-                                    lbb.invoke("push").withInvocationOf("fromJsonObject")
-                                            .withArgument("item")
-                                            .on(targetTypeName)
-                                            .on("result");
-                                }).on("input");
-                        bb.returningNew().withArgument("result").ofType(cb.name());
+                                    TsPrimitiveTypes argType = TsPrimitiveTypes.NUMBER;
+                                    lbb.lineComment("Do the thing! " + NumberKind.forShape(target));
+                                    lbb.declareConst("parsed")
+                                            .ofType("number")
+                                            .assignedToInvocationOf(nk.jsParseMethod())
+                                            .withArgument("val")
+                                            .inScope();
+                                    strat.instantiateFromRawJsonObject(lbb, argType.variable("parsed"), "converted", true);
+                                    lbb.invoke("push")
+                                            .withArgument("converted")
+                                            .on("values");
+                                });
+                    } else {
+                        els.invoke("forEach")
+                                .withLambda()
+                                .withArgument("val").ofType("string")
+                                .withArgument("_index").ofType("number")
+                                .body(lbb -> {
+                                    strat.instantiateFromRawJsonObject(lbb, TsPrimitiveTypes.ANY.variable("val"), "converted", true);
+                                    lbb.invoke("push")
+                                            .withArgument("converted")
+                                            .on("values");
+                                });
                     }
+                    els = els.orElse("typeof input !== 'undefined'");
+                    els.lineComment("Fail over - see if the conversion method can do anything with it.");
+                    strat.instantiateFromRawJsonObject(els, TsPrimitiveTypes.ANY.variable(
+                            "input"), "converted", true);
+                    els.invoke("push").withArgument("converted").on("items");
+                    els.endIf();
+                    bb.returningNew().withArgument("items").ofType(cb.name());
                 });
             });
             if (canBePrimitive && !primitiveType.equals(targetTypeName)) {

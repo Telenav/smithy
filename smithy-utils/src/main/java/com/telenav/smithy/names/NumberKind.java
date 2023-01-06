@@ -103,8 +103,11 @@ public enum NumberKind {
                 return "shortValue";
             default:
                 throw new AssertionError(this);
-
         }
+    }
+
+    public String jsParseMethod() {
+        return isFloatingPoint() ? "parseFloat" : "parseInt";
     }
 
     public static NumberKind forShape(Shape shape) {

@@ -15,7 +15,9 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import software.amazon.smithy.model.shapes.Shape;
 
 /**
@@ -32,20 +34,43 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
     @Override
     public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String targetType = targetType() + (rawVar.optional() ? " | undefined" : "");
+        boolean prim = isNotUserType(shape);
         TypescriptSource.Assignment<B> decl = (declare ? bb.declare(instantiatedVar) : bb.assign(instantiatedVar)).ofType(targetType);
         if (rawVar.optional()) {
-            decl.assignedToTernary("typeof " + rawVar.name() + " === 'undefined'").expression("undefined").instantiate(nb -> nb.withArgument(rawVar.name()).ofType(targetType()));
+            ExpressionBuilder<B> exp = decl.assignedToUndefinedIfUndefinedOr(rawVar.name());
+            if (prim) {
+                exp.as(rawVarType().typeName()).expression(rawVar.name());
+            } else {
+                exp.invoke("fromJsonObject")
+                        .withArgument(rawVar.name()).on(targetType());
+            }
         } else {
-            decl.assignedToNew().withArgument(rawVar.name()).ofType(targetType());
+            if (prim) {
+                decl.assignedTo().as(rawVarType().typeName()).expression(rawVar.name());
+            } else {
+                decl.assignedToInvocationOf("fromJsonObject")
+                        .withArgument(rawVar.name()).on(targetType());
+            }
         }
     }
 
     @Override
     public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>> void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
+        boolean prim = isNotUserType(shape);
         if (rawVar.optional()) {
-            inv.withUndefinedIfUndefinedOr(rawVar.name()).instantiate().withArgument(rawVar.name()).ofType(targetType());
+            ExpressionBuilder<B> exp = inv.withUndefinedIfUndefinedOr(rawVar.name());
+            if (prim) {
+                exp.as(rawVarType().typeName()).expression(rawVar.name());
+            } else {
+                exp.invoke("fromJsonObject")
+                        .withArgument(rawVar.name()).on(targetType());
+            }
         } else {
-            inv.withNew().withArgument(rawVar.name()).ofType(targetType());
+            if (prim) {
+                inv.withArgument().as(rawVarType().typeName()).expression(rawVar.name());
+            } else {
+                inv.withInvocationOf("fromJsonObject").withArgument(rawVar.name()).on(targetType());
+            }
         }
     }
 

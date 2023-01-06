@@ -224,6 +224,27 @@ interface Transformable<T> {
     transform<X>(xform: Transform<T, X>): TransformedEventType<T, X>;
 }
 
+class MapTransform<T, R> implements Transform<T, R> {
+    fwd: Map<T, R>;
+    bwd: Map<R, T>;
+    constructor(fwd: Map<T, R>) {
+        this.fwd = fwd;
+        this.bwd = new Map<R, T>();
+        fwd.forEach((v, k) => {
+            this.bwd.set(v, k);
+        });
+    }
+    transform<X>(xform: Transform<R, X>): Transform<T, X> {
+        throw new Error("Method not implemented.");
+    }
+    fromValue(value: R): T {
+        return this.bwd.get(value) as T;
+    }
+    toValue(value: T): R {
+        return this.fwd.get(value) as R;
+    }
+}
+
 class EventTypeImpl<T> implements EventType<T>, Convertible<T>, Transformable<T> {
     public readonly name: EventName;
     private readonly converter?: (any) => T;
@@ -961,10 +982,7 @@ export class FloatField extends InputComponentBase<number> {
         if (!this.el) {
             return true;
         }
-        if (typeof this.el['value'] !== 'undefined' || '' === this.el['value']) {
-            return true;
-        }
-        return false;
+        return typeof this.el['value'] === 'undefined' || '' === this.el['value'];
     }
 
     protected setValueOn(value: any, el: HTMLElement) {
@@ -1255,7 +1273,7 @@ export class Row extends Container {
 export class ComboBox extends InputComponentBase<string> {
 
     private items: string[];
-    constructor(id: string, ...items: string[]) {
+    constructor(id: string, items: string[]) {
         super(TextChangeInternal, SELECT, id, id);
         this.items = items;
     }
@@ -1264,6 +1282,33 @@ export class ComboBox extends InputComponentBase<string> {
         let vals: string[] = [];
         this.items.forEach(item => {
             vals.push('<option value="' + item + '">' + item + '</option>');
+        });
+        e.innerHTML = vals.join('');
+        super.onElementCreated(e);
+    }
+
+    rawValue(): any {
+        if (!this.el) {
+            return "";
+        }
+        let e = this.el;
+        return e['options'][e['selectedIndex']]['text'] as string;
+    }
+}
+
+
+export class MappedComboBox<T> extends InputComponentBase<T> {
+
+    private items: Map<string, T>;
+    constructor(id: string, items: Map<string, T>) {
+        super(TextChangeInternal.transform(new MapTransform(items)), SELECT, id, id);
+        this.items = items;
+    }
+
+    onElementCreated(e: HTMLElement) {
+        let vals: string[] = [];
+        this.items.forEach((v : T, k : string) => {
+            vals.push('<option value="' + v + '">' + k + '</option>');
         });
         e.innerHTML = vals.join('');
         super.onElementCreated(e);

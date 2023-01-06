@@ -575,8 +575,8 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
 
     public <C, B extends TsBlockBuilderBase<C, B>> void generateObjectFieldAssignment(Shape target, MemberShape member,
                                                                                       B bb, String name, TypeStrategy strategy, boolean required) {
-        String jn = jsonName(name, member);
-        String nm = escape("__" + jn);
+        String jn = jsonName(member.getMemberName(), member);
+        String nm = escape(jn);
         strategy.convertToRawJsonObject(bb, strategy.shapeType().optional(!required).variable("this." + name),
                 nm, true);
         bb.assignLiteralRawProperty(jn).of("result").assignedTo(nm);

@@ -17,6 +17,7 @@ package com.telenav.smithy.ts.generator;
 
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.names.NumberKind;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import java.nio.file.Path;
 import java.util.function.Consumer;
@@ -64,10 +65,29 @@ class NumberWrapperGenerator extends AbstractTypescriptGenerator<NumberShape> {
 
             cb.method("fromJsonObject", mth -> {
                 mth.makePublic().makeStatic()
-                        .withArgument("value").ofType("number");
+                        .withArgument("value").ofType("any");
                 mth.body(bb -> {
-                    bb.returningNew(nb -> {
-                        nb.withArgument("value").ofType(typeName());
+                    bb.ifTypeOf("value", "number")
+                            .returningNew().withArgument("value as number").ofType(typeName());
+
+                    bb.ifTypeOf("value", "string")
+                            .returningNew()
+                            .withInvocationOf(NumberKind.forShape(shape).jsParseMethod())
+                            .withArgument().as("string").expression("value")
+                            .inScope()
+                            .ofType(typeName());
+
+                    bb.ifTypeOf("value", "object")
+                            .iff("value instanceof " + typeName())
+                            .returning().as(typeName()).expression("value");
+
+                    bb.throwing(thrown -> {
+                        thrown.withStringConcatenation()
+                                .append("Cannot convert ")
+                                .appendExpression("value")
+                                .append(" (")
+                                .appendExpression("typeof value")
+                                .append(") to a" + typeName());
                     });
                 });
             });

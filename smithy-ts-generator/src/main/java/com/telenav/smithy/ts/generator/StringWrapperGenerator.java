@@ -18,6 +18,8 @@ package com.telenav.smithy.ts.generator;
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
@@ -58,6 +60,28 @@ class StringWrapperGenerator extends AbstractTypescriptGenerator<StringShape> {
             generateToJson(cb);
             generateAddTo(cb);
             generateToJsonString(cb);
+            TsBlockBuilder<ClassBuilder<Void>> fromJsonObject = cb.method("fromJsonObject")
+                    .makePublic()
+                    .withArgument("input").ofType("any")
+                    .makeStatic()
+                    .returning(cb.name());
+
+            fromJsonObject.ifTypeOf("input", "string")
+                    .returningNew()
+                    .withArgument().as("string")
+                    .expression("input")
+                    .ofType(cb.name());
+
+            fromJsonObject.ifDefined("input")
+                    .returningNew()
+                    .withInvocationOf("toString")
+                    .on("input")
+                    .ofType(cb.name());
+
+            fromJsonObject.throwing(nb -> {
+                nb.withStringLiteralArgument("Cannot create a " + cb.name() + " from undefined.");
+            });
+            fromJsonObject.endBlock();
         });
 
         c.accept(tb);

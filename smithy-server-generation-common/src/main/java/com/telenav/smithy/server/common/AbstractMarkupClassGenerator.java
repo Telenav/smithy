@@ -260,6 +260,15 @@ public abstract class AbstractMarkupClassGenerator implements BiConsumer<String,
                                     .of("DateTimeFormatter")
                                     .on("timeStrings");
 
+                            tri2.invoke("println")
+                                    .withStringConcatentationArgument("Markup: ")
+                                    .appendExpression(mapKeyVar)
+                                    .append(" ")
+                                    .appendExpression("zdt")
+                                    .append(" ")
+                                    .appendExpression("hash")
+                                    .endConcatenation()
+                                    .onField("out").of("System");
                             tri2.fynalli().invoke("close").on("out").endBlock();
                         });
 

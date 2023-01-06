@@ -23,6 +23,7 @@ import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.camelCaseToDelimited;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import static com.mastfrog.util.strings.Strings.decapitalize;
+import com.telenav.smithy.ts.generator.type.TsTypeUtils;
 
 import com.telenav.smithy.ts.spi.LoginOperationFinder;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -34,6 +35,8 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TSGetterBlockBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.typescript;
+import com.telenav.smithy.utils.EnumCharacteristics;
+import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
 import com.telenav.smithy.utils.ResourceGraphs;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -51,6 +54,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.pattern.SmithyPattern;
+import software.amazon.smithy.model.shapes.EnumShape;
+import software.amazon.smithy.model.shapes.IntEnumShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
@@ -67,6 +72,7 @@ import software.amazon.smithy.model.traits.RangeTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
 
 /**
+ * Generates the demo UI for this smithy model.
  *
  * @author Tim Boudreau
  */
@@ -313,12 +319,80 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         return shouldGenerateUI(ctx.settings());
     }
 
+    private void generateEnumMappings(TypescriptSource src) {
+
+        Set<EnumShape> enums = model.getEnumShapes();
+        Set<IntEnumShape> intEnums = model.getIntEnumShapes();
+
+        for (IntEnumShape s : intEnums) {
+            String name = tsTypeName(s);
+            if (TsTypeUtils.isNotUserType(s) || "string".equals(name)) {
+                continue;
+            }
+
+            importModelObject(name, src);
+            src.declareTopConst(enumMappingConstName(name))
+                    .ofType("Map<string, number>")
+                    .assignedToSelfExecutingFunction(f -> {
+                        f.declareConst("result")
+                                .ofType("Map<string, number>")
+                                .assignedToNew().ofType("Map<string, number>");
+                        s.getEnumValues().forEach((enumConstName, num) -> {
+                            f.invoke("set")
+                                    .withStringLiteralArgument(enumConstName)
+                                    .withArgument(num.intValue())
+                                    .on("result");
+                        });
+                        f.returning("result");
+                    });
+        }
+
+        for (EnumShape s : enums) {
+            String name = tsTypeName(s);
+            if (TsTypeUtils.isNotUserType(s) || "string".equals(name)) {
+                continue;
+            }
+            importModelObject(name, src);
+            EnumCharacteristics characteristics = characterizeEnum(s);
+            switch (characteristics) {
+                case NONE:
+                case STRING_VALUED:
+                case HETEROGENOUS:
+                    generateEnumMapping(src, name, "string");
+                    break;
+                case INT_VALUED:
+                    generateEnumMapping(src, name, "number");
+                    break;
+                case STRING_VALUED_MATCHING_NAMES:
+                    String nm = enumMappingConstName(name);
+                    src.declareTopConst(nm)
+                            .ofType("Map<string, string>")
+                            .assignedToSelfExecutingFunction(f -> {
+                                f.declareConst("result")
+                                        .ofType("Map<string, string>")
+                                        .assignedToNew().ofType("Map<string, string>");
+                                s.getEnumValues().forEach((k, v) -> {
+                                    f.invoke("set")
+                                            .withStringLiteralArgument(k)
+                                            .withStringLiteralArgument(v)
+                                            .on("result");
+                                });
+                                f.returning("result");
+                            });
+                    break;
+                default:
+                    throw new AssertionError(characteristics);
+            }
+        }
+    }
+
     @Override
     public void generate(Consumer<TypescriptSource> c) {
         if (!shouldGenerateUI()) {
             return;
         }
         TypescriptSource src = typescript("testit");
+        generateEnumMappings(src);
         generateUiModelInterface(src);
         importComponents(src, "Row", "Panel", "NavPanel",
                 "ProblemsPanel", "StaticText", "EventType",
@@ -838,9 +912,14 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         return jsTypeOf(shape);
     }
 
-    private void drillThroughShapes(String rawModelVariable, LinkedList<String> idPath, ComponentAdder adder,
-            StructureShape input, TypescriptSource src,
-            InterfaceBuilder<TypescriptSource> iface, TsBlockBuilder<TypescriptSource> bb,
+    private void drillThroughShapes(
+            String rawModelVariable,
+            LinkedList<String> idPath,
+            ComponentAdder adder,
+            StructureShape input,
+            TypescriptSource src,
+            InterfaceBuilder<TypescriptSource> iface,
+            TsBlockBuilder<TypescriptSource> bb,
             Map<String, String> localFieldForIfaceField,
             TsBlockBuilder<ClassBuilder<TypescriptSource>> validation,
             ClassBuilder<TypescriptSource> ifaceImpl,
@@ -979,7 +1058,10 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                                 name, rawModelVariable, jsonName);
                         break;
                     case ENUM:
-                        importComponent("ComboBox", src);
+                        importComponent("MappedComboBox", src);
+                        // PENDING:  CHeck for int mapping instead?
+                        String enumTypeName = tsTypeName(target);
+                        String enumMappingConst = enumMappingConstName(enumTypeName);
                         bb.declare(name)
                                 .ofType(itemType = "LabeledComponent<string>")
                                 .assignedToInvocationOf("labeledWith")
@@ -987,8 +1069,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                                         displayNameFromStrings(idPath))
                                 .onNew(nb -> {
                                     nb.withStringLiteralArgument(name)
-                                            .withStringLiteralArgument(jsid)
-                                            .ofType("ComboBox");
+                                            .withArgument(enumMappingConst)
+                                            .ofType("MappedComboBox");
                                 });
                         iface.property(name)
                                 .ofType("LabeledComponent<string>");
@@ -1100,6 +1182,52 @@ export function floatListField(id: string): TransformedTextField<number[]>
                 idPath.pop();
             }
         }
+    }
+
+    static String generateEnumMapping(TypescriptSource src, String enumName, String enumPrimitiveType) {
+        String constName = enumMappingConstName(enumName);
+        /*
+const keys = (() => {
+    let m: Map<Superlatives, string> = new Map<Superlatives, string>();
+    Object.keys(Superlatives).filter(k => typeof Superlatives[k as any] === "string")
+        .forEach((v, k) => {
+            m.set(Superlatives[v], v);
+            console.log("Keys " + v + ", " + k);
+        });
+    return m;
+})(); */
+        String mapType = "Map<" + enumName + ", " + enumPrimitiveType + ">";
+        src.declareTopConst(constName)
+                .ofType(mapType)
+                .assignedToSelfExecutingFunction(f -> {
+                    f.declare("m")
+                            .ofType(mapType)
+                            .assignedToNew().ofType(mapType);
+                    f.invoke("forEach")
+                            .withLambda(lb -> {
+                                lb.withArgument("v").inferringType()
+                                        .withArgument("k").inferringType();
+                                lb.body(bb -> {
+                                    bb.invoke("set")
+                                            .withElement().expression("v")
+                                            .of(enumName)
+                                            .withArgument("v");
+                                });
+                            })
+                            .onInvocationOf("filter")
+                            .withLambda().withArgument("k")
+                            .inferringType()
+                            .body().returning("typeof " + enumName + "[k as any] === '" + enumPrimitiveType + "'")
+                            .onInvocationOf("keys")
+                            .withArgument(enumName)
+                            .on("Object");
+                    f.returning("m");
+                });
+        return constName;
+    }
+
+    static String enumMappingConstName(String enumName) {
+        return decapitalize(enumName) + "Mapping";
     }
 
     public void generateModelRawValueAssignment(boolean required,

@@ -91,6 +91,7 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
         applyDocumentation(cb);
         generateDefaultField(cb);
         generateValueField(cb);
+        generateNumberConstructor(cb);
         generateConstructor(cb);
         generateAlternateConstructors(cb);
         generatePrimitiveGetter(cb);
@@ -274,15 +275,28 @@ abstract class AbstractNumberGenerator<S extends Shape> extends AbstractJavaGene
                 .withModifier(PRIVATE, FINAL)
                 .ofType(kind.primitiveTypeName());
     }
+    
+    protected void generateNumberConstructor(ClassBuilder<String> cb) {
+        ConstructorBuilder<ClassBuilder<String>> con = cb.constructor()
+                .addArgument("Number", "value");
+        con.setModifier(PUBLIC)
+                .docComment("Creates a new " + cb.className() + " from any Number type "
+                        + "(required for JSON serialization).\n"
+                        + "@param " + VALUE_ARG + " a number");
+        annotateConstructor(cb, con);
+        con.body(bb -> {
+            bb.invoke("this")
+                    .withArgumentFromInvoking(kind.numberMethod()).on(VALUE_ARG)
+                    .inScope();
+        });
+    }
 
     protected void generateConstructor(ClassBuilder<String> cb) {
-        ClassBuilder.ConstructorBuilder<ClassBuilder<String>> con = cb.constructor();
+        ConstructorBuilder<ClassBuilder<String>> con = cb.constructor();
 
         con.setModifier(PUBLIC)
                 .docComment("Creates a new " + cb.className() + ".\n"
                         + "@param " + VALUE_ARG + " the value");
-
-        annotateConstructor(cb, con);
 
         MultiAnnotatedArgumentBuilder<
                 ParameterNameBuilder<
