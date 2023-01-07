@@ -15,9 +15,11 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ArrayElementBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ObjectLiteralBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.To;
 import software.amazon.smithy.model.node.ArrayNode;
@@ -35,9 +37,11 @@ import software.amazon.smithy.model.traits.DefaultTrait;
 final class DocumentStrategy implements TypeStrategy<DocumentShape> {
 
     private final DocumentShape shape;
+    private final TypeStrategies strategies;
 
-    DocumentStrategy(DocumentShape shape) {
+    DocumentStrategy(DocumentShape shape, TypeStrategies strategies) {
         this.shape = shape;
+        this.strategies = strategies;
     }
 
     @Override
@@ -65,7 +69,10 @@ final class DocumentStrategy implements TypeStrategy<DocumentShape> {
 
     @Override
     public String targetType() {
-        return "any";
+        if (isNotUserType(shape)) {
+            return "any";
+        }
+        return strategies.tsTypeName(shape);
     }
 
     @Override
@@ -91,6 +98,15 @@ final class DocumentStrategy implements TypeStrategy<DocumentShape> {
 
     @Override
     public <T> T applyDefault(DefaultTrait def, ExpressionBuilder<T> ex) {
+        if (isNotUserType(shape)) {
+            return applyDefaultTo(def, ex);
+        }
+        ExpressionBuilder<InvocationBuilder<T>> ex2 = ex.invoke("fromJsonObject")
+                .withArgument();
+        return applyDefaultTo(def, ex2).on(targetType());
+    }
+
+    private <T> T applyDefaultTo(DefaultTrait def, ExpressionBuilder<T> ex) throws AssertionError {
         Node nd = def.toNode();
         switch (nd.getType()) {
             case OBJECT:

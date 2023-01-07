@@ -116,7 +116,7 @@ public class TypeStrategies {
             case UNION:
                 return new UnionStrategy(shape.asUnionShape().get(), this);
             case DOCUMENT:
-                return new DocumentStrategy(shape.asDocumentShape().get());
+                return new DocumentStrategy(shape.asDocumentShape().get(), this);
             case BLOB:
                 return primitiveStrategy(shape);
             case STRING:
