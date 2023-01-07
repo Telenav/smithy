@@ -29,6 +29,7 @@ import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -82,12 +83,12 @@ public interface PostGenerateTask {
                         Files.createDirectories(toFile.getParent());
                     }
                     logger.info("Zip category " + category + " to " + toFile);
+                    Set<String> seen = new HashSet<>();
                     try (ZipOutputStream out = new ZipOutputStream(newOutputStream(toFile,
                             WRITE, TRUNCATE_EXISTING, CREATE), UTF_8)) {
                         out.setLevel(9);
                         for (Path p : all) {
-                            if (Files.isDirectory(p)) {
-                                System.err.println("MARKUP DIRECTORY? " + p);
+                            if (Files.isDirectory(p) || !seen.add(p.getFileName().toString())) {
                                 continue;
                             }
                             String target = zipBase.map(base -> base.resolve(
