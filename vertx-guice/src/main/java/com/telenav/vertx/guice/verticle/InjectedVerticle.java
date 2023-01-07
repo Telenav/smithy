@@ -17,10 +17,18 @@ package com.telenav.vertx.guice.verticle;
 
 import com.google.inject.Provider;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.ext.web.Router;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import java.util.concurrent.TimeoutException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.inject.Inject;
 
 /**
@@ -49,20 +57,81 @@ public final class InjectedVerticle extends AbstractVerticle {
     }
 
     @Override
-    public void start() throws Exception {
-        Router router = this.routerProvider.get();
+    public void start(Promise<Void> startPromise) throws Exception {
+        launch().onComplete(res -> {
+            if (res.succeeded()) {
+                startPromise.complete();
+            } else {
+                startPromise.fail(res.cause());
+            }
+        });
+    }
 
+    private Future<HttpServer> launch() {
+        Router router = this.routerProvider.get();
         routeCreators.forEach(creator -> {
             creator.applyTo(router);
         });
-
         Vertx vx = this.vertxProvider.get();
-        vx.createHttpServer(serverOptionsCustomizer.get())
+        return vx.createHttpServer(serverOptionsCustomizer.get())
                 .requestHandler(router)
-                .listen(port)
-                .onSuccess(x -> {
-                    System.out.println("Server started on port " + x.actualPort());
-                });
+                .listen(port);
     }
 
+    @Override
+    public void start() throws Exception {
+        // THe default vertx behavior is to block-hole failures,
+        // so jump through some hoops to avoid it.
+        CountDownLatch latch = new CountDownLatch(1);
+        Future<HttpServer> result = launch();
+        result.onComplete(serverResult -> {
+            try {
+                if (serverResult.succeeded()) {
+                    System.out.println("Server started on port "
+                            + serverResult.result().actualPort());
+                }
+            } finally {
+                latch.countDown();
+            }
+        });
+        Throwable th = null;
+        if (!latch.await(30, SECONDS) && !result.isComplete()) {
+            th = new TimeoutException("Timedout waiting for socket open");
+        } else if (result.failed()) {
+            if (result.cause() != null) {
+                th = result.cause();
+            } else {
+                th = new Exception("Unspecified failures");
+            }
+        }
+        if (th instanceof Exception) {
+            throw (Exception) th;
+        } else if (th instanceof Error) {
+            throw (Error) th;
+        } else if (th != null) { // ThreadDeath?
+            throw new Error(th);
+        }
+        HttpServer server = result.result();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                CountDownLatch shutdownLatch = new CountDownLatch(1);
+                System.out.println("shutdown hook - injected verticle");
+                server.close(closeResult -> {
+                    try {
+                        System.out.println("  shutdown hook injected "
+                                + "verticle server shutdown "
+                                + closeResult.succeeded());
+                        if (closeResult.cause() != null) {
+                            closeResult.cause().printStackTrace();
+                        }
+                    } finally {
+                        shutdownLatch.countDown();
+                    }
+                });
+                shutdownLatch.await();
+            } catch (InterruptedException ex) {
+                ex.printStackTrace();
+            }
+        }, "Shutdown http"));
+    }
 }

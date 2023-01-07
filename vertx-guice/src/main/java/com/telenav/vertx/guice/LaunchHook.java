@@ -63,12 +63,10 @@ public abstract class LaunchHook {
         private final List<LaunchHook> hooks = new ArrayList<>();
 
         void register(LaunchHook hook) {
-            System.out.println("REGISTER HOOK " + hook);
             hooks.add(hook);
         }
 
         void onLaunch(int item, Verticle verticle, DeploymentOptions opts, Future<String> fut, int of) {
-            System.out.println("onLaunch " + item + " with " + hooks.size() + " hooks");
             for (LaunchHook hook : hooks) {
                 hook.onLaunch(item, verticle, opts, fut, of);
             }

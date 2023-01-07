@@ -41,13 +41,10 @@ public interface VertxLauncher {
      * @return The vertx instance
      */
     default Vertx start() {
-        System.out.println("Start.");
         final AtomicReference<Throwable> thrown = new AtomicReference<>();
         Vertx result;
         result = start(futs -> {
-            System.out.println("Received " + futs.size() + " futures");
             Consumer<Throwable> thrownUpdater = thr -> {
-                System.out.println("Thrown " + thr);
                 thr.printStackTrace();
                 thrown.updateAndGet(old -> {
                     if (old == null) {
@@ -66,9 +63,6 @@ public interface VertxLauncher {
             // do nothing
             for (Future<String> f : futs) {
                 f.onComplete(asyncResult -> {
-                    System.out.println("Fut complete? " + f.isComplete()
-                            + " succeeded? " + f.succeeded() + " failed? " + f.failed());
-                    System.out.println("RESULT " + f.result());
                     try {
                         if (asyncResult.cause() != null) {
                             thrownUpdater.accept(asyncResult.cause());
@@ -81,14 +75,11 @@ public interface VertxLauncher {
                 });
             }
             try {
-                System.out.println("wait main thread on latch");
-                latch.await(20, TimeUnit.SECONDS);
-                System.out.println("wait completed");
+                latch.await(30, TimeUnit.SECONDS);
             } catch (InterruptedException ex) {
                 throw new IllegalStateException(ex);
             }
         });
-
         if (thrown.get() != null) {
             throw new IllegalStateException(thrown.get());
         }

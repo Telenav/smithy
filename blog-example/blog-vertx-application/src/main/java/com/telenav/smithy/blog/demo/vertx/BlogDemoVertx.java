@@ -34,7 +34,6 @@ import com.telenav.vertx.guice.verticle.VerticleBuilder;
 import io.vertx.core.Handler;
 import io.vertx.core.eventbus.EventBusOptions;
 import io.vertx.core.http.HttpServerResponse;
-import io.vertx.core.tracing.TracingPolicy;
 import io.vertx.ext.web.RoutingContext;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -83,14 +82,14 @@ public class BlogDemoVertx {
         vb.customizingHttpOptionsWith(opts
                 -> opts.setReuseAddress(false)
                         .setReusePort(false)
-                        .setTcpFastOpen(true)
-                        .setTcpNoDelay(true)
-                        .setTcpCork(false)
+//                        .setSoLinger(1)
+//                        .setTcpFastOpen(true)
+//                        .setTcpNoDelay(true)
+//                        .setTcpCork(false)
                         .setLogActivity(true)
-//                        .setCompressionSupported(true)
+                        .setCompressionSupported(true)
                         .setDecoderInitialBufferSize(32768)
 //                        .setHandle100ContinueAutomatically(false)
-                        .setLogActivity(true)
 //                        .setTracingPolicy(TracingPolicy.ALWAYS)
         );
         vb.customizingRouterWith(r -> {

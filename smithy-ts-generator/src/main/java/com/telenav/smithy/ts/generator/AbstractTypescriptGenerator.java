@@ -335,7 +335,13 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
 
     protected final GeneratedCode resource(String relativePath, String resourceName) {
         ResourceCode result = new ResourceCode(relativePath, this.dest, getClass(), resourceName, log);
-        ctx.registerPath("ts", result.path());
+        String registerAs;
+        if (resourceName.endsWith(".html")) {
+            registerAs = SmithyGenerationContext.MARKUP_PATH_CATEGORY;
+        } else {
+            registerAs = "ts";
+        }
+        ctx.registerPath(registerAs, result.path());
         return result;
     }
 

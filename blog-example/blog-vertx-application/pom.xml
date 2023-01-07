@@ -72,7 +72,73 @@ limitations under the License.
         </dependency>
 
     </dependencies>
-    <name>blog-vertx-application</name>
 
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>maven-merge-configuration</artifactId>
+                <version>${mastfrog.version}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <id>compile</id>
+                        <goals>
+                            <goal>merge-configuration</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <mainClass>${exec.mainClass}</mainClass>
+                    <jarName>blog</jarName>
+                    <!-- generate a jar index -->
+                    <index>true</index>
+                    <!-- set dates for all files in jar to unix epoch for
+                    repeatable builds - a newly built jar will have the
+                    same sha-1 as the previous if no changes -->
+                    <zerodates>true</zerodates>
+                    <skipMavenMetadata>true</skipMavenMetadata>
+                    <skipLicenseFiles>true</skipLicenseFiles>
+                    <compressionLevel>9</compressionLevel>
+                    <omitOptionalDependencies>true</omitOptionalDependencies>
+                    <verbose>true</verbose>
+                    <omitModuleInfo>true</omitModuleInfo>
+                    <skipLicenseFiles>true</skipLicenseFiles>
+                    <!-- Omit stuff we can guarantee is not used -->
+                    <exclude>
+                        <!-- PENDING: Some of these are things which should be
+                        provided dependencies, not compile dependencies -
+                        track them down. -->
+                        META-INF.native-image
+                        META-INF.injection
+                        com.mastfrog.acteur.websocket
+                        com.mastfrog.annotation
+                        com.mastfrog.annotation.processor
+                        com.mastfrog.annotation.registries
+                        com.mastfrog.annotation.validation
+                        com.mastfrog.concurrent.coalesce
+                        com.mastfrog.concurrent.future
+                        com.mastfrog.concurrent.stats
+                        com.mastfrog.function.character.stateful
+                        com.mastfrog.code.generation
+                        com.mastfrog.java.vogon
+                        com.mastfrog.geometry.analysis
+                        com.mastfrog.geometry.uirect
+                        com.mastfrog.graal.injection.processor
+                        com.mastfrog.reference
+                        com.mastfrog.smithy.generators
+                        com.mastfrog.smithy.java.generators
+                        com.mastfrog.smithy.simple.extensions
+                        com.mastfrog.util.service
+                        com.mastfrog.util.streams.stdio
+                        io.netty.handler.codec.socks
+                        io.netty.handler.codec.socksx
+                        software.amazon
+                    </exclude>
+                </configuration>
+            </plugin>
+            
+        </plugins>
+    </build>
 </project>
 

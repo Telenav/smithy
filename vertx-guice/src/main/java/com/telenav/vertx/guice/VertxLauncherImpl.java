@@ -57,6 +57,7 @@ final class VertxLauncherImpl implements VertxLauncher {
     public Vertx start(Consumer<List<Future<String>>> c) {
         Vertx result = vertx == null ? vertx = vertxProvider.get() : vertx;
         if (started.compareAndSet(false, true)) {
+            // Pending - may want to bind per-verticle opts
             List<Future<String>> futs = new ArrayList<>();
             for (int i = 0; i < verticleProviders.size(); i++) {
                 Provider<? extends Verticle> verticleProvider = verticleProviders.get(i);
@@ -77,6 +78,7 @@ final class VertxLauncherImpl implements VertxLauncher {
     @Override
     public boolean shutdown() {
         if (started.compareAndSet(true, false)) {
+            System.out.println("Shutdown vertx");
             Vertx vx = vertx;
             vertx = null;
             if (vx != null) {

@@ -267,7 +267,7 @@ public final class VertxGuiceModule extends AbstractModule {
         }
     }
 
-    private static final class VertxProvider implements Provider<Vertx> {
+    private static final class VertxProvider implements Provider<Vertx>, Runnable {
 
         private final VertxInitializer.Registry registry;
         private final UnaryOperator<VertxOptions> optsCustomizer;
@@ -287,12 +287,25 @@ public final class VertxGuiceModule extends AbstractModule {
                 // Pending - have option for using clusteredVertx instead
                 vertx = Vertx.vertx(opts);
                 try {
+                    Runtime.getRuntime().addShutdownHook(new Thread(this, "Vertx-shutdown"));
                     registry.init(vertx);
                 } catch (Exception ex) {
                     throw new Error(ex);
                 }
             }
             return vertx;
+        }
+
+        @Override
+        public void run() {
+            Vertx vx;
+            synchronized (this) {
+                vx = this.vertx;
+            }
+            if (vx != null) {
+                System.out.println("Shutdown vertx");
+                vx.close();
+            }
         }
     }
 
