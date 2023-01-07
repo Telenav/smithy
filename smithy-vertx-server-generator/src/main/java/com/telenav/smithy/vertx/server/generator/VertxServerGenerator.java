@@ -1522,13 +1522,14 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         if (!writesPayload) {
                             int responseCode = op.getTrait(HttpTrait.class)
                                     .map(http -> http.getCode()).orElse(200);
-                            bb.invoke("send")
-                                    .onInvocationOf("setStatusCode")
+
+                            bb.invoke("setStatusCode")
                                     .withArgument(responseCode)
                                     .onInvocationOf("response")
                                     .on("context");
-                        }
 
+                            bb.invoke("end").on("context");
+                        }
                     });
         });
         if (input != null && input.consumesHttpPayload()) {
@@ -1673,7 +1674,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             }
             return ret.get();
         } else {
-            bb.lineComment("Do the thing.");
+            bb.lineComment("Inv D");
             invokeNextAsync(bb, null);
         }
         return null;
@@ -1688,6 +1689,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         if (inputVar != null) {
             partialInvoke = partialInvoke.withArgument(inputVar);
         }
+        bb.lineComment("invokeNextAsync");
         partialInvoke
                 .on("scope")
                 .onInvocationOf("nettyEventLoopGroup")
@@ -1698,9 +1700,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     public <C, B extends BlockBuilderBase<C, B, ?>> void generateResponseHandling(B bb,
             OperationShape op, ClassBuilder<?> cb, SpiTypesAndArgs spiArgs) {
-        cb.importing(CompletableFuture.class
-        );
-        cb.importing(
+        cb.importing(CompletableFuture.class).importing(
                 "static com.telenav.smithy.vertx.adapter.VertxResponseCompletableFutureAdapter.smithyResponse"
         );
         spiArgs.add("com.telenav.smithy.http.SmithyResponse", "response");
@@ -1764,15 +1764,18 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     }
 
     public <C, B extends BlockBuilderBase<C, B, ?>> String assembleOperationInput(B bb, OperationShape op, Input input, ClassBuilder<String> cb, String payloadVar, SpiTypesAndArgs spiArgs) {
+        cb.generateDebugLogCode();
         cb.importing(input.fqn());
         if (input.httpPayloadType() != null && input.size() == 1) {
             spiArgs.add(input.fqn(), "input");
             scope.bindDirect(input.fqn(), "Input payload of " + op.getId().getName());
+            bb.lineComment("Inv A");
             invokeNextAsync(bb, payloadVar);
             return payloadVar;
         } else if (input.isEmpty()) {
             spiArgs.add(input.fqn(), "input");
             scope.bindDirect(input.fqn(), "Input payload of " + op.getId().getName());
+            bb.lineComment("Inv B");
             invokeNextAsync(bb, payloadVar);
             return payloadVar;
         }
@@ -1798,7 +1801,10 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         }).as(nm);
         spiArgs.add(input.fqn(), "input");
 
-        invokeNextAsync(bb, "input");
+        bb.lineComment("Inv C");
+        if (op.getOutput().isPresent()) {
+            invokeNextAsync(bb, "input");
+        }
         return "input";
     }
 

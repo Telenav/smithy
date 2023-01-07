@@ -15,9 +15,12 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import com.mastfrog.util.strings.Strings;
 import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
 
 import com.telenav.smithy.ts.generator.AbstractTypescriptGenerator;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
@@ -83,6 +86,15 @@ public final class TsTypeUtils {
                 return target.asListShape().map(list -> {
                     return jsTypeOf(model.expectShape(list.getMember().getTarget())) + "[]";
                 }).get();
+            case BLOB:
+                return "ArrayBuffer";
+            case UNION:
+                Set<String> all = new LinkedHashSet<>();
+                target.getAllMembers().forEach((name, member) -> {
+                    Shape memberTarget = model.expectShape(member.getTarget());
+                    all.add(jsTypeOf(memberTarget));
+                });
+                return Strings.join(" | ", all);
             default:
                 return "any";
         }
@@ -92,39 +104,44 @@ public final class TsTypeUtils {
     public final String typeNameOf(Shape target, boolean readOnly) {
         switch (target.getType()) {
             case BLOB:
+                return "ArrayBuffer";
             case SERVICE:
             case MEMBER:
+                return typeNameOf(model.expectShape(target.asMemberShape().get().getTarget()), readOnly);
             case OPERATION:
             case RESOURCE:
                 throw new IllegalStateException("TS generation not supported for " + target.getType());
             case STRUCTURE:
-//                throw new IllegalArgumentException("Attempting to generate code "
-//                        + "for a Structure from the Smithy API?? Check the namespaces configuration "
-//                        + "of your build - this should never happen. " + target.getId());
+                if (isNotUserType(target)) { // Possible?
+                    return "object";
+                }
                 return tsTypeName(target);
             case BIG_INTEGER:
             case INTEGER:
             case LONG:
             case SHORT:
             case BYTE:
-//                return ("bigint");
-                return ("number");
+//                return "bigint";
+                return "number";
             case STRING:
-                return ("string");
+                return "string";
             case BOOLEAN:
-                return ("boolean");
+                return "boolean";
             case BIG_DECIMAL:
             case DOUBLE:
             case FLOAT:
-                return ("number");
+                return "number";
             case DOCUMENT:
-                return ("object");
+                return "object";
             case TIMESTAMP:
-                return ("Date");
+                return "Date";
             case LIST:
                 return target.asListShape().map(list -> {
                     boolean isSet = target.getTrait(UniqueItemsTrait.class).isPresent();
                     Shape memberType = model.expectShape(list.getMember().getTarget());
+                    if (!isSet && memberType.isByteShape()) {
+                        return "ArrayBuffer";
+                    }
                     String memberTypeName;
                     if (isNotUserType(memberType)) {
                         memberTypeName = typeNameOf(memberType, false);
@@ -156,25 +173,15 @@ public final class TsTypeUtils {
                         memberTypeName = tsTypeName(memberType);
                     }
                     if (readOnly) {
-                        return "ReadOnlySet<" + memberType + ">";
+                        return "ReadOnlySet<" + memberTypeName + ">";
                     } else {
-                        return "Set<" + memberType + ">";
+                        return "Set<" + memberTypeName + ">";
                     }
                 }).get();
             case MAP:
                 return target.asMapShape().map(map -> {
-                    String keyType;
-                    if (isNotUserType(map.getKey().getTarget())) {
-                        keyType = typeNameOf(model.expectShape(map.getKey().getTarget()), false);
-                    } else {
-                        keyType = tsTypeName(model.expectShape(map.getKey().getTarget()));
-                    }
-                    String valType;
-                    if (isNotUserType(map.getValue().getTarget())) {
-                        valType = typeNameOf(model.expectShape(map.getKey().getTarget()), false);
-                    } else {
-                        valType = tsTypeName(model.expectShape(map.getValue().getTarget()));
-                    }
+                    String keyType = tsTypeName(model.expectShape(map.getKey().getTarget()));
+                    String valType = tsTypeName(model.expectShape(map.getValue().getTarget()));
                     return "Map<" + keyType + ", " + valType + ">";
                 }).get();
             case ENUM:

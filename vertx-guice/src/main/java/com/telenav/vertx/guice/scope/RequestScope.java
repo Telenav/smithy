@@ -446,6 +446,7 @@ public final class RequestScope implements Scope {
 
         Runnable wrap(Runnable r, Consumer<? super Throwable> onError) {
             ClassLoader ldr = Thread.currentThread().getContextClassLoader();
+            Exception debug = new Exception("wrap");
             return () -> {
                 Thread t = Thread.currentThread();
                 ClassLoader old = t.getContextClassLoader();
@@ -453,6 +454,7 @@ public final class RequestScope implements Scope {
                 try (ScopeEntry en = enter()) {
                     r.run();
                 } catch (Exception | Error e) {
+                    e.addSuppressed(debug);
                     onError.accept(e);
                 } finally {
                     t.setContextClassLoader(old);

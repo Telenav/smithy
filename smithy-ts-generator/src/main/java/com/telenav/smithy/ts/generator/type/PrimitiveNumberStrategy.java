@@ -15,42 +15,57 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import com.telenav.smithy.names.NumberKind;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
-import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.NumberShape;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class PrimitiveStrategy<S extends Shape> extends AbstractTypeStrategy<S> {
+final class PrimitiveNumberStrategy<S extends NumberShape> extends AbstractTypeStrategy<S> {
 
-    PrimitiveStrategy(S shape, TypeStrategies strategies) {
+    PrimitiveNumberStrategy(S shape, TypeStrategies strategies) {
         super(shape, strategies);
     }
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb,
-                                                                                     TsVariable rawVar, String instantiatedVar, boolean declare) {
+            TsVariable rawVar, String instantiatedVar, boolean declare) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
-            assig.ofType(targetType() + " | undefined").assignedTo(rawVar.name());
+            assig.ofType(targetType() + " | undefined");
         } else {
-            assig.ofType(targetType()).assignedTo(rawVar.name());
+            assig.ofType(targetType());
         }
+        ExpressionBuilder<B> exp = assig.assignedTo();
+        applyRawVarExpression(exp, rawVar);
+//        assig.assignedTo(rawVar.name());
+    }
+
+    private <B> void applyRawVarExpression(ExpressionBuilder<B> exp, TsVariable rawVar) {
+        exp.ternary("typeof " + rawVar.name() + " === 'string'")
+                .invoke(NumberKind.forShape(shape).jsParseMethod())
+                .withArgument(rawVar.name()).inScope()
+                .ternary("typeof " + rawVar.name() + " === 'number'")
+                .expression(rawVar.name())
+                .invoke(NumberKind.forShape(shape).jsParseMethod())
+                .withInvocationOf("toString").on(rawVar.name()).inScope();
     }
 
     @Override
     public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void
             instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        inv.withArgument(rawVar.name() + " as " + targetType());
+        applyRawVarExpression(inv.withArgument(), rawVar);
     }
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb,
-                                                                               TsVariable rawVar, String instantiatedVar, boolean declare) {
+            TsVariable rawVar, String instantiatedVar, boolean declare) {
         (declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar))
                 .ofType(rawVar.optional() ? rawVarType().asOptional().returnTypeSignature() : rawVarType().typeName()).assignedTo(rawVar.name());
     }

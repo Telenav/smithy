@@ -102,7 +102,7 @@ public class TypeStrategies {
             case BIG_INTEGER:
             case SHORT:
                 if (prim) {
-                    return primitiveStrategy(shape);
+                    return primitiveNumberStrategy((NumberShape) shape);
                 } else {
                     return new NumberStringAndBooleanStrategy((NumberShape) shape, this);
                 }
@@ -116,6 +116,7 @@ public class TypeStrategies {
             case UNION:
                 return new UnionStrategy(shape.asUnionShape().get(), this);
             case DOCUMENT:
+                return new DocumentStrategy(shape.asDocumentShape().get());
             case BLOB:
                 return primitiveStrategy(shape);
             case STRING:
@@ -175,6 +176,10 @@ public class TypeStrategies {
 
     <S extends Shape> PrimitiveStrategy<S> primitiveStrategy(S shape) {
         return new PrimitiveStrategy<>(shape, this);
+    }
+
+    <S extends NumberShape> PrimitiveNumberStrategy<S> primitiveNumberStrategy(S shape) {
+        return new PrimitiveNumberStrategy<>(shape, this);
     }
 
 }

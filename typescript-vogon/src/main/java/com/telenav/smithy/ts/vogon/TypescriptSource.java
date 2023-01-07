@@ -419,9 +419,9 @@ public final class TypescriptSource implements SourceFileBuilder {
     private static final class ArrayLiteralBuilder<T> extends TypescriptCodeGenerator {
 
         private final List<CodeGenerator> elements = new ArrayList<>();
-        private final Function<ArrayLiteralBuilder<T>, T> conv;
+        private final Function<? super CodeGenerator, T> conv;
 
-        ArrayLiteralBuilder(Function<ArrayLiteralBuilder<T>, T> conv) {
+        ArrayLiteralBuilder(Function<? super CodeGenerator, T> conv) {
             this.conv = conv;
         }
 
@@ -781,6 +781,21 @@ public final class TypescriptSource implements SourceFileBuilder {
             return new ExpressionBuilder<>(eb -> {
                 return new ElementExpression<>(eb, this::finish);
             });
+        }
+
+        public ObjectLiteralBuilder<T> objectLiteral() {
+            return new ObjectLiteralBuilder<>(this::finish);
+        }
+
+        public T objectLiteral(Consumer<? super ObjectLiteralBuilder<Void>> c) {
+            Holder<T> hold = new Holder<>();
+            ObjectLiteralBuilder<Void> result = new ObjectLiteralBuilder<>(olb -> {
+                hold.set(finish(olb));
+                return null;
+            });
+            c.accept(result);
+            hold.ifUnset(result::endObjectLiteral);
+            return hold.get("Object literal not completed");
         }
 
         public T onElement(
@@ -4488,6 +4503,22 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public T toStringLiteral(String lit) {
             return conv.apply(new StringLiteral(lit));
+        }
+
+        public ArrayElementBuilder<T> toArrayLiteral() {
+            return new ArrayLiteralBuilder<>(conv).element();
+        }
+
+        public T toArrayLiteral(Consumer<? super ArrayElementBuilder<Void>> c) {
+            Holder<T> hold = new Holder<>();
+            ArrayLiteralBuilder<Void> result = new ArrayLiteralBuilder<>(alb -> {
+                hold.set(conv.apply(alb));
+                return null;
+            });
+            ArrayElementBuilder<Void> res = result.element();
+            c.accept(res);
+            hold.ifUnset(res::endArrayLiteral);
+            return hold.get("Array literal not completed");
         }
 
         public ExpressionBuilder<ExpressionBuilder<T>> toTernary(String test) {

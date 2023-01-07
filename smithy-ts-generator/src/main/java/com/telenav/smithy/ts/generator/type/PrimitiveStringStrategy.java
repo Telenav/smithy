@@ -48,7 +48,6 @@ final class PrimitiveStringStrategy extends AbstractTypeStrategy<StringShape> {
     public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void
             instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
         if (rawVar.optional()) {
-//            inv.withArgument("typeof " + rawVar.name() + " === 'undefined' ? undefined : " + rawVar.name() + ".toString(");
             inv.withUndefinedIfUndefinedOr(rawVar.name()).invoke("toString").on(rawVar.name());
         } else {
             inv.withInvocationOf("toString").on(rawVar.name());

@@ -49,9 +49,8 @@ import java.util.WeakHashMap;
 public class BlogDemoVertx {
 
     static {
-        System.setProperty("vertx.logger-delegate-factory-class-name", VertxLogging.class.getName());
-//        Logger routingLogger = (Logger) LoggerFactory.getLogger(io.vertx.ext.web.RoutingContext.class);
-//        routingLogger.setLevel(Level.DEBUG);
+        System.setProperty("vertx.logger-delegate-factory-class-name", VertxJULLogging.class.getName());
+//        System.setProperty("vertx.logger-delegate-factory-class-name", VertxLogging.class.getName());
     }
 
     public static void main(String[] args) {
@@ -80,9 +79,9 @@ public class BlogDemoVertx {
 
     static void configureVerticleBuilder(VerticleBuilder<?> vb) {
         vb.customizingHttpOptionsWith(opts
-                -> opts.setReuseAddress(false)
-                        .setReusePort(false)
-//                        .setSoLinger(1)
+                -> opts.setReuseAddress(true)
+                        .setReusePort(true)
+                        .setSoLinger(1)
 //                        .setTcpFastOpen(true)
 //                        .setTcpNoDelay(true)
 //                        .setTcpCork(false)

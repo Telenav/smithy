@@ -1,5 +1,5 @@
-/* 
- * Copyright 2023 Telenav.
+/*
+ * Copyright 2023 Mastfrog Technologies.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,14 @@ import io.vertx.core.spi.logging.LogDelegate;
 import io.vertx.core.spi.logging.LogDelegateFactory;
 import java.text.MessageFormat;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
  * @author Tim Boudreau
  */
-public final class VertxLogging implements LogDelegateFactory {
+public final class VertxJULLogging implements LogDelegateFactory {
 
     @Override
     public boolean isAvailable() {
@@ -33,191 +35,167 @@ public final class VertxLogging implements LogDelegateFactory {
 
     @Override
     public LogDelegate createDelegate(String name) {
-        System.out.println("create logger " + name);
-        Lev target = name.contains("RoutingContext") ? Lev.TRACE : Lev.WARN;
-        return new LE(target, name);
+        return new LD(Logger.getLogger(name));
     }
 
-    enum Lev {
-        TRACE,
-        DEBUG,
-        INFO,
-        WARN,
-        ERROR,
-        FATAL;
+    static class LD implements LogDelegate {
 
-        boolean isEnabledIn(Lev other) {
-            return ordinal() >= other.ordinal();
-        }
-    }
+        private final Logger logger;
 
-    static final class LE implements LogDelegate {
-
-        private final Lev enabled;
-        private final String name;
-        static final Object[] NONE = new Object[0];
-
-        LE(Lev enabled, String name) {
-            int ix = name.lastIndexOf('.');
-            if (ix >= 0) {
-                name = name.substring(ix + 1);
-            }
-            this.enabled = enabled;
-            this.name = name;
-        }
-
-        void out(Lev level, Object what, Throwable t) {
-            out(level, what, t, NONE);
-        }
-
-        void out(Lev level, Object what) {
-            out(level, what, null, NONE);
-        }
-
-        void out(Lev level, Object what, Object... params) {
-            out(level, what, null, params);
-        }
-
-        void out(Lev level, Object what, Throwable t, Object... params) {
-            if (enabled.ordinal() <= level.ordinal()) {
-                if (params != null && params.length > 0) {
-                    what = MessageFormat.format(Objects.toString(what), params);
-                }
-                System.out.println(level + "\t" + name + ":\t" + Objects.toString(what));
-                if (t != null) {
-                    t.printStackTrace(System.out);
-                }
-            }
+        public LD(Logger logger) {
+            this.logger = logger;
+//            logger.setLevel(Level.FINEST);
         }
 
         @Override
         public boolean isWarnEnabled() {
-            return Lev.WARN.isEnabledIn(enabled);
+            return logger.isLoggable(Level.WARNING);
         }
 
         @Override
         public boolean isInfoEnabled() {
-            return Lev.INFO.isEnabledIn(enabled);
+            return logger.isLoggable(Level.INFO);
         }
 
         @Override
         public boolean isDebugEnabled() {
-            return Lev.DEBUG.isEnabledIn(enabled);
+            return logger.isLoggable(Level.FINE);
         }
 
         @Override
         public boolean isTraceEnabled() {
-            return Lev.TRACE.isEnabledIn(enabled);
+            return logger.isLoggable(Level.FINEST);
+        }
+
+        private void logIt(Level level, Object msg, Throwable t, Object... args) {
+            level = Level.SEVERE;
+            String message;
+            if (t != null) {
+                if (args != null && args.length > 0) {
+                    message = MessageFormat.format(Objects.toString(msg), args);
+                } else {
+                    message = msg == null ? "" : msg.toString();
+                }
+                logger.log(level, message, t);
+            } else {
+                message = Objects.toString(msg);
+                if (args != null && args.length > 0) {
+                    logger.log(level, message, args);
+                } else {
+                    logger.log(level, message);
+                }
+            }
         }
 
         @Override
         public void fatal(Object message) {
-            out(Lev.FATAL, message);
+            logIt(Level.SEVERE, message, null);
         }
 
         @Override
         public void fatal(Object message, Throwable t) {
-            out(Lev.FATAL, message, t);
+            logIt(Level.SEVERE, message, t);
         }
 
         @Override
         public void error(Object message) {
-            out(Lev.ERROR, message);
+            logIt(Level.SEVERE, message, null);
         }
 
         @Override
         public void error(Object message, Object... params) {
-            out(Lev.ERROR, message, params);
+            logIt(Level.SEVERE, message, null, params);
         }
 
         @Override
         public void error(Object message, Throwable t) {
-            out(Lev.ERROR, message, t);
+            logIt(Level.SEVERE, message, t);
         }
 
         @Override
         public void error(Object message, Throwable t, Object... params) {
-            out(Lev.ERROR, message, t, params);
+            logIt(Level.SEVERE, message, t, params);
         }
 
         @Override
         public void warn(Object message) {
-            out(Lev.WARN, message);
+            logIt(Level.WARNING, message, null);
         }
 
         @Override
         public void warn(Object message, Object... params) {
-            out(Lev.WARN, message, params);
+            logIt(Level.WARNING, message, null, params);
         }
 
         @Override
         public void warn(Object message, Throwable t) {
-            out(Lev.WARN, message, t);
+            logIt(Level.WARNING, message, t);
         }
 
         @Override
         public void warn(Object message, Throwable t, Object... params) {
-            out(Lev.WARN, message, t, params);
+            logIt(Level.WARNING, message, t, params);
         }
 
         @Override
         public void info(Object message) {
-            out(Lev.INFO, message);
+            logIt(Level.INFO, message, null);
         }
 
         @Override
         public void info(Object message, Object... params) {
-            out(Lev.INFO, message, params);
+            logIt(Level.INFO, message, null, params);
         }
 
         @Override
         public void info(Object message, Throwable t) {
-            out(Lev.INFO, message, t);
+            logIt(Level.INFO, message, t);
         }
 
         @Override
         public void info(Object message, Throwable t, Object... params) {
-            out(Lev.INFO, message, t, params);
+            logIt(Level.INFO, message, t, params);
         }
 
         @Override
         public void debug(Object message) {
-            out(Lev.DEBUG, message);
+            logIt(Level.FINE, message, null);
         }
 
         @Override
         public void debug(Object message, Object... params) {
-            out(Lev.DEBUG, message, params);
+            logIt(Level.FINE, message, null, params);
         }
 
         @Override
         public void debug(Object message, Throwable t) {
-            out(Lev.DEBUG, message, t);
+            logIt(Level.FINE, message, t);
         }
 
         @Override
         public void debug(Object message, Throwable t, Object... params) {
-            out(Lev.DEBUG, message, t, params);
+            logIt(Level.FINE, message, t, params);
         }
 
         @Override
         public void trace(Object message) {
-            out(Lev.TRACE, message);
+            logIt(Level.FINEST, message, null);
         }
 
         @Override
         public void trace(Object message, Object... params) {
-            out(Lev.TRACE, message, params);
+            logIt(Level.FINEST, message, null, params);
         }
 
         @Override
         public void trace(Object message, Throwable t) {
-            out(Lev.TRACE, message, t);
+            logIt(Level.FINEST, message, t);
         }
 
         @Override
         public void trace(Object message, Throwable t, Object... params) {
-            out(Lev.TRACE, message, t, params);
+            logIt(Level.FINEST, message, t, params);
         }
+
     }
 }
