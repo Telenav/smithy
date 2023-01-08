@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.bestMatch;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
@@ -57,7 +58,7 @@ final class PrimitiveStrategy<S extends Shape> extends AbstractTypeStrategy<S> {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.bestMatch(strategies.model(), shape);
+        return bestMatch(strategies.model(), shape);
     }
 
     @Override

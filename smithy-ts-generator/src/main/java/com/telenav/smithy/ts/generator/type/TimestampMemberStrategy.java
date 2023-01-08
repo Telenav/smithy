@@ -17,7 +17,6 @@ package com.telenav.smithy.ts.generator.type;
 
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import software.amazon.smithy.model.shapes.MemberShape;

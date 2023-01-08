@@ -15,7 +15,8 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
-import com.telenav.smithy.ts.generator.UnionTypeGenerator;
+import static com.telenav.smithy.ts.generator.UnionTypeGenerator.decodeMethodName;
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.bestMatch;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import java.util.Map;
@@ -38,14 +39,14 @@ class UnionStrategy extends AbstractTypeStrategy<UnionShape> {
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType() + " | undefined";
         Assignment<B> assig = declare ? bb.declare(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
-        assig.assignedToInvocationOf(UnionTypeGenerator.decodeMethodName(shape, strategies.tsTypeName(shape)))
+        assig.assignedToInvocationOf(decodeMethodName(shape, strategies.tsTypeName(shape)))
                 .withArgument(rawVar.name()).inScope();
     }
 
     @Override
     public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>>
             void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        inv.withInvocationOf(UnionTypeGenerator.decodeMethodName(shape, strategies.tsTypeName(shape)))
+        inv.withInvocationOf(decodeMethodName(shape, strategies.tsTypeName(shape)))
                 .withArgument(rawVar.name()).inScope();
     }
 
@@ -72,7 +73,7 @@ class UnionStrategy extends AbstractTypeStrategy<UnionShape> {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.bestMatch(strategies.model(), shape);
+        return bestMatch(strategies.model(), shape);
     }
 
     @Override

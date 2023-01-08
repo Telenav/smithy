@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.OBJECT;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import software.amazon.smithy.model.shapes.MapShape;
@@ -79,7 +80,7 @@ final class MapStrategy extends AbstractMapStrategy {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.OBJECT;
+        return OBJECT;
     }
 
     @Override

@@ -15,7 +15,8 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
-import com.telenav.smithy.names.NumberKind;
+import static com.telenav.smithy.names.NumberKind.forShape;
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.bestMatch;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
@@ -54,11 +55,11 @@ final class PrimitiveNumberStrategy<S extends NumberShape> extends AbstractTypeS
 
     private <B> B applyRawVarExpression(ExpressionBuilder<B> exp, TsVariable rawVar) {
         exp = exp.ternary("typeof " + rawVar.name() + " === 'string'")
-                .invoke(NumberKind.forShape(shape).jsParseMethod())
+                .invoke(forShape(shape).jsParseMethod())
                 .withArgument(rawVar.name()).inScope()
                 .ternary("typeof " + rawVar.name() + " === 'number'")
                 .expression(rawVar.name());
-        return exp.invoke(NumberKind.forShape(shape).jsParseMethod())
+        return exp.invoke(forShape(shape).jsParseMethod())
                 .withInvocationOf("toString").on(rawVar.name()).inScope();
     }
 
@@ -83,7 +84,7 @@ final class PrimitiveNumberStrategy<S extends NumberShape> extends AbstractTypeS
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.bestMatch(strategies.model(), shape);
+        return bestMatch(strategies.model(), shape);
     }
 
     @Override

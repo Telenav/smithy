@@ -29,6 +29,7 @@ final class TsVar implements TsVariable {
         this.type = type;
     }
 
+    @Override
     public TsVar as(TsSimpleType otherType) {
         if (otherType == type) {
             return this;
@@ -118,6 +119,7 @@ final class TsVar implements TsVariable {
         return type.isSimpleType();
     }
 
+    @Override
     public TsVariable optional(boolean val) {
         if (optional() == val) {
             return this;

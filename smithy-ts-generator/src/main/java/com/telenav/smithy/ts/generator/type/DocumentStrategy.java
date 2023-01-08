@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.OBJECT;
 import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ArrayElementBuilder;
@@ -69,7 +70,7 @@ final class DocumentStrategy implements TypeStrategy<DocumentShape> {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.OBJECT;
+        return OBJECT;
     }
 
     @Override
@@ -82,7 +83,7 @@ final class DocumentStrategy implements TypeStrategy<DocumentShape> {
 
     @Override
     public TsSimpleType shapeType() {
-        return TsPrimitiveTypes.OBJECT;
+        return OBJECT;
     }
 
     @Override

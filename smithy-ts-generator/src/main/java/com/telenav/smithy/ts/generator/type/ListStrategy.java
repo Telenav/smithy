@@ -15,7 +15,6 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
-import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;

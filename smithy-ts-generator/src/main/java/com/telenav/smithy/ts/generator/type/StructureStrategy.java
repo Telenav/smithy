@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.OBJECT;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import software.amazon.smithy.model.shapes.StructureShape;
 
@@ -62,7 +63,7 @@ class StructureStrategy extends AbstractTypeStrategy<StructureShape> {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.OBJECT;
+        return OBJECT;
     }
 
     @Override

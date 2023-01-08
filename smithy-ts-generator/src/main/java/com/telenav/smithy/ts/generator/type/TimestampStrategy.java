@@ -15,6 +15,9 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.ANY;
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.STRING;
+import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
@@ -40,10 +43,10 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     public <T, B extends TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
                     String instantiatedVar, boolean declare) {
-        boolean prim = TypeStrategies.isNotUserType(shape);
+        boolean prim = isNotUserType(shape);
         Assignment<B> decl = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         String targetType = prim ? "Date" : targetType();
-        TsVariable rvAny = rawVar.as(TsPrimitiveTypes.ANY);
+        TsVariable rvAny = rawVar.as(ANY);
         if (rawVar.optional()) {
             decl.ofType(targetType + " | undefined");
             String ternaryTest = rawVar.isAnyType() ? "typeof " + rawVar.name() + " !== 'string'" : "typeof " + rawVar.name() + " !== 'undefined'";
@@ -91,7 +94,7 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
 
     @Override
     public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        boolean prim = TypeStrategies.isNotUserType(shape);
+        boolean prim = isNotUserType(shape);
         if (rawVar.optional()) {
             ExpressionBuilder<B> rightSide;
             if (rawVar.isAnyType()) {
@@ -146,12 +149,12 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.STRING;
+        return STRING;
     }
 
     @Override
     public String targetType() {
-        boolean prim = TypeStrategies.isNotUserType(shape);
+        boolean prim = isNotUserType(shape);
         if (prim) {
             return "Date";
         } else {
@@ -207,5 +210,4 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
                 throw new ExpectationNotMetException("Cannot default a timestamp from a " + n.getType(), def);
         }
     }
-
 }

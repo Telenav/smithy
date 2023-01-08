@@ -46,6 +46,7 @@ public interface TsVariable extends TsSimpleType {
     @Override
     TsVariable asNonOptional();
     
+    @Override
     TsVariable optional(boolean val);
 
 }

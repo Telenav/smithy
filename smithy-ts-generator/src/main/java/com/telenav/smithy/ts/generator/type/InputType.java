@@ -24,7 +24,7 @@ final class InputType implements TsSimpleType {
     private final TsSimpleType type;
     private final boolean optional;
 
-    public InputType(TsSimpleType type, boolean optional) {
+    InputType(TsSimpleType type, boolean optional) {
         this.type = type.optional() ? type.asNonOptional() : type;
         this.optional = optional;
     }

@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsTypeUtils.isNotUserType;
 import software.amazon.smithy.model.shapes.Shape;
 
 /**
@@ -53,7 +54,7 @@ public class TsShapeType implements TsSimpleType {
 
     @Override
     public String typeName() {
-        if (TsTypeUtils.isNotUserType(shape)) {
+        if (isNotUserType(shape)) {
             return types.typeNameOf(shape, false);
         }
         return types.tsTypeName(shape);

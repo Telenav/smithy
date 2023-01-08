@@ -16,6 +16,7 @@
 package com.telenav.smithy.ts.generator.type;
 
 import static com.telenav.smithy.ts.generator.IntEnumGenerator.validationFunctionName;
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.NUMBER;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import software.amazon.smithy.model.shapes.IntEnumShape;
@@ -84,7 +85,7 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.NUMBER;
+        return NUMBER;
     }
 
     @Override

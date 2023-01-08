@@ -1,20 +1,6 @@
-/* 
- * Copyright 2023 Telenav.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.bestMatch;
 import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
@@ -40,7 +26,7 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
 
     @Override
     public final TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.bestMatch(strategies.model(), shape);
+        return bestMatch(strategies.model(), shape);
     }
 
     protected final String tsCollectionTypeName() {
@@ -49,7 +35,7 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
 
     @Override
     public final String targetType() {
-        boolean prim = TypeStrategies.isNotUserType(shape);
+        boolean prim = isNotUserType(shape);
         if (prim) {
             return tsCollectionTypeName() + "<" + memberStrategy.targetType() + ">";
         } else {
@@ -60,7 +46,7 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
     @Override
     public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void populateQueryParam(
             String fieldName, boolean required, B bb, String queryParam) {
-        if (TypeStrategies.isNotUserType(shape)) {
+        if (isNotUserType(shape)) {
             populateQueryParamForTsCollection(fieldName, required, bb, queryParam);
         } else {
             if (!required) {
@@ -82,7 +68,7 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
 
     @Override
     public <A> A populateHttpHeader(Assignment<A> assig, String fieldName) {
-        if (TypeStrategies.isNotUserType(shape)) {
+        if (isNotUserType(shape)) {
             return populateHttpHeaderForTsCollection(assig, fieldName);
         }
         return assig.assignedToInvocationOf("toString").onField(fieldName).ofThis();
@@ -107,7 +93,7 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
 
     protected <A> A convertToArrayOfStrings(Assignment<A> assig,
             String fieldName, boolean required, boolean headers) {
-        if (TypeStrategies.isNotUserType(member)) {
+        if (isNotUserType(member)) {
             return assig.assignedToSelfExecutingFunction(ebb -> {
                 convertToRawArray(ebb, fieldName, false);
             });
@@ -151,5 +137,4 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
                     lbb.invoke("push").withArgument("realItem").on(instantiatedVar);
                 }).on(rawVar.name());
     }
-
 }

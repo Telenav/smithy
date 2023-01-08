@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.STRING;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.CaseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
@@ -108,7 +109,7 @@ class StringEnumStrategy extends AbstractEnumStrategy {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.STRING;
+        return STRING;
     }
 
     @Override

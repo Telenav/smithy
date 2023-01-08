@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.OBJECT;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.Shape;
 
@@ -40,7 +41,7 @@ abstract class AbstractMapStrategy extends AbstractTypeStrategy<MapShape> {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.OBJECT;
+        return OBJECT;
     }
 
 }

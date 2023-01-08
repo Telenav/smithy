@@ -15,6 +15,9 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.BOOLEAN;
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.NUMBER;
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.STRING;
 import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
@@ -89,9 +92,9 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
     public TsSimpleType rawVarType() {
         switch (shape.getType()) {
             case BOOLEAN:
-                return TsPrimitiveTypes.BOOLEAN;
+                return BOOLEAN;
             case STRING:
-                return TsPrimitiveTypes.STRING;
+                return STRING;
             case BIG_DECIMAL:
             case BIG_INTEGER:
             case LONG:
@@ -100,7 +103,7 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
             case SHORT:
             case DOUBLE:
             case BYTE:
-                return TsPrimitiveTypes.NUMBER;
+                return NUMBER;
             default:
                 throw new AssertionError(shape.getType());
         }
@@ -108,7 +111,7 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
 
     @Override
     public String targetType() {
-        if (TypeStrategies.isNotUserType(shape)) {
+        if (isNotUserType(shape)) {
             return rawVarType().typeName();
         }
         return strategies.tsTypeName(shape);

@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.STRING;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import software.amazon.smithy.model.shapes.EnumShape;
 import software.amazon.smithy.model.traits.DefaultTrait;
@@ -25,7 +26,7 @@ import software.amazon.smithy.model.traits.DefaultTrait;
  */
 class DefaultEnumStrategy extends AbstractEnumStrategy {
 
-    public DefaultEnumStrategy(EnumShape shape, TypeStrategies strategies) {
+    DefaultEnumStrategy(EnumShape shape, TypeStrategies strategies) {
         super(shape, strategies);
     }
 
@@ -46,7 +47,7 @@ class DefaultEnumStrategy extends AbstractEnumStrategy {
 
     @Override
     public TsSimpleType rawVarType() {
-        return TsPrimitiveTypes.STRING;
+        return STRING;
     }
 
     @Override

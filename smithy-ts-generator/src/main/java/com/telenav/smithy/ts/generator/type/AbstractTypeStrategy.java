@@ -1,25 +1,10 @@
-/* 
- * Copyright 2023 Telenav.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.telenav.smithy.ts.generator.type;
 
-import com.mastfrog.code.generation.common.LinesBuilder;
+import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.escape;
+import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.FieldReferenceBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.node.Node;
@@ -36,11 +21,12 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
     protected final S shape;
     protected final TypeStrategies strategies;
 
-    public AbstractTypeStrategy(S shape, TypeStrategies strategies) {
+    AbstractTypeStrategy(S shape, TypeStrategies strategies) {
         this.shape = shape;
         this.strategies = strategies;
     }
 
+    @Override
     public TypeStrategies origin() {
         return strategies;
     }
@@ -48,8 +34,7 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
     protected <T, B extends TsBlockBuilderBase<T, B>> Assignment<B>
             createTargetAssignment(TsVariable rawVar, boolean declare, B bb, String instantiatedVar) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
-        Assignment<B> assig = declare ? bb.declare(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
-        return assig;
+        return declare ? bb.declare(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
     }
 
     @Override
@@ -62,6 +47,7 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
         return new TsShapeType(shape, strategies.types(), false, false);
     }
 
+    @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void populateQueryParam(
             String fieldName, boolean required, B bb, String queryParam) {
         if (!required) {
@@ -106,7 +92,7 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
         // Only do the default behavior for things it could possibly work for.
         // If we start supporting list or other defaults, their strategies will
         // need to override this method, so the above check won't run anyway.
-        boolean prim = TypeStrategies.isNotUserType(shape);
+        boolean prim = isNotUserType(shape);
         String valueExpression = defaultValue(def);
         if (prim) {
             return ex.expression(valueExpression);
@@ -146,7 +132,7 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
                                 + "?");
                 }
             case STRING:
-                return '"' + LinesBuilder.escape(n.expectStringNode().getValue()) + '"';
+                return '"' + escape(n.expectStringNode().getValue()) + '"';
             case OBJECT:
             case ARRAY:
                 throw new IllegalArgumentException("Defaults not currently supported for "

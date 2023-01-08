@@ -16,7 +16,6 @@
 package com.telenav.smithy.ts.generator.type;
 
 import com.telenav.smithy.utils.EnumCharacteristics;
-
 import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
 import static java.util.Collections.synchronizedMap;
 import java.util.Map;
@@ -29,7 +28,6 @@ import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.NumberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.shapes.ShapeType;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
 import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
@@ -37,10 +35,11 @@ import static software.amazon.smithy.model.shapes.ShapeType.BYTE;
 import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
 import static software.amazon.smithy.model.shapes.ShapeType.INTEGER;
 import static software.amazon.smithy.model.shapes.ShapeType.LONG;
+import static software.amazon.smithy.model.shapes.ShapeType.MEMBER;
+import static software.amazon.smithy.model.shapes.ShapeType.SET;
 import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
 import static software.amazon.smithy.model.shapes.ShapeType.STRING;
 import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
-import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.UniqueItemsTrait;
 
 /**
@@ -110,63 +109,17 @@ public class TypeStrategies {
     @SuppressWarnings("unchecked")
     protected <S extends Shape> MemberStrategy<S> createMemberStrategy(MemberShape mem, S shape) {
 
-        assert shape.getType() != ShapeType.MEMBER;
+        assert shape.getType() != MEMBER;
         TypeStrategy<S> strat = (TypeStrategy<S>) createStrategy(shape);
         switch (shape.getType()) {
             case TIMESTAMP:
                 return (MemberStrategy<S>) new TimestampMemberStrategy(strat.asTimestampStrategy().get(), mem);
             default:
-                Shape container = types().model().expectShape(mem.getContainer());
-                if (/* isSingleMember(container) && */isSimpleType(shape) && !isNotUserType(shape)) {
-                    // ConvenienceConstructorArgStrategy
-                    System.out.println("BINGO " + container.getId().getName() + "." + mem.getMemberName());
-                    return (MemberStrategy<S>) new ConvenienceConstructorArgStrategy<>(strat, mem);
+                if (isSimpleType(shape) && !isNotUserType(shape)) {
+                    return new ConvenienceConstructorArgStrategy<>(strat, mem);
                 }
-//                System.out.println("CHECK " );
-//                if (isSingleMember(container)) {
-//                    if (isWrapperWrapper(container.asStructureShape().get())) {
-//                        System.out.println("BINGO " + container.getId().getName() + "." + mem.getMemberName());
-//                        return (MemberStrategy<S>) new SingleMemberStructureStrategy(strat.asStructureStrategy().get(), mem);
-//                    }
-//                }
         }
         return new DefaultMemberStrategy<>(strat, mem);
-    }
-
-    private boolean isSingleMember(Shape shape) {
-        return shape.asStructureShape().map(shp -> isSingleMember(shp)).orElse(false);
-    }
-
-    private boolean isSingleMember(StructureShape shape) {
-        return shape.getAllMembers().size() == 1;
-    }
-
-    private boolean isWrapperWrapper(StructureShape shape) {
-        System.out.println("CHECKOUT " + shape.getId().getName());
-        // ReadBlogInput has shape BlogId which is a string wrapper
-        if (isSingleMember(shape)) { // it has one member
-            System.out.println("YES SINGLE MEMBER: " + shape.getId().getName());
-            MemberShape singleMember = shape.getAllMembers().values().iterator().next();
-            Shape target = types().model().expectShape(singleMember.getTarget());
-
-            System.out.println("  HAS TARGET " + target.getId().getName()
-                    + " for " + singleMember.getMemberName());
-
-            if (target.isStructureShape() /* && isSingleMember(target.asStructureShape().get()) */) {
-                // its one member is a model-file defined type
-                MemberShape singleNestedMember = target.getAllMembers()
-                        .values().iterator().next();
-                Shape nestedTarget = types().model()
-                        .expectShape(singleNestedMember.getTarget());
-                System.out.println("Doubly nested: " + nestedTarget.getId().getName());
-//                return isSimpleType(nestedTarget);
-                return true;
-            } else {
-                System.out.println("Singly nested: " + target.getId().getName());
-                return isSimpleType(target);
-            }
-        }
-        return false;
     }
 
     private static boolean isSimpleType(Shape target) {
@@ -186,7 +139,7 @@ public class TypeStrategies {
     }
 
     protected <S extends Shape> TypeStrategy<?> createStrategy(S shape) {
-        boolean prim = TypeStrategies.isNotUserType(shape);
+        boolean prim = isNotUserType(shape);
         switch (shape.getType()) {
             case MEMBER:
                 return createStrategy(model().expectShape(shape.asMemberShape().get().getTarget()));
@@ -203,7 +156,7 @@ public class TypeStrategies {
                 if (prim) {
                     return primitiveNumberStrategy((NumberShape) shape);
                 } else {
-                    return new NumberStringAndBooleanStrategy((NumberShape) shape, this);
+                    return new NumberStringAndBooleanStrategy(shape, this);
                 }
             case TIMESTAMP:
                 return new TimestampStrategy(shape.asTimestampShape().get(), this);
@@ -243,7 +196,7 @@ public class TypeStrategies {
             case SET:
                 ListShape listShape = shape.asListShape().get();
                 Shape listMember = model().expectShape(listShape.getMember().getTarget());
-                boolean isSet = shape.getType() == ShapeType.SET
+                boolean isSet = shape.getType() == SET
                         || listShape.getTrait(UniqueItemsTrait.class).isPresent();
                 if (isSet) {
                     if (prim) {
