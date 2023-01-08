@@ -1813,6 +1813,8 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         StringConcatenation<I> withStringConcatenation();
 
+        StringConcatenation<I> withStringConcatenation(String initial);
+
         I withStringConcatenation(Consumer<? super StringConcatenation<Void>> c);
 
         ExpressionBuilder<ExpressionBuilder<I>> withTernary(String test);
@@ -2005,6 +2007,12 @@ public final class TypescriptSource implements SourceFileBuilder {
             });
         }
 
+        public StringConcatenation<R> withStringConcatenation(String initial) {
+            return new StringConcatenation<R>(str -> {
+                return add(str);
+            }).append(initial);
+        }
+
         @Override
         public R withStringConcatenation(Consumer<? super StringConcatenation<Void>> c) {
             Holder<R> hold = new Holder<>();
@@ -2163,7 +2171,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         private final CodeGenerator name;
 
         InvocationBuilder(Function<InvocationBuilder<T>, T> conv, String name) {
-            this(conv, new Adhoc(name));
+            this(conv, new Append(name));
         }
 
         InvocationBuilder(Function<InvocationBuilder<T>, T> conv, CodeGenerator name) {
@@ -2172,7 +2180,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public T on(String what) {
-            target = new Adhoc(what);
+            target = new Append(what);
             return close();
         }
 
@@ -3482,6 +3490,23 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
+    public static void main(String[] args) {
+        TypescriptSource src = new TypescriptSource("Blah");
+        src.declareClass("SomeType", cl -> {
+            cl.constructor(con -> {
+                con.withArgument("foo").ofType("string")
+                        .withArgument("bar").ofType("Bar")
+                        .body(bb -> {
+                            bb.invoke("log")
+                                    .withArgument("foo")
+                                    .withArgument("bar")
+                                    .on("console");
+                        });
+            });
+        });
+        System.out.println(src);
+    }
+
     public static final class ClassBuilder<T> extends TypescriptCodeGenerator {
 
         private final Function<? super ClassBuilder<T>, T> conv;
@@ -3491,7 +3516,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         private final Set<CodeGenerator> implementing = new LinkedHashSet<>();
         private final List<CodeGenerator> methods = new ArrayList<>();
         private final List<CodeGenerator> properties = new ArrayList<>();
-        private final List<CodeGenerator> constructors = new ArrayList<>();
+        private final List<ConstructorBuilder<?>> constructors = new ArrayList<>();
         private DocComment docs;
 
         ClassBuilder(Function<? super ClassBuilder<T>, T> conv, String name) {
@@ -3565,9 +3590,9 @@ public final class TypescriptSource implements SourceFileBuilder {
             }, name);
         }
 
-        public ClassBuilder<T> constructor(Consumer<? super FunctionBuilder<Void>> c) {
+        public ClassBuilder<T> constructor(Consumer<? super ConstructorBuilder<Void>> c) {
             Holder<ClassBuilder<T>> hold = new Holder<>();
-            FunctionBuilder<Void> result = new FunctionBuilder<>(fsb -> {
+            ConstructorBuilder<Void> result = new ConstructorBuilder<>(fsb -> {
                 fsb.kind(CONSTRUCTOR);
                 constructors.add(fsb);
                 hold.set(this);
@@ -3578,8 +3603,8 @@ public final class TypescriptSource implements SourceFileBuilder {
             return hold.get("ConstructorBuilder not completed");
         }
 
-        public FunctionBuilder<ClassBuilder<T>> constructor() {
-            return new FunctionBuilder<>(fsb -> {
+        public ConstructorBuilder<ClassBuilder<T>> constructor() {
+            return new ConstructorBuilder<>(fsb -> {
                 fsb.kind(CONSTRUCTOR);
                 constructors.add(fsb);
                 return this;
@@ -4427,6 +4452,96 @@ public final class TypescriptSource implements SourceFileBuilder {
                 body.generateInto(lines);
             }
         }
+    }
+
+    public static class ConstructorBuilder<T> extends FunctionSignatureBuilderBase<T, ConstructorBuilder<T>, ConstructorBodyBuilder<T>> {
+
+        CodeGenerator body;
+        DocComment docs;
+        Modifiers modifier;
+
+        ConstructorBuilder(Function<? super ConstructorBuilder<T>, T> conv, String name) {
+            super(false, conv, name);
+        }
+
+        public ConstructorBuilder<T> makePublic() {
+            modifier = Modifiers.PUBLIC;
+            return this;
+        }
+
+        public ConstructorBuilder<T> makePrivate() {
+            modifier = Modifiers.PRIVATE;
+            return this;
+        }
+
+        public ConstructorBuilder<T> makeProtected() {
+            modifier = Modifiers.PROTECTED;
+            return this;
+        }
+
+        public ConstructorBuilder<T> docComment(String dox) {
+            this.docs = new DocComment(dox);
+            return this;
+        }
+
+        @Override
+        ConstructorBodyBuilder<T> onReturnSet() {
+            return body();
+        }
+
+        public ConstructorBodyBuilder<T> body() {
+            return new ConstructorBodyBuilder<>(block -> {
+                body = block;
+                return conv.apply(cast());
+            });
+        }
+
+        public T body(Consumer<? super ConstructorBodyBuilder<Void>> c) {
+            Holder<T> hold = new Holder<>();
+            ConstructorBodyBuilder<Void> result = new ConstructorBodyBuilder<>(block -> {
+                body = block;
+                hold.set(conv.apply(cast()));
+                return null;
+            });
+            c.accept(result);
+            hold.ifUnset(result::endBlock);
+            return hold.get("Block not completed");
+        }
+
+        @Override
+        public void generateInto(LinesBuilder lines) {
+            if (docs != null) {
+                docs.generateInto(lines);
+            }
+            if (kind.explicit()) {
+                lines.onNewLine();
+            }
+            if (modifier != null) {
+                modifier.generateInto(lines);
+            }
+            super.generateInto(lines);
+            if (fatArrow) {
+                lines.backup().space().appendRaw("=> ");
+            }
+            if (body == null) {
+                lines.appendRaw("{}").onNewLine();
+            } else {
+                body.generateInto(lines);
+            }
+        }
+    }
+
+    public static final class ConstructorBodyBuilder<T> extends TsBlockBuilderBase<T, ConstructorBodyBuilder<T>> {
+
+        ConstructorBodyBuilder(Function<? super ConstructorBodyBuilder<T>, T> conv) {
+            super(conv);
+        }
+
+        @Override
+        public T endBlock() {
+            return super.endBlock();
+        }
+
     }
 
     public static final class ObjectLiteralBuilder<T> extends TypescriptCodeGenerator {

@@ -43,24 +43,35 @@ final class PrimitiveNumberStrategy<S extends NumberShape> extends AbstractTypeS
             assig.ofType(targetType());
         }
         ExpressionBuilder<B> exp = assig.assignedTo();
-        applyRawVarExpression(exp, rawVar);
+        if (rawVar.optional()) {
+            applyRawVarExpression(exp.ternary("typeof " + rawVar.name() + " !== 'undefined'"), rawVar)
+                    .expression("undefined");
+        } else {
+            applyRawVarExpression(exp, rawVar);
+        }
 //        assig.assignedTo(rawVar.name());
     }
 
-    private <B> void applyRawVarExpression(ExpressionBuilder<B> exp, TsVariable rawVar) {
-        exp.ternary("typeof " + rawVar.name() + " === 'string'")
+    private <B> B applyRawVarExpression(ExpressionBuilder<B> exp, TsVariable rawVar) {
+        exp = exp.ternary("typeof " + rawVar.name() + " === 'string'")
                 .invoke(NumberKind.forShape(shape).jsParseMethod())
                 .withArgument(rawVar.name()).inScope()
                 .ternary("typeof " + rawVar.name() + " === 'number'")
-                .expression(rawVar.name())
-                .invoke(NumberKind.forShape(shape).jsParseMethod())
+                .expression(rawVar.name());
+        return exp.invoke(NumberKind.forShape(shape).jsParseMethod())
                 .withInvocationOf("toString").on(rawVar.name()).inScope();
     }
 
     @Override
     public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void
             instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        applyRawVarExpression(inv.withArgument(), rawVar);
+        if (rawVar.optional()) {
+            applyRawVarExpression(inv.withArgument()
+                    .ternary("typeof " + rawVar.name() + " === 'undefined'")
+                    .expression("undefined"), rawVar);
+        } else {
+            applyRawVarExpression(inv.withArgument(), rawVar);
+        }
     }
 
     @Override

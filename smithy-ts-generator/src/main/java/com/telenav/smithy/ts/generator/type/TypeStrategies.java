@@ -25,10 +25,22 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.EnumShape;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.MapShape;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.NumberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
+import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
+import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
+import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
+import static software.amazon.smithy.model.shapes.ShapeType.BYTE;
+import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
+import static software.amazon.smithy.model.shapes.ShapeType.INTEGER;
+import static software.amazon.smithy.model.shapes.ShapeType.LONG;
+import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
+import static software.amazon.smithy.model.shapes.ShapeType.STRING;
+import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
+import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.traits.UniqueItemsTrait;
 
 /**
@@ -61,8 +73,17 @@ public class TypeStrategies {
         return CACHE.computeIfAbsent(mdl, m -> new TypeStrategies(m));
     }
 
-    public TypeStrategy<?> strategy(Shape shape) {
+    public <S extends Shape> TypeStrategy<?> strategy(S shape) {
         return createStrategy(shape);
+    }
+
+    public <S extends Shape> MemberStrategy<S> memberStrategy(MemberShape member, S shape) {
+        assert shape.getId().equals(member.getTarget());
+        return createMemberStrategy(member, shape);
+    }
+
+    public MemberStrategy<?> memberStrategy(MemberShape member) {
+        return createMemberStrategy(member, types.model().expectShape(member.getTarget()));
     }
 
     public String tsTypeName(Shape shape) {
@@ -84,6 +105,84 @@ public class TypeStrategies {
 
     public static boolean isNotUserType(ShapeId shape) {
         return "smithy.api".equals(shape.getNamespace());
+    }
+
+    @SuppressWarnings("unchecked")
+    protected <S extends Shape> MemberStrategy<S> createMemberStrategy(MemberShape mem, S shape) {
+
+        assert shape.getType() != ShapeType.MEMBER;
+        TypeStrategy<S> strat = (TypeStrategy<S>) createStrategy(shape);
+        switch (shape.getType()) {
+            case TIMESTAMP:
+                return (MemberStrategy<S>) new TimestampMemberStrategy(strat.asTimestampStrategy().get(), mem);
+            default:
+                Shape container = types().model().expectShape(mem.getContainer());
+                if (/* isSingleMember(container) && */isSimpleType(shape) && !isNotUserType(shape)) {
+                    // ConvenienceConstructorArgStrategy
+                    System.out.println("BINGO " + container.getId().getName() + "." + mem.getMemberName());
+                    return (MemberStrategy<S>) new ConvenienceConstructorArgStrategy<>(strat, mem);
+                }
+//                System.out.println("CHECK " );
+//                if (isSingleMember(container)) {
+//                    if (isWrapperWrapper(container.asStructureShape().get())) {
+//                        System.out.println("BINGO " + container.getId().getName() + "." + mem.getMemberName());
+//                        return (MemberStrategy<S>) new SingleMemberStructureStrategy(strat.asStructureStrategy().get(), mem);
+//                    }
+//                }
+        }
+        return new DefaultMemberStrategy<>(strat, mem);
+    }
+
+    private boolean isSingleMember(Shape shape) {
+        return shape.asStructureShape().map(shp -> isSingleMember(shp)).orElse(false);
+    }
+
+    private boolean isSingleMember(StructureShape shape) {
+        return shape.getAllMembers().size() == 1;
+    }
+
+    private boolean isWrapperWrapper(StructureShape shape) {
+        System.out.println("CHECKOUT " + shape.getId().getName());
+        // ReadBlogInput has shape BlogId which is a string wrapper
+        if (isSingleMember(shape)) { // it has one member
+            System.out.println("YES SINGLE MEMBER: " + shape.getId().getName());
+            MemberShape singleMember = shape.getAllMembers().values().iterator().next();
+            Shape target = types().model().expectShape(singleMember.getTarget());
+
+            System.out.println("  HAS TARGET " + target.getId().getName()
+                    + " for " + singleMember.getMemberName());
+
+            if (target.isStructureShape() /* && isSingleMember(target.asStructureShape().get()) */) {
+                // its one member is a model-file defined type
+                MemberShape singleNestedMember = target.getAllMembers()
+                        .values().iterator().next();
+                Shape nestedTarget = types().model()
+                        .expectShape(singleNestedMember.getTarget());
+                System.out.println("Doubly nested: " + nestedTarget.getId().getName());
+//                return isSimpleType(nestedTarget);
+                return true;
+            } else {
+                System.out.println("Singly nested: " + target.getId().getName());
+                return isSimpleType(target);
+            }
+        }
+        return false;
+    }
+
+    private static boolean isSimpleType(Shape target) {
+        switch (target.getType()) {
+            case BIG_DECIMAL:
+            case BIG_INTEGER:
+            case BOOLEAN:
+            case BYTE:
+            case FLOAT:
+            case INTEGER:
+            case LONG:
+            case SHORT:
+            case STRING:
+                return true;
+        }
+        return false;
     }
 
     protected <S extends Shape> TypeStrategy<?> createStrategy(S shape) {

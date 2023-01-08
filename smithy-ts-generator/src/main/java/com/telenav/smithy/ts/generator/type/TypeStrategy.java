@@ -15,13 +15,17 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
+import java.util.Optional;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
+import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.traits.DefaultTrait;
 
 /**
@@ -54,12 +58,16 @@ public interface TypeStrategy<S extends Shape> {
 
     Shape shape();
 
+    TypeStrategies origin();
+
     <T, B extends TsBlockBuilderBase<T, B>> void populateQueryParam(
             String fieldName, boolean required, B bb, String queryParam);
 
     <A> A populateHttpHeader(Assignment<A> assig, String fieldName);
-    
-//    BodyContributor constructorFieldAssignmentContributor(String argName, String fieldName);
+
+    default boolean isModelDefined() {
+        return !isNotUserType(shape());
+    }
 
     default TypeMatchingStrategy typeTest() {
         if (TsTypeUtils.isNotUserType(shape())) {
@@ -108,5 +116,21 @@ public interface TypeStrategy<S extends Shape> {
                     throw new AssertionError(this);
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    default Optional<? extends TypeStrategy<TimestampShape>> asTimestampStrategy() {
+        if (shape().isTimestampShape()) {
+            return Optional.of((TypeStrategy<TimestampShape>) this);
+        }
+        return Optional.empty();
+    }
+
+    @SuppressWarnings("unchecked")
+    default Optional<? extends TypeStrategy<StructureShape>> asStructureStrategy() {
+        if (shape().isStructureShape()) {
+            return Optional.of((TypeStrategy<StructureShape>) this);
+        }
+        return Optional.empty();
     }
 }

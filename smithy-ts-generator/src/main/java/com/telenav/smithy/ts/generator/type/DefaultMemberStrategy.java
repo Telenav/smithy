@@ -1,5 +1,5 @@
-/* 
- * Copyright 2023 Telenav.
+/*
+ * Copyright 2023 Mastfrog Technologies.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,37 +15,17 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.Shape;
+
 /**
  *
  * @author Tim Boudreau
  */
-public interface TsVariable extends TsSimpleType {
+class DefaultMemberStrategy<S extends Shape> extends AbstractMemberStrategy<S> {
 
-    String name();
-
-    TsVariable as(TsSimpleType otherType);
-
-    default TsVariable asAny() {
-        return as(TsPrimitiveTypes.ANY);
+    DefaultMemberStrategy(TypeStrategy<S> typeStrategy, MemberShape member) {
+        super(typeStrategy, member);
     }
-
-    @Override
-    default TsVariable asOptional() {
-        if (optional()) {
-            return this;
-        }
-        return new TsVar(name(), this);
-    }
-
-    @Override
-    TsVariable asArray();
-
-    @Override
-    TsVariable asNonArray();
-
-    @Override
-    TsVariable asNonOptional();
-    
-    TsVariable optional(boolean val);
 
 }

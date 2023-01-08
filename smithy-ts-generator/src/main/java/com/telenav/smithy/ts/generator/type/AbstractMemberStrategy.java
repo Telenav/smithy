@@ -1,0 +1,104 @@
+/*
+ * Copyright 2023 Mastfrog Technologies.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.telenav.smithy.ts.generator.type;
+
+import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
+import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.traits.DefaultTrait;
+import software.amazon.smithy.model.traits.DocumentationTrait;
+
+/**
+ *
+ * @author Tim Boudreau
+ */
+abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S>, MemberStrategy<S> {
+
+    private final TypeStrategy<S> typeStrategy;
+    private final MemberShape member;
+
+    public AbstractMemberStrategy(TypeStrategy<S> typeStrategy, MemberShape member) {
+        this.typeStrategy = typeStrategy;
+        this.member = member;
+    }
+
+    public final MemberShape member() {
+        return member;
+    }
+
+    @Override
+    public final TsSimpleType rawVarType() {
+        return typeStrategy.rawVarType();
+    }
+
+    @Override
+    public final String targetType() {
+        return typeStrategy.targetType();
+    }
+
+    @Override
+    public final TsSimpleType shapeType() {
+        return typeStrategy.shapeType();
+    }
+
+    @Override
+    public final Shape shape() {
+        return typeStrategy.shape();
+    }
+
+    @Override
+    public final TypeMatchingStrategy typeTest() {
+        return typeStrategy.typeTest();
+    }
+
+    @Override
+    public final <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(
+            B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
+        typeStrategy.instantiateFromRawJsonObject(block, rawVar, instantiatedVar, declare);
+    }
+
+    @Override
+    public final <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>> void instantiateFromRawJsonObject(B block, TsVariable rawVar) {
+        typeStrategy.instantiateFromRawJsonObject(block, rawVar);
+    }
+
+    @Override
+    public final <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
+        typeStrategy.convertToRawJsonObject(block, rawVar, instantiatedVar, declare);
+    }
+
+    @Override
+    public final <T, B extends TsBlockBuilderBase<T, B>> void populateQueryParam(String fieldName, boolean required, B bb, String queryParam) {
+        typeStrategy.populateQueryParam(fieldName, required, bb, queryParam);
+    }
+
+    @Override
+    public final <A> A populateHttpHeader(TypescriptSource.Assignment<A> assig, String fieldName) {
+        return typeStrategy.populateHttpHeader(assig, fieldName);
+    }
+
+    @Override
+    public final <T> T applyDefault(DefaultTrait def, TypescriptSource.ExpressionBuilder<T> ex) {
+        return typeStrategy.applyDefault(def, ex);
+    }
+
+    @Override
+    public TypeStrategies origin() {
+        return typeStrategy.origin();
+    }
+
+}

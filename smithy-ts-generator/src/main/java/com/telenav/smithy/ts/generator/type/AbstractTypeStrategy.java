@@ -16,13 +16,15 @@
 package com.telenav.smithy.ts.generator.type;
 
 import com.mastfrog.code.generation.common.LinesBuilder;
-import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.FieldReferenceBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.traits.DefaultTrait;
 
 /**
@@ -37,6 +39,10 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
     public AbstractTypeStrategy(S shape, TypeStrategies strategies) {
         this.shape = shape;
         this.strategies = strategies;
+    }
+
+    public TypeStrategies origin() {
+        return strategies;
     }
 
     protected <T, B extends TsBlockBuilderBase<T, B>> Assignment<B>
@@ -59,11 +65,17 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
     public <T, B extends TsBlockBuilderBase<T, B>> void populateQueryParam(
             String fieldName, boolean required, B bb, String queryParam) {
         if (!required) {
-            bb.ifFieldDefined(fieldName).ofThis()
-                    .assignLiteralRawProperty(queryParam)
+            ConditionalClauseBuilder<B> test;
+            if (shape.getType() == ShapeType.BOOLEAN) {
+                test = bb.iff("typeof this." + fieldName + " !== 'undefined'");
+            } else {
+                test = bb.ifFieldDefined(fieldName).ofThis();
+            }
+            test.assignLiteralRawProperty(queryParam)
                     .of("obj")
                     .assignedToField(fieldName)
-                    .ofThis();
+                    .ofThis()
+                    .endIf();
         } else {
             bb.assignLiteralRawProperty(queryParam)
                     .of("obj")
@@ -72,6 +84,7 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
         }
     }
 
+    @Override
     public <A> A populateHttpHeader(Assignment<A> assig, String fieldName) {
         return assig.assignedToField(fieldName).ofThis();
     }

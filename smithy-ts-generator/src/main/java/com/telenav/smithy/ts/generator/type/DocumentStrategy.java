@@ -45,6 +45,11 @@ final class DocumentStrategy implements TypeStrategy<DocumentShape> {
     }
 
     @Override
+    public TypeStrategies origin() {
+        return strategies;
+    }
+
+    @Override
     public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(
             B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         TypescriptSource.Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);

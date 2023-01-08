@@ -67,23 +67,35 @@ final class TsVar implements TsVariable {
     }
 
     @Override
-    public TsSimpleType asOptional() {
-        return type.asOptional();
+    public TsVariable asOptional() {
+        if (optional()) {
+            return this;
+        }
+        return new TsVar(name, type.asOptional());
     }
 
     @Override
-    public TsSimpleType asArray() {
-        return type.asArray();
+    public TsVariable asArray() {
+        if (isArray()) {
+            return this;
+        }
+        return new TsVar(name, type.asArray());
     }
 
     @Override
-    public TsSimpleType asNonArray() {
-        return type.asNonArray();
+    public TsVariable asNonArray() {
+        if (!isArray()) {
+            return this;
+        }
+        return new TsVar(name, type.asNonArray());
     }
 
     @Override
-    public TsSimpleType asNonOptional() {
-        return type.asNonOptional();
+    public TsVariable asNonOptional() {
+        if (!optional()) {
+            return this;
+        }
+        return new TsVar(name, type.asNonOptional());
     }
 
     @Override
@@ -94,5 +106,22 @@ final class TsVar implements TsVariable {
     @Override
     public String toString() {
         return name();
+    }
+
+    @Override
+    public TsVariable variable(String name) {
+        return new TsVar(name, type);
+    }
+
+    @Override
+    public boolean isSimpleType() {
+        return type.isSimpleType();
+    }
+
+    public TsVariable optional(boolean val) {
+        if (optional() == val) {
+            return this;
+        }
+        return asOptional();
     }
 }
