@@ -87,13 +87,12 @@ class NumberWrapperGenerator extends AbstractTypescriptGenerator<NumberShape> {
                                 .appendExpression("value")
                                 .append(" (")
                                 .appendExpression("typeof value")
-                                .append(") to a" + typeName());
+                                .append(") to a" + typeName())
+                                .endConcatenation();
                     });
                 });
             });
-
         });
-
         c.accept(tb);
     }
 
