@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator;
 
+import com.mastfrog.code.generation.common.LinesBuilder;
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
 import com.mastfrog.util.strings.Strings;
@@ -33,6 +34,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -43,9 +45,14 @@ import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 import software.amazon.smithy.model.traits.JsonNameTrait;
+import software.amazon.smithy.model.traits.PatternTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
 
 /**
+ * Generates Smithy union types as or'd types, e.g.
+ * <code>type Baz = Foo | Bar</code>, and generates an identification function
+ * that can determine what type is wanted from a raw JSON object and instantiate
+ * it.
  *
  * @author Tim Boudreau
  */
@@ -61,10 +68,9 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
 
         PropertyBuilder<TypeIntersectionBuilder<TypescriptSource>> type = src.declareType(tsTypeName(shape)).or();
 
-        for (Iterator<Map.Entry<String, MemberShape>> it = shape.getAllMembers().entrySet().iterator(); it.hasNext();) {
-            Map.Entry<String, MemberShape> e = it.next();
-            Shape target = model.expectShape(e.getValue().getTarget());
-            String tn = typeNameOf(target, true);
+        for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+            Shape unionOption = model.expectShape(e.getValue().getTarget());
+            String tn = typeNameOf(unionOption, true);
             type = type.withType(tn);
         }
 
@@ -79,8 +85,13 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
     }
 
     private void generateDecodeFunction(TypescriptSource src) {
+        // This is fairly complex:  We need to drill through the structure of
+        // the object, finding combinations of fields that uniquely identify
+        // a raw JSON object as being a particular union variant (a union
+        // type is generated as, e.g. `type Baz = Foo | Bar`, so we need to
+        // differentiate the two in order to have something to return.
         String methodName = decodeMethodName(shape, tsTypeName(shape));
-        List<TypeIdentificationStrategy> strategies = new ArrayList<>();
+        List<TypeIdentificationStrategy> typeIdentificationStrategies = new ArrayList<>();
 
         for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
             Shape target = model.expectShape(e.getValue().getTarget());
@@ -94,26 +105,37 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                 case LONG:
                 case SHORT:
                 case BYTE:
-                    strategies.add(new PrimitiveTypeIdentificationStrategy("number", target));
+                    typeIdentificationStrategies.add(
+                            new PrimitiveTypeIdentificationStrategy("number", target));
                     break;
                 case BOOLEAN:
-                    strategies.add(new PrimitiveTypeIdentificationStrategy("boolean", target));
+                    typeIdentificationStrategies.add(
+                            new PrimitiveTypeIdentificationStrategy("boolean", target));
                     break;
                 case TIMESTAMP:
-                    strategies.add(new DateIdentificationStrategy(target));
+                    typeIdentificationStrategies.add(
+                            new DateIdentificationStrategy(target));
                     break;
                 case LIST:
                 case SET:
-                    strategies.add(new ArrayLikeIdentificationStrategy(target));
+                    typeIdentificationStrategies.add(
+                            new ArrayLikeIdentificationStrategy(target));
                     break;
                 case MAP:
-                    strategies.add(new PrimitiveTypeIdentificationStrategy("object", target));
+                    typeIdentificationStrategies.add(
+                            new PrimitiveTypeIdentificationStrategy("object", target));
                     break;
                 case STRING:
-                    strategies.add(new PrimitiveTypeIdentificationStrategy("string", target));
+                    Optional<PatternTrait> pat = e.getValue().getMemberTrait(model, PatternTrait.class);
+                    if (pat != null) {
+                        typeIdentificationStrategies.add(new StringWithRegexIdentificationStrategy(target, pat.get().getValue()));
+                    }
+                    typeIdentificationStrategies.add(
+                            new PrimitiveTypeIdentificationStrategy("string", target));
                     break;
                 case INT_ENUM:
-                    strategies.add(new PrimitiveTypeIdentificationStrategy("number", target));
+                    typeIdentificationStrategies.add(
+                            new PrimitiveTypeIdentificationStrategy("number", target));
                     break;
                 case ENUM:
                     switch (characterizeEnum(target.asEnumShape().get())) {
@@ -121,80 +143,100 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                         case NONE:
                         case STRING_VALUED:
                         case STRING_VALUED_MATCHING_NAMES:
-                            strategies.add(new PrimitiveTypeIdentificationStrategy("string", target));
+                            typeIdentificationStrategies.add(new PrimitiveTypeIdentificationStrategy("string", target));
                             break;
                         case INT_VALUED:
-                            strategies.add(new StringOrNumberIdentificationStrategy(target));
+                            typeIdentificationStrategies.add(new StringOrNumberIdentificationStrategy(target));
                             break;
                     }
                     break;
                 case DOCUMENT:
-                    strategies.add(new PrimitiveTypeIdentificationStrategy("object", target));
+                    typeIdentificationStrategies.add(
+                            new PrimitiveTypeIdentificationStrategy("object", target));
                     break;
                 case BLOB:
-                    strategies.add(new ArrayLikeIdentificationStrategy(target));
+                    typeIdentificationStrategies.add(
+                            new ArrayLikeIdentificationStrategy(target));
                     break;
                 case UNION:
-                    strategies.add(new UnionTypeIdentificationStrategy(model, target));
+                    typeIdentificationStrategies.add(
+                            new UnionTypeIdentificationStrategy(model, target));
                     break;
                 case STRUCTURE:
-                    strategies.add(new MembersTypeIdentificationStrategy(model, target));
+                    typeIdentificationStrategies.add(
+                            new MembersTypeIdentificationStrategy(model, target));
                     break;
             }
         }
-        for (TypeIdentificationStrategy s : strategies) {
-            for (TypeIdentificationStrategy s1 : strategies) {
+        // Now let each identification strategy at the top level compare notes
+        // with each of the others, and winnow down the set of non-identical
+        // property name+type combinations that are present
+        for (TypeIdentificationStrategy s : typeIdentificationStrategies) {
+            for (TypeIdentificationStrategy s1 : typeIdentificationStrategies) {
                 s.examine(s1);
             }
         }
-        sort(strategies);
+        // Sort them so the most specific are tried first
+        sort(typeIdentificationStrategies);
         src.function(methodName, f -> {
+            f.docComment("Decodes a raw JSON object into a specific variant of "
+                    + "a " + shape.getId().getName()
+                    + " (or'd union type) based on the pattern of properties present on it.");
             f.withArgument("val").ofType("any")
                     .returning().or().withType(tsTypeName(shape)).ofType("undefined");
             f.body(bb -> {
                 bb.ifTypeOf("val", "undefined").returning("undefined");
-                
-                bb.lineComment("Have " + strategies.size() + " strategies.");
-                for (TypeIdentificationStrategy strat : strategies) {
+                for (TypeIdentificationStrategy strat : typeIdentificationStrategies) {
                     bb.lineComment(strat.toString());
                     ConditionalClauseBuilder<TsBlockBuilder<Void>> test = bb.iff(strat.test("val"));
-                    test.lineComment("pending - " + strat.shape().getId().getName());
-                    
+                    test.lineComment("Recognize" + strat.shape().getId().getName() + "?");
+
                     TypeStrategy ts = this.strategies.strategy(strat.shape());
                     ts.instantiateFromRawJsonObject(test, TsPrimitiveTypes.ANY.variable("val"), "result", true);
                     test.returning("result");
-//                    test.endIf();
                 }
                 bb.returning("undefined");
             });
         });
     }
 
-    interface TypeIdentificationStrategy extends Comparable<TypeIdentificationStrategy> {
+    private interface TypeIdentificationStrategy extends Comparable<TypeIdentificationStrategy> {
 
         String test(String varName);
 
         Shape shape();
 
+        /**
+         * Sort order
+         */
         default int priority() {
             return 0;
         }
 
+        /**
+         * Compare notes with another strategy to winnow the set of properties
+         * that uniquely identify this strategy.
+         */
         default void examine(TypeIdentificationStrategy other) {
 
         }
 
+        @Override
         default int compareTo(TypeIdentificationStrategy other) {
             return Integer.compare(other.priority(), priority());
         }
     }
 
-    static class PrimitiveTypeIdentificationStrategy implements TypeIdentificationStrategy {
+    /**
+     * Matches a js/ts primitive type by name and does nothing further.
+     *
+     */
+    private static class PrimitiveTypeIdentificationStrategy implements TypeIdentificationStrategy {
 
         private final String primitiveType;
         private final Shape shape;
 
-        public PrimitiveTypeIdentificationStrategy(String primitiveType, Shape shape) {
+        PrimitiveTypeIdentificationStrategy(String primitiveType, Shape shape) {
             this.primitiveType = primitiveType;
             this.shape = shape;
         }
@@ -209,16 +251,32 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
             return "typeof " + varName + " === '" + primitiveType + "'";
         }
 
+        @Override
         public String toString() {
             return "primitive " + primitiveType + " for " + shape.getId().getName();
         }
     }
 
-    static class StringOrNumberIdentificationStrategy implements TypeIdentificationStrategy {
+    private static final class StringWithRegexIdentificationStrategy extends PrimitiveTypeIdentificationStrategy {
+
+        private final String regex;
+
+        public StringWithRegexIdentificationStrategy(String regex, Shape shape) {
+            super("string", shape);
+            this.regex = regex;
+        }
+
+        public String test(String varName) {
+            return super.test(varName) + " && new Regexp(\"" + LinesBuilder.escape(regex) + "\").test(" + varName + ")";
+        }
+
+    }
+
+    private static class StringOrNumberIdentificationStrategy implements TypeIdentificationStrategy {
 
         private final Shape shape;
 
-        public StringOrNumberIdentificationStrategy(Shape shape) {
+        StringOrNumberIdentificationStrategy(Shape shape) {
             this.shape = shape;
         }
 
@@ -232,22 +290,24 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
             return shape;
         }
 
+        @Override
         public String toString() {
             return "stringOrNumber";
         }
 
     }
 
-    static class DateIdentificationStrategy implements TypeIdentificationStrategy {
+    private static class DateIdentificationStrategy implements TypeIdentificationStrategy {
 
         private final Shape shape;
 
-        public DateIdentificationStrategy(Shape shape) {
+        DateIdentificationStrategy(Shape shape) {
             this.shape = shape;
         }
 
         @Override
         public String test(String varName) {
+            // A crude but good enough regex that will match any ISO timestamp
             return "typeof varName === 'string' && /\\S*T\\S*/.test(" + varName + ")";
         }
 
@@ -268,11 +328,14 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
 
     }
 
-    static class ArrayLikeIdentificationStrategy implements TypeIdentificationStrategy {
+    /**
+     * Matches lists and sets.
+     */
+    private static class ArrayLikeIdentificationStrategy implements TypeIdentificationStrategy {
 
         private final Shape shape;
 
-        public ArrayLikeIdentificationStrategy(Shape shape) {
+        ArrayLikeIdentificationStrategy(Shape shape) {
             this.shape = shape;
         }
 
@@ -286,12 +349,13 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
             return shape;
         }
 
+        @Override
         public String toString() {
             return "array-like";
         }
     }
 
-    static class MembersTypeIdentificationStrategy implements TypeIdentificationStrategy {
+    private static class MembersTypeIdentificationStrategy implements TypeIdentificationStrategy {
 
         final Map<String, Shape> requiredProperties = new TreeMap<>();
         final Map<String, Shape> optionalProperties = new TreeMap<>();
@@ -378,7 +442,7 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
         }
     }
 
-    static class UnionTypeIdentificationStrategy implements TypeIdentificationStrategy {
+    private static class UnionTypeIdentificationStrategy implements TypeIdentificationStrategy {
 
         final Map<String, Shape> requiredProperties = new TreeMap<>();
         final Map<String, Shape> optionalProperties = new TreeMap<>();
@@ -464,6 +528,15 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
         }
     }
 
+    /**
+     * Returns that name of the generated raw json decoder function that can be
+     * used to identify the specific type of a union (or'd) type and instantiate
+     * the right sub-variant from a raw JSON object.
+     *
+     * @param shape A shape
+     * @param baseName The generated type name of it
+     * @return A string
+     */
     public static String decodeMethodName(Shape shape, String baseName) {
         return escape("infer" + baseName + "FromJSONObject");
     }

@@ -1,4 +1,3 @@
-
 package com.telenav.smithy.ts.generator.type;
 
 import static com.mastfrog.util.strings.Strings.decapitalize;
@@ -21,6 +20,7 @@ import software.amazon.smithy.model.traits.DefaultTrait;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 import software.amazon.smithy.model.traits.JsonNameTrait;
 import software.amazon.smithy.model.traits.LengthTrait;
+import software.amazon.smithy.model.traits.PatternTrait;
 import software.amazon.smithy.model.traits.RangeTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
 
@@ -36,6 +36,11 @@ public interface MemberStrategy<S extends Shape> extends TypeStrategy<S> {
         Optional<RangeTrait> range = member().getTrait(RangeTrait.class).or(
                 () -> shape().getTrait(RangeTrait.class));
         if (range.isPresent()) {
+            return true;
+        }
+        Optional<PatternTrait> pattern = member().getTrait(PatternTrait.class)
+                .or(() -> shape().getTrait(PatternTrait.class));
+        if (pattern.isPresent()) {
             return true;
         }
         Optional<LengthTrait> length = member().getTrait(LengthTrait.class).or(
