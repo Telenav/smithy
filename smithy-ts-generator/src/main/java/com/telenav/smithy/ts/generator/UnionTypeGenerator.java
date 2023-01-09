@@ -128,7 +128,7 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                 case STRING:
                     Optional<PatternTrait> pat = e.getValue().getMemberTrait(model, PatternTrait.class);
                     if (pat != null) {
-                        typeIdentificationStrategies.add(new StringWithRegexIdentificationStrategy(target, pat.get().getValue()));
+                        typeIdentificationStrategies.add(new StringWithRegexIdentificationStrategy(pat.get().getValue(), target));
                     }
                     typeIdentificationStrategies.add(
                             new PrimitiveTypeIdentificationStrategy("string", target));
@@ -270,6 +270,10 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
             return super.test(varName) + " && new Regexp(\"" + LinesBuilder.escape(regex) + "\").test(" + varName + ")";
         }
 
+        @Override
+        public int priority() {
+            return 1;
+        }
     }
 
     private static class StringOrNumberIdentificationStrategy implements TypeIdentificationStrategy {
