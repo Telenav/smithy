@@ -642,7 +642,7 @@ What actually happens is
       * Wraps a single immutable field of type `Instant`
       * Implements `Temporal` delegating to that field so it is easy to use
       * Can be instantiated from a JSON String in ISO 8601 format, or from an Instant
-      * Returns a quoted JSON ISO 8601 string from its `toString()` method
+      * Returns a quoted JSON (ISO 8601) string from its `toString()` method
       * Correctly and effiently implements `equals()`, `hashCode()` and `compareTo()`
       * Has conversion methods for common types callers may need (`Date`, `long` for epoch millis)
 
