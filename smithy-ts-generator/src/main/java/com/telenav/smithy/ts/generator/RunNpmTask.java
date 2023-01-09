@@ -93,27 +93,51 @@ class RunNpmTask implements PostGenerateTask {
         }
     }
 
+    static boolean NPM_ABSENT = false;
+
     private boolean runNpm(String target, SmithyGenerationLogger logger, Path dir)
             throws IOException, InterruptedException, ExecutionException {
 
+        if (NPM_ABSENT) {
+            return false;
+        }
+
         String[] args;
         String binary = npmBinary().toString();
+        boolean mayNotHaveNPM = "npm".equals(binary);
+
         if ("install".equals(target)) {
             args = new String[]{binary, "install"};
         } else {
             args = new String[]{binary, "run", target};
         }
-        Process proc = new ProcessBuilder().command(args)
-                .directory(dir.toFile())
-                .redirectError(ProcessBuilder.Redirect.INHERIT)
-                .redirectOutput(ProcessBuilder.Redirect.INHERIT)
-                .start();
-        logger.info("Run " + Strings.join(' ', args) + " in " + dir);
-        int exitCode = proc.onExit().get().exitValue();
-        // Don't fail the build - not everyone building may have NPM installed
-        if (exitCode != 0) {
-            logger.error("Exit code for `" + Strings.join(' ', args)
-                    + "` in " + dir + " was non-zero: " + exitCode);
+        int exitCode = -1;
+        try {
+            try {
+                Process proc = new ProcessBuilder().command(args)
+                        .directory(dir.toFile())
+                        .redirectError(ProcessBuilder.Redirect.INHERIT)
+                        .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                        .start();
+                logger.info("Run " + Strings.join(' ', args) + " in " + dir);
+                exitCode = proc.onExit().get().exitValue();
+                // Don't fail the build - not everyone building may have NPM installed
+                if (exitCode != 0) {
+                    logger.error("Exit code for `" + Strings.join(' ', args)
+                            + "` in " + dir + " was non-zero: " + exitCode);
+                }
+            } catch (ExecutionException ex) {
+                if (ex.getCause() != null && ex.getCause() instanceof IOException) {
+                    throw ((IOException) ex.getCause());
+                }
+            }
+        } catch (IOException ioe) {
+            if (mayNotHaveNPM && ioe.toString().contains("No such file")) {
+                noNPMPresent();
+                return false;
+            } else {
+                throw ioe;
+            }
         }
         return exitCode == 0;
     }
@@ -139,6 +163,24 @@ class RunNpmTask implements PostGenerateTask {
             npmBinary = FileUtils.findExecutable("npm", true, true);
         }
         return npmBinary == null ? Paths.get("npm") : npmBinary;
+    }
+
+    private static final String BIG_HONKING_WARNING
+            = "\n\n\n\n\n\n"
+            + "********************* NO NPM BINARY FOUND *********************\n\n"
+            + "Smithy typescript generators were configured to run `npm` to generate\n"
+            + "javascript from typescript, but no `npm` binary could be found on the\n"
+            + "$PATH or in standard locations.\n\n"
+            + "While we are not failing the build because of that, if your generated server\n"
+            + "expects markup files to serve, they will not be there.\n\n"
+            + "********************* NO NPM BINARY FOUND *********************"
+            + "\n\n\n\n\n\n";
+
+    static void noNPMPresent() {
+        if (!NPM_ABSENT) {
+            System.out.println(BIG_HONKING_WARNING);
+            NPM_ABSENT = true;
+        }
     }
 
 }
