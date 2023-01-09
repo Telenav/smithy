@@ -628,12 +628,10 @@ What actually happens is
    under the Maven project that contains the model file (the default if the pom file does not specify
    a different destination for that `language +/- target` combo).  The `smithy-java-generators` model
    generation plugin is on the classpath.  What happens is:
-
    1. `SmithyJavaGenerators` is found and called with the shape named "Created".  It sees that it is of
    `ShapeType.Timestamp`, so it includes a
    [`TimestampModelGenerator`](https://github.com/Telenav/smithy/blob/main/smithy-java-generators/src/main/java/com/telenav/smithy/java/generators/builtin/TimestampModelGenerator.java)
    instance in its results.
-
    2. `TimestampModelGenerator.generate()` is called.  That creates a `ClassBuilder` (from
    [Java Vogon](https://github.com/timboudreau/annotation-tools) - but it could use any templating
    language to generate code - the framework doesn't care - a `GeneratedCode` is just a thing that
@@ -641,12 +639,12 @@ What actually happens is
    escaping it to ensure a legal Java identifier, and uses a Java package name based on the `namespace` from
    the Smithy model, also ensuring that is a legal Java identifier.  What the generator will do is create
    a Java class which
-     * Wraps a single immutable field of type `Instant`
-     * Implements `Temporal` delegating to that field so it is easy to use
-     * Can be instantiated from a JSON String in ISO 8601 format, or from an Instant
-     * Returns a quoted JSON ISO 8601 string from its `toString()` method
-     * Correctly and effiently implements `equals()`, `hashCode()` and `compareTo()`
-     * Has conversion methods for common types callers may need (`Date`, `long` for epoch millis)
+      * Wraps a single immutable field of type `Instant`
+      * Implements `Temporal` delegating to that field so it is easy to use
+      * Can be instantiated from a JSON String in ISO 8601 format, or from an Instant
+      * Returns a quoted JSON ISO 8601 string from its `toString()` method
+      * Correctly and effiently implements `equals()`, `hashCode()` and `compareTo()`
+      * Has conversion methods for common types callers may need (`Date`, `long` for epoch millis)
 
    3. `generate()` then calls a bunch of instance methods on itself, whose names are fairly self-explanatory:
    `generateDefaultConstructor, generateEpochMillisConstructor, generateDateConstructor,
