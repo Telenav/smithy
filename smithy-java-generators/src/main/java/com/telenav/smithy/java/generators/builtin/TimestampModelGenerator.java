@@ -63,9 +63,7 @@ final class TimestampModelGenerator extends AbstractJavaGenerator<TimestampShape
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
-        String typeName = escape(capitalize(shape.getId().getName()));
         ClassBuilder<String> cb = classHead();
-
         cb.importing(
                 "com.fasterxml.jackson.annotation.JsonValue",
                 "com.fasterxml.jackson.annotation.JsonCreator"
@@ -79,7 +77,6 @@ final class TimestampModelGenerator extends AbstractJavaGenerator<TimestampShape
             fb.withModifier(PRIVATE, FINAL)
                     .ofType("Instant");
         });
-
         generateDefaultConstructor(cb);
         generateEpochMillisConstructor(cb);
         generateDateConstructor(cb);
@@ -95,18 +92,12 @@ final class TimestampModelGenerator extends AbstractJavaGenerator<TimestampShape
         generateDateTimeConversionMethods(cb);
         generateIsAfterAndBefore(cb);
         generateWithMillis(cb);
-
         generateImplementsTemporal(cb);
 
         addTo.accept(cb);
     }
 
     void generateDateTimeConversionMethods(ClassBuilder<String> cb) {
-        Instant inst = now();
-        ofInstant(now(), ZoneId.of("GMT"));
-
-        inst.with(NANO_OF_SECOND, 0)
-                .with(MILLI_OF_SECOND, 0);
         cb.importing(ZonedDateTime.class, ZoneId.class);
         cb.method("toZonedDateTime", mth -> {
             mth.withModifier(PUBLIC)

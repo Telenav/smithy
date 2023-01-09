@@ -548,3 +548,150 @@ it and immediately see exactly what it's doing, with as little indirection as po
 dependencies - local or library - makes that harder to do, and introduces new ways things can break.
 Yes, a little memory for bytecode could be saved, but bytecode size in not where memory usage
 problems come from.
+
+
+Code Generation Walk-through, Blow By Blow
+==========================================
+
+There is nothing magical to code generation - it's just
+
+ * Load the smithy model(s)
+ * Find all the generators
+ * Pass shapes to them
+ * Run the model element generators you got back
+ * Write the code they generated to disk
+ * Run any post-generation tasks (e.g. zipping generated files, stuff like that)
+
+Since what all is happening under the hood when you build a smithy model into code, might
+not be obvious, here is a more detailed walk-through of what happens under the hood:
+
+1. The Maven plugin runs, because it is configured to in the `pom.xml` file of a project.  The
+actual Smithy generation code does not care about Maven - but the `smithy-generators` project itself
+does not actually contain any code generators - it just defines an API for plugging in generators
+for specific languages and phases, and looks them up on the classpath via 
+[the Java Extension Mechanism](https://docs.oracle.com/javase/tutorial/ext/) - aka the JDK's `ServiceLoader`.
+And plugins may look for configuration that applies to them, which the Maven plugin allows us to
+configure in the `pom.xml`.  So the actual generators to run are specified as `<dependencies>` of
+*the plugin* (not the project!) - that determines what's on the classpath when generation runs.
+What actually happens is
+
+  a. The plugin creates a `SmithyGenerationSettings` from the `<configuration>` section for it in the `pom.xml`.
+     The configuration tells it things like what languages and generation targets (e.g. "server" or "model")
+     are being generated - and in particular, the configuration tells the generation engine *where to output*
+     files for different combinations of language generation target (i.e. your server files go in
+     a *server* project; your data modeling sources go in a *model* project that is a shared library
+     used by both your server and your generated client SDK - it is common for different targets to
+     have different destinations in projects that depend on each other.
+  b. It finds the `.smithy` files in the folder(s) it was configured to generate from, and filters
+     them based on the Smithy *namespaces* (like Java packages) it was configured to generate code for,
+     and calls Amazon's Smithy parser to create `Model`s for them (sort of a universe of defined types).
+  b. It creates a `SmithyGenerationSession` for running code generators
+  c. The session looks up all of the `SmithyGenerator` instances registered on the classpath,
+     and filters them to ones that say they support at least one of the set of languages being generated
+  d. The session creates a `SmithyGenerationContext` to pass to the generators - which provides
+     access to the session and settings, and *provides a way for code generators to communicate
+     with each other* (for example, the typescript plugin may register "markup" files, and any
+     server generation project can pick them up and use them somehow - and it is also the way that,
+     by default, generated Java code gets configured to use `InvalidInputException` for constraint
+     violation exceptions).
+  e. It iterates, nested, each *language*, each *generation-target* and each `SmithyGenerator`,
+     and if the `SmithyGenerator`, calls its `prepare` method (which allows it to register anything
+     other plugins might look for in the `SmithyGenerationContext` before any generation code is run.
+  f. It iterates, nested, each *language*, each *generation-target* and each `SmithyGenerator`,
+     and if the `SmithyGenerator` says it wants to generate code for that combination, then
+     it iterates all `Shape`s in the Smithy `Model` and calls each generator's
+     `Collection<? extends ModelElementGenerator> generatorsFor(Shape shape, Model model, Path destSourceRoot,
+     GenerationTarget targets, LanguageWithVersion language, SmithyGenerationSettings settings, SmithyGenerationLogger logger)`,
+     which will examine the `Shape`, instantiate zero or more appropriate `ModelElementGenerator`s which
+     will be used to generate some code for that `Shape` and return them all in a collection.  Typically
+     `ModelElementGenerator`s are specialized to handle a specific `ShapeType` - which might be numbers,
+     strings, booleans, complex structures, or services or operations - so a generation plugin involves
+     writing a code generator for each type of shape a Smithy model can contain (or at least the subset
+     you immediately care about).
+  g. It runs each generator's 
+     `Collection<? extends GeneratedCode> generate(SmithyGenerationContext ctx, SmithyGenerationLogger log)`
+     method, collecting any `GeneratedCode` objects (which typically represents a file that can be written
+     to a specific place on disk).  Note that nothing has been written to disk yet - if any code generator
+     throws an exception, we do not want to produce partial output - generation should either succeed,
+     or fail before anything has changed.
+  h. Once all relevant generators have been run for all models, the session runs all of the `GeneratedCode`
+     instances, actually writing files to disk.
+  i. The session runs any `PostGenerateTask`s that were registered by `ModelElementGenerators` - these 
+     are code that needs to run only after all generated code has been committed to disk - for example,
+     the `smithy-openapi-wrapper` plugin generates Swagger documentation to disk, which server generation
+     plugins such as `smithy-vertx-server-generator` register a `PostGenerationTask` which looks in the
+     `SmithyGenerationContext` it's running in to see if any (generated) files have been registered
+     into a category called "markup", and if so, creates a zip file from them and generates some code
+     for the server to unpack those files to `$TMPDIR` and serve them.
+2. One `SmithyGenerator` is called for a language and generation task it has acknowledged it supports.
+   For this case, let's say pick a simple, but not-too-simple type - our `Shape` is a `TimestampShape` named "Created" in the model,
+   the language is Java, the generation target is "model", and the destination is `target/generated-sources/smithy`
+   under the Maven project that contains the model file (the default if the pom file does not specify
+   a different destination for that `language +/- target` combo).  The `smithy-java-generators` model
+   generation plugin is on the classpath.  What happens is:
+   a. `SmithyJavaGenerators` is found and called with the shape named "Created".  It sees that it is of
+   `ShapeType.Timestamp`, so it includes a 
+   [`TimestampModelGenerator`](https://github.com/Telenav/smithy/blob/main/smithy-java-generators/src/main/java/com/telenav/smithy/java/generators/builtin/TimestampModelGenerator.java)
+   instance in its results.
+   b. `TimestampModelGenerator.generate()` is called.  That creates a `ClassBuilder` (from 
+   [Java Vogon](https://github.com/timboudreau/annotation-tools) - but it could use any templating
+   language to generate code - the framework doesn't care - a `GeneratedCode` is just a thing that
+   writes some bytes to a known location); it populates the class name from the `TypeId` of the shape,
+   escaping it to ensure a legal Java identifier, and uses a Java package name based on the `namespace` from
+   the Smithy model, also ensuring that is a legal Java identifier.  What the generator will do is create
+   a Java class which
+     * Wraps a single immutable field of type `Instant`
+     * Implements `Temporal` delegating to that field so it is easy to use
+     * Can be instantiated from a JSON String in ISO 8601 format, or from an Instant
+     * Returns a quoted JSON ISO 8601 string from its `toString()` method
+     * Correctly and effiently implements `equals()`, `hashCode()` and `compareTo()`
+     * Has conversion methods for common types callers may need (`Date`, `long` for epoch millis)
+   c. `generate()` then calls a bunch of instance methods on itself, whose names are fairly self-explanatory:
+   `generateDefaultConstructor, generateEpochMillisConstructor, generateDateConstructor, 
+   generateToString, generateSupplierImplementation, generateHashCode, generateEquals, 
+   generateToDateConversionMethod, generateToEpochMilliConversionMethod, generateToEpochSecondsConversionMethod, 
+   generateComparableImplementation, generateAgeConversionMethod, generateDateTimeConversionMethods, 
+   generateIsAfterAndBefore, generateWithMillis, generateImplementsTemporal`.  Typically, these
+   methods are fairly simple - e.g. converting a `Created` into a `ZonedDateTime` by taking
+   a (Java SDK) `ZoneId` argument:
+```java
+    void generateDateTimeConversionMethods(ClassBuilder<String> cb) {
+        cb.importing(ZonedDateTime.class, ZoneId.class);
+        cb.method("toZonedDateTime", mth -> {
+            mth.withModifier(PUBLIC)
+                    .docComment("Convert the timestamp represented by this " + cb.className()
+                            + " to a ZonedDateTime in the specified time zone."
+                            + "\n@param timeZone the time zone"
+                            + "\n@return a ZonedDateTime")
+                    .addArgument("ZoneId", "timeZone")
+                    .returning("ZonedDateTime")
+                    .body(bb -> {
+                        bb.returningInvocationOf("ofInstant")
+                                .withArgumentFromField("value")
+                                .ofThis()
+                                .withArgument("timeZone")
+                                .on("ZonedDateTime");
+                    });
+        });
+    }
+```
+
+Complex types - such as structures, which may contain other model-defined types, is
+a bit more complicated - particularly because `smithy-java-generators` supports other
+plugins *contributing or replacing* code generation for individual class members, down
+to the level of adding annotations to individual constructor arguments.  But ultimately
+it is fairly straightforward - a code generator for a structure that contains some other
+model-defined type simply *assumes the type exists* and generates code as if it does, and
+if the type for the member shape is not in the same namespace, includes a Java `import`
+statement for it - it might be generated into a separate shared library (like client classes
+using model classes).
+
+Each code generator instance is responsible only for its own domain; if it needs to communicate
+something to other code generators, it can use its `prepare()` method to add objects of types
+known to both it and whatever it needs to communicate with, to the `SmithyGenerationContext`,
+which those generators can find (in practice this is rare).  That is also helpful when
+writing new code generators - you don't need to "boil the ocean" and support every possible
+type a Smithy model could contain to have something useful - you can pick off types as
+needed.
+
+
