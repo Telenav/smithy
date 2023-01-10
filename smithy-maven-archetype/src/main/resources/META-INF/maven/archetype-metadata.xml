@@ -25,6 +25,14 @@
         <requiredProperty key="packageSlashes">
             <defaultValue>${package.replace('.', '/')}</defaultValue>
         </requiredProperty>
+        <!-- Override Maven's 1.0-SNAPSHOT default to use semantic versioning
+             which is less problematic=-->
+        <requiredProperty key="version">
+            <defaultValue>0.0.1</defaultValue>
+        </requiredProperty>
+        <requiredProperty key="aidlower">
+            <defaultValue>${artifactId.toLowerCase()}</defaultValue>
+        </requiredProperty>
 
     </requiredProperties>
 
@@ -41,6 +49,10 @@
         </fileSet>
         <fileSet filtered="true" packaged="true">
             <include>**/src/main/java/**</include>
+            <include>**/package.json</include>
+            <include>**/webpack.config.js</include>
+            <include>**/tsconfig.json</include>
+            <include>**/test/test.js</include>
         </fileSet>
 
     </fileSets>

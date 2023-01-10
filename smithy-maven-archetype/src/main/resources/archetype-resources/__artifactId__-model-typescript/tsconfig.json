@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "target": "es2020",
+        "lib": ["es2020", "DOM"],
+        
+        "module": "es2020",
+        "rootDir": "src",
+        "resolveJsonModule": false,
+        "allowJs": true,
+        "outDir": "target",
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": false,
+        "strict": true,
+        "noImplicitAny": false,
+        "skipLibCheck": true
+    },
+    "include": ["src/**/*"]
+}

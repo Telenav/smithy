@@ -1,0 +1,28 @@
+{
+    "name": "${artifactId}-typescript",
+    "version": "$version",
+    "description": "Generated model types for the ${artifactId} in typescript",
+    "private": true,
+    "scripts": {
+        "build": "rimraf ./target && tsc && cp -Ra src/*.html target/",
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "clean-all": "rimraf ./src && rimraf ./target && rimraf ./dist",
+        "clean": "rimraf ./target && rimraf ./dist",
+        "dist": "rimraf ./dist && webpack -o ./dist && cp -Ra src/*.html dist/ && cp src/model/*.html dist/",
+        "test": "node test/test.js"
+    },
+    "keywords": [
+        "${artifactId}",
+        "${groupId}",
+        "smithy",
+        "typescript"
+    ],
+    "license": "UNLICENSED",
+    "devDependencies": {
+        "rimraf": "^3.0.2",
+        "typescript": "^4.9.4",
+        "webpack": "^5.75.0",
+        "webpack-cli": "^5.0.1",
+        "xmlhttprequest": "^1.8.0"
+    }
+}

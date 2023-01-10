@@ -19,23 +19,18 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>\${artifactId}-model</module>
-        <module>\${artifactId}-implementation</module>
-        <module>\${artifactId}-vertx-application</module>
-        <module>\${artifactId}-acteur-application</module>
-        <module>\${artifactId}-generated-client-sdk</module>
-        <module>\${artifactId}-generated-acteur-server</module>
-        <module>\${artifactId}-generated-business-logic-spi</module>
-        <module>\${artifactId}-generated-vertx-server</module>
+        <module>\${aidLower}-model</module>
+        <module>\${aidLower}-implementation</module>
+        <module>\${aidLower}-vertx-application</module>
+        <module>\${aidLower}-acteur-application</module>
+        <module>\${aidLower}-generated-client-sdk</module>
+        <module>\${aidLower}-generated-acteur-server</module>
+        <module>\${aidLower}-generated-business-logic-spi</module>
+        <module>\${aidLower}-generated-vertx-server</module>
     </modules>
 
     <properties>
         <build-helper-maven-plugin.version>3.3.0</build-helper-maven-plugin.version>
-        <!-- Jackson is used for JSON serialization, and generated classes use jackson-annotations,
-        while generated tests use jackson-databind to test that generated model classes
-        can be serialized and recovered from their serialized form. -->
-        <jackson-lib.version>${jackson-lib.version}</jackson-lib.version>
-        <jackson-databind.version>${jackson-databind.version}</jackson-databind.version>
         <mastfrog.version>${mastfrog.version}</mastfrog.version>
         <maven-processor-plugin.version>5.0-rc3</maven-processor-plugin.version>
         <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
@@ -50,10 +45,6 @@
         line of code to be emitted.
         -->
         <smithy-generators-debug>false</smithy-generators-debug>
-        <!-- Some of Amazon's own libraries have multiple versions of the
-        same library in their closure, so the maven enforcer plugin
-        needs to skip these projects. -->
-        <enforcer.skip>true</enforcer.skip>
         
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>        
@@ -180,8 +171,50 @@
                     <artifactId>revision-info-plugin</artifactId>
                     <version>\${mastfrog.version}</version>                    
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>3.1.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>${surefire.version}</version>
+                </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+
+                    <execution>
+
+                        <id>enforce-versions</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireMavenVersion>
+                                    <version>&gt;=3.8.5</version>
+                                </requireMavenVersion>
+                                <requireJavaVersion>
+                                    <version>&gt;=17</version>
+                                </requireJavaVersion>
+                                <DependencyConvergence/>
+                            </rules>
+                        </configuration>
+
+                    </execution>
+
+                </executions>
+
+            </plugin>
+            
+        </plugins>
     </build>
 
     <dependencyManagement>
@@ -199,42 +232,42 @@
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <artifactId>\${artifactId}-model</artifactId>
+                <aidLower>\${aidLower}-model</aidLower>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <artifactId>\${artifactId}-implementation</artifactId>
+                <aidLower>\${aidLower}-implementation</aidLower>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <artifactId>\${artifactId}-acteur-application</artifactId>
+                <aidLower>\${aidLower}-acteur-application</aidLower>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <artifactId>\${artifactId}-vertx-application</artifactId>
+                <aidLower>\${aidLower}-vertx-application</aidLower>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <artifactId>\${artifactId}-generated-acteur-server</artifactId>
+                <aidLower>\${aidLower}-generated-acteur-server</aidLower>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <artifactId>\${artifactId}-generated-vertx-server</artifactId>
+                <aidLower>\${aidLower}-generated-vertx-server</aidLower>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <artifactId>\${artifactId}-generated-business-logic-spi</artifactId>
+                <aidLower>\${aidLower}-generated-business-logic-spi</aidLower>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <artifactId>\${artifactId}-generated-client-sdk</artifactId>
+                <aidLower>\${aidLower}-generated-client-sdk</aidLower>
                 <version>\${project.version}</version>
             </dependency>
         </dependencies>

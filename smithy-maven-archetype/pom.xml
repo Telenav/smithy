@@ -31,19 +31,32 @@
             </plugin>            
         </plugins>
         <resources>
+            <!-- Allows properties of THIS project to get substituted
+            into POM files and READMEs.  ${...} strings that should
+            NOT get substituted into by the build if the property is
+            available should be prefixed with \ (see escapeString above).
+            
+            This allows generated projects to depend on the *current*
+            version of Smithy tools, and have its this project's) groupId
+            and version substituted into the poms when they are generated. -->
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
                 <includes>
                     <include>archetype-resources/pom.xml</include>
                     <include>archetype-resources/**/pom.xml</include>
+                    <include>archetype-resources/README.md</include>
+                    <include>archetype-resources/**/README.md</include>
                 </includes>
             </resource>
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>false</filtering>
                 <excludes>
+                    <exclude>archetype-resources/pom.xml</exclude>
                     <exclude>archetype-resources/**/pom.xml</exclude>
+                    <exclude>archetype-resources/README.md</exclude>
+                    <exclude>archetype-resources/**/README.md</exclude>
                 </excludes>
             </resource>
         </resources>
