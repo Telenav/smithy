@@ -1,0 +1,11 @@
+#set ($nameCaps = $artifactId.substring(0, 1).toUpperCase() + $artifactId.substring(1))
+$nameCaps Java Client SDK
+=========================
+
+This project contains a generated Java SDK for programmatically invoking the
+${nameCaps}Service via HTTP, using the model classes from the adjacent
+${artifactId}-model project, using the JDK's built-in HTTP2 client, with a
+straightforward, easy-to-use API.
+
+No user-editable code is in this project - its sources are regenerated whenever
+the adjacent `${artifactId}-model` project is rebuilt.

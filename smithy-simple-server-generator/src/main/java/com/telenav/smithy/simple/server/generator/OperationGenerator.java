@@ -524,7 +524,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                 names().typeNameOf(cb, memberTarget, false);
                 if (m.getTrait(HttpPayloadTrait.class).isPresent()) {
 
-                    StructureShape payloadShape = model.expectShape(m.getTarget(), StructureShape.class);
+                    Shape payloadShape = model.expectShape(m.getTarget());
                     String fqn = names().packageOf(payloadShape) + "."
                             + typeNameOf(payloadShape);
                     String[] fqns = new String[]{fqn};

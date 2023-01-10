@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    #set ($nameCaps = $artifactId.substring(0, 1).toUpperCase() + $artifactId.substring(1))
+
+    <groupId>\${groupId}</groupId>
+    <version>\${version}</version>
+    <artifactId>\${artifactId}-parent</artifactId>
+
+    <name>$nameCaps Parent</name>
+
+    <description>
+        Parent project for the $nameCaps Smithy model,
+        generated server projects and implementation projects.
+    </description>
+
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>\${artifactId}-model</module>
+        <module>\${artifactId}-implementation</module>
+        <module>\${artifactId}-vertx-application</module>
+        <module>\${artifactId}-acteur-application</module>
+        <module>\${artifactId}-generated-client-sdk</module>
+        <module>\${artifactId}-generated-acteur-server</module>
+        <module>\${artifactId}-generated-business-logic-spi</module>
+        <module>\${artifactId}-generated-vertx-server</module>
+    </modules>
+
+    <properties>
+        <build-helper-maven-plugin.version>3.3.0</build-helper-maven-plugin.version>
+        <!-- Jackson is used for JSON serialization, and generated classes use jackson-annotations,
+        while generated tests use jackson-databind to test that generated model classes
+        can be serialized and recovered from their serialized form. -->
+        <jackson-lib.version>${jackson-lib.version}</jackson-lib.version>
+        <jackson-databind.version>${jackson-databind.version}</jackson-databind.version>
+        <mastfrog.version>${mastfrog.version}</mastfrog.version>
+        <maven-processor-plugin.version>5.0-rc3</maven-processor-plugin.version>
+        <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
+        <!-- Update this variable to globally update the version of
+        the smithy code generators used to generate code. -->
+        <smithy-tools.version>${project.version}</smithy-tools.version>
+        <!--
+        If set to true, code generators will emit a single stack
+        trace line as a line comment preceding lines of code such as
+        assignments, invocations, if/thens, and similar, for tracking
+        down the exact line of generation code that caused a particular
+        line of code to be emitted.
+        -->
+        <smithy-generators-debug>false</smithy-generators-debug>
+        <!-- Some of Amazon's own libraries have multiple versions of the
+        same library in their closure, so the maven enforcer plugin
+        needs to skip these projects. -->
+        <enforcer.skip>true</enforcer.skip>
+        
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>        
+    </properties>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>${project.groupId}</groupId>
+                    <artifactId>smithy-maven-plugin</artifactId>
+                    <version>\${smithy-tools.version}</version>
+                    <configuration>
+                        <languages>java,typescript</languages>
+                        <debug>\${smithy-generators-debug}</debug>
+                    </configuration>
+                    <!--
+                    These dependencies determine what traits are available for use
+                    in Smithy models, and what and code generators are available
+                    for use when generating code.
+
+                    If, for example, you do not wish to build a Vert.x server,
+                    simply remove the dependency on it and no code will be generated
+                    for it.
+                    -->
+                    <dependencies>
+                        <!--
+                        Defines the following custom traits consumed by
+                        the java code generators:
+                            - @builder - applies the @GenerateBuilder annotation
+                                to constructors, so a builder for the type is
+                                generated
+                            - @samples - Allows elements to specify valid and
+                                invalid examples - these are needed so we can
+                                generate tests of string values that need to
+                                match a regular expression
+                            - @identity - allows for marking a subset of the
+                                elements of a structure as being the only ones
+                                that contribute to equals() and hashCode() - useful
+                                for elements that have database-provided unique ids
+                        -->
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>simple-smithy-extensions</artifactId>
+                            <version>\${smithy-tools.version}</version>
+                        </dependency>
+                        <!--
+                        Contains the code generators for Java model classes.
+                        -->
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>simple-smithy-extensions-java</artifactId>
+                            <version>\${smithy-tools.version}</version>
+                        </dependency>
+                        <!--
+                        All this does is bind the exception type that is
+                        generated on invalid input - needed to generate appropriate
+                        http error messages.
+                        -->
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>smithy-java-http-extensions</artifactId>
+                            <version>\${smithy-tools.version}</version>
+                        </dependency>
+                        <!-- Generates the Vert.x framework Java server implementation -->
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>smithy-vertx-server-generator</artifactId>
+                            <version>\${smithy-tools.version}</version>
+                        </dependency>
+                        <!-- Generates the Acteur framework server implementation -->
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>smithy-simple-server-generator</artifactId>
+                            <version>\${smithy-tools.version}</version>
+                        </dependency>
+
+                        <!-- Generates a typescript client SDK -->
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>smithy-ts-generator</artifactId>
+                            <version>\${smithy-tools.version}</version>
+                        </dependency>
+
+                        <!-- Generates Swagger/OpenAPI documentation for your API -->
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>smithy-openapi-wrapper</artifactId>
+                            <version>\${smithy-tools.version}</version>
+                        </dependency>
+
+                        <!-- Indirect dependencies that are needed -->
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>smithy-utils</artifactId>
+                            <version>\${smithy-tools.version}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>com.mastfrog</groupId>
+                            <artifactId>graph</artifactId>
+                            <version>\${mastfrog.version}</version>
+                        </dependency>
+
+                    </dependencies>
+
+                </plugin>
+                <plugin>
+                    <groupId>org.bsc.maven</groupId>
+                    <artifactId>maven-processor-plugin</artifactId>
+                    <version>\${maven-processor-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>build-helper-maven-plugin</artifactId>
+                    <version>\${build-helper-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>\${maven-compiler-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>com.mastfrog</groupId>
+                    <artifactId>revision-info-plugin</artifactId>
+                    <version>\${mastfrog.version}</version>                    
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <!-- This embeds the entire dependencyManagement section from
+                the smithy tooling parent project, so all child projects see a
+                consistent set of library versions, and simplifies dependency
+                management in child projects. -->
+                <groupId>com.telenav.smithy</groupId>
+                <artifactId>telenav-smithy-parent</artifactId>
+                <version>\${smithy-tools.version}</version>
+                <scope>import</scope>
+                <type>pom</type>
+            </dependency>
+            <dependency>
+                <groupId>\${project.groupId}</groupId>
+                <artifactId>\${artifactId}-model</artifactId>
+                <version>\${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>\${project.groupId}</groupId>
+                <artifactId>\${artifactId}-implementation</artifactId>
+                <version>\${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>\${project.groupId}</groupId>
+                <artifactId>\${artifactId}-acteur-application</artifactId>
+                <version>\${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>\${project.groupId}</groupId>
+                <artifactId>\${artifactId}-vertx-application</artifactId>
+                <version>\${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>\${project.groupId}</groupId>
+                <artifactId>\${artifactId}-generated-acteur-server</artifactId>
+                <version>\${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>\${project.groupId}</groupId>
+                <artifactId>\${artifactId}-generated-vertx-server</artifactId>
+                <version>\${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>\${project.groupId}</groupId>
+                <artifactId>\${artifactId}-generated-business-logic-spi</artifactId>
+                <version>\${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>\${project.groupId}</groupId>
+                <artifactId>\${artifactId}-generated-client-sdk</artifactId>
+                <version>\${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    <!-- POM originally generated by the ${project.groupId}:${project.artifactId} Maven Plugin
+    version ${project.version}. -->
+</project>

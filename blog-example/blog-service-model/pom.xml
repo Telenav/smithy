@@ -43,8 +43,13 @@ limitations under the License.
                     <languages>java</languages>
                 </configuration>
                 <!--
-                These dependencies determine what traits and code
-                generators are available when generating code.
+                These dependencies determine what traits are available for use
+                in Smithy models, and what and code generators are available 
+                for use when generating code.
+                
+                If, for example, you do not wish to build a Vert.x server,
+                simply remove the dependency on it and no code will be generated
+                for it.
                 -->
                 <dependencies>
                     <!--
@@ -68,7 +73,7 @@ limitations under the License.
                         <version>${project.version}</version>
                     </dependency>
                     <!--
-                    Contains the code generators for Java.
+                    Contains the code generators for Java model classes.
                     -->
                     <dependency>
                         <groupId>${project.groupId}</groupId>
@@ -85,29 +90,37 @@ limitations under the License.
                         <artifactId>smithy-java-http-extensions</artifactId>
                         <version>${project.version}</version>
                     </dependency>
+                    <!-- Generates the Vert.x framework Java server implementation -->
                     <dependency>
                         <groupId>${project.groupId}</groupId>
                         <artifactId>smithy-vertx-server-generator</artifactId>
                         <version>${project.version}</version>
                     </dependency>
+                    <!-- Generates the Acteur framework server implementation -->
                     <dependency>
                         <groupId>${project.groupId}</groupId>
                         <artifactId>smithy-simple-server-generator</artifactId>
                         <version>${project.version}</version>
                     </dependency>
-                    <dependency>
-                        <groupId>${project.groupId}</groupId>
-                        <artifactId>smithy-utils</artifactId>
-                        <version>${project.version}</version>
-                    </dependency>
+                    
+                    <!-- Generates a typescript client SDK -->
                     <dependency>
                         <groupId>${project.groupId}</groupId>
                         <artifactId>smithy-ts-generator</artifactId>
                         <version>${project.version}</version>
                     </dependency>
+
+                    <!-- Generates Swagger/OpenAPI documentation for your API -->
                     <dependency>
                         <groupId>${project.groupId}</groupId>
                         <artifactId>smithy-openapi-wrapper</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    
+                    <!-- Indirect dependencies that are needed -->
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>smithy-utils</artifactId>
                         <version>${project.version}</version>
                     </dependency>
                     <dependency>
@@ -308,6 +321,5 @@ limitations under the License.
             <groupId>javax.inject</groupId>
             <artifactId>javax.inject</artifactId>
         </dependency>
-
     </dependencies>
 </project>

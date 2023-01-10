@@ -1,0 +1,48 @@
+<archetype-descriptor
+    xmlns="http://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0 https://maven.apache.org/xsd/archetype-descriptor-1.1.0.xsd"
+    name="smithy">
+
+    <requiredProperties>
+        <!-- Hack to cause dotfiles not to be ignored.
+        Ugly, but works. See
+        https://stackoverflow.com/questions/7981060/maven-archetype-plugin-doesnt-let-resources-in-archetype-resources-through
+        -->
+        <requiredProperty key="gitignore">
+            <defaultValue>.gitignore</defaultValue>
+        </requiredProperty>
+        <!-- Same hack as for .gitignore, to put `.keep` files in
+        the java source roots, so they are tracked by git,
+        but their contents (thanks to the .gitignore) are not
+        where the code would be generated. -->
+        <requiredProperty key="keep">
+            <defaultValue>.keep</defaultValue>
+        </requiredProperty>
+        <requiredProperty key="classNamePrefix">
+            <validationRegex>^[A-Z][A-Za-z0-9]+$</validationRegex>
+            <defaultValue>${artifactId.substring(0,1).toUpperCase()}${artifactId.substring(1)}</defaultValue>
+        </requiredProperty>
+        <requiredProperty key="packageSlashes">
+            <defaultValue>${package.replace('.', '/')}</defaultValue>
+        </requiredProperty>
+
+    </requiredProperties>
+
+    <fileSets>
+        <fileSet filtered="true" packaged="false">
+            <directory></directory>
+            <include>pom.xml</include>
+        </fileSet>
+        <fileSet>
+            <directory></directory>
+            <includes>
+                <include>__gitignore__</include>
+            </includes>
+        </fileSet>
+        <fileSet filtered="true" packaged="true">
+            <include>**/src/main/java/**</include>
+        </fileSet>
+
+    </fileSets>
+
+</archetype-descriptor>

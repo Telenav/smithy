@@ -1,0 +1,38 @@
+
+#set ($nameCaps = $artifactId.substring(0, 1).toUpperCase() + $artifactId.substring(1))
+$nameCaps Generated Business Logic SPI
+======================================
+
+The project contains SPI (service provider interface) types - each of which is a single-method
+interface which provides the business logic for a given *Operation* defined in the Smithy
+model from the ${artifactId}-model project adjacent to this one.
+
+Each interface (modulo some special cases for authentication) represents one Smithy
+*Operation* defined in the `${artifactId}.smithy` in the adjacent
+`${artifactId}-model` project under `src/main/smithy` - and provides the business logic
+for that operation.
+
+Each interface has a single method which accepts an *input* object of the type defined
+in the model (except when there is no input defined in the model, such as a simple HTTP GET
+on a health request or similar), and accepts a `SmithyResponse` object which is to be
+called **asynchronously** with the result of performing that operation once the business
+logic has been completed and a response is ready, or be called with an error if the operation
+fails in some fashion.
+
+`SmithyResponse` is a simple wrapper over a `CompletableFuture` with some convenience methods
+for configuring response headers and handling errors, and is framework-independent.
+
+The SPI implementation **must** call the `SmithyResponse` eventually, or throw an exception,
+in order for the response not to hang - examine your implementation carefully for corner-cases where
+one of those things could possibly not happen and the request get thrown on the floor.
+
+You do not need to implement all of these interfaces _immediately_ to have something useful:
+The interfaces here all use Guice's `@ImplementedBy` implementation to bind a mock-version
+of the interface (which just throws an `UnsupportedOperationException` which the server will
+turn into a `501 Not Implemented` HTTP response).
+
+A project was generated against to this one, `${artifactId}-implementation` for implementing
+these interfaces.
+
+Do not edit the code in this project and expect the edits to survive - it will be deleted 
+and regenerated whenever the adjacent `${artifactId}-model` project is rebuilt.

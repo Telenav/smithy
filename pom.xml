@@ -66,7 +66,7 @@ limitations under the License.
         <module>smithy-ts-generator</module>
         <module>typescript-vogon</module>
         <module>blog-example</module>
-
+        <module>smithy-maven-archetype</module>
     </modules>
 
     <properties>

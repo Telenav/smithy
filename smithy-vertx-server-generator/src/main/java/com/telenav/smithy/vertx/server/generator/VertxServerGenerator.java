@@ -2118,7 +2118,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
                 if (m.getTrait(HttpPayloadTrait.class).isPresent()) {
                     sb.append(" - payload");
-                    StructureShape payloadShape = model.expectShape(m.getTarget(), StructureShape.class);
+                    Shape payloadShape = model.expectShape(m.getTarget());
                     String fqn = names().packageOf(payloadShape) + "."
                             + typeNameOf(payloadShape);
 

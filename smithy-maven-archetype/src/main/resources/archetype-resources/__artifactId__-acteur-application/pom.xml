@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+    #set ($nameCaps = $artifactId.substring(0, 1).toUpperCase() + $artifactId.substring(1))
+
+    <parent>
+        <groupId>\${groupId}</groupId>
+        <artifactId>\${artifactId}-parent</artifactId>
+        <version>\${version}</version>
+    </parent>
+
+    <artifactId>\${artifactId}-acteur-application</artifactId>
+
+    <name>\${nameCaps} Acteur Application</name>
+    <description>
+        Application launcher for a \${nameCaps} service Acteur-based server.
+        Implement the interfaces defined in the adjacent
+        \${artifactId}-generated-business-logic-spi (likely in the adjacent
+        \${artifactId}-implementation project).  Edit the launcher to bind your
+        implementations when launching the server, to provide it with the
+        actual business logic.
+    </description>
+
+    <properties>
+        <exec.mainClass>\${groupId}.\${artifactId}.acteur.launcher.\${classNamePrefix}Launcher</exec.mainClass>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>\${project.groupId}</groupId>
+            <artifactId>\${artifactId}-implementation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>\${project.groupId}</groupId>
+            <artifactId>\${artifactId}-generated-acteur-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>smithy-acteur-adapter</artifactId>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>smithy-java-http-extensions</artifactId>
+            <scope>compile</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+
+        <plugins>
+            <plugin>
+                <!-- Generates a Revision.java source file which can be used
+                at runtime to get the server artifactId / groupId / version
+                and the git commit hash and date -->
+                <groupId>com.mastfrog</groupId>
+                <artifactId>revision-info-plugin</artifactId>
+                <configuration>
+                    <auto>true</auto>
+                    <genClass>\${groupId}.\${artifactId}.acteur.Revision</genClass>
+                    <genSourcesDir>\${basedir}/src/main/java</genSourcesDir>
+                </configuration>
+            </plugin>            
+            <!-- Generate a fat-jar with special handling for a number of
+            flavors of configuration files -->
+            <plugin>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>maven-merge-configuration</artifactId>
+                <version>\${mastfrog.version}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <id>compile</id>
+                        <goals>
+                            <goal>merge-configuration</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <mainClass>\${exec.mainClass}</mainClass>
+                    <jarName>\${artifactId}</jarName>
+                    <!-- generate a jar index for faster startup time -->
+                    <index>true</index>
+                    <!-- set dates for all files in jar to unix epoch for
+                    repeatable builds - a newly built jar will have the
+                    same sha-1 as the previous if no changes -->
+                    <zerodates>true</zerodates>
+                    <skipMavenMetadata>true</skipMavenMetadata>
+                    <skipLicenseFiles>true</skipLicenseFiles>
+                    <compressionLevel>9</compressionLevel>
+                    <omitOptionalDependencies>true</omitOptionalDependencies>
+                    <verbose>true</verbose>
+                    <omitModuleInfo>true</omitModuleInfo>
+                    <skipLicenseFiles>true</skipLicenseFiles>
+                    <!-- Omit stuff we can guarantee is not used -->
+                    <exclude>
+                        <!-- PENDING: Some of these are things which should be
+                        provided dependencies, not compile dependencies -
+                        track them down. -->
+                        META-INF.native-image
+                        META-INF.injection
+                        com.mastfrog.acteur.websocket
+                        com.mastfrog.annotation
+                        com.mastfrog.annotation.processor
+                        com.mastfrog.annotation.registries
+                        com.mastfrog.annotation.validation
+                        com.mastfrog.concurrent.coalesce
+                        com.mastfrog.concurrent.future
+                        com.mastfrog.concurrent.stats
+                        com.mastfrog.function.character.stateful
+                        com.mastfrog.code.generation
+                        com.mastfrog.java.vogon
+                        com.mastfrog.geometry.analysis
+                        com.mastfrog.geometry.uirect
+                        com.mastfrog.graal.injection.processor
+                        com.mastfrog.reference
+                        com.mastfrog.smithy.generators
+                        com.mastfrog.smithy.java.generators
+                        com.mastfrog.smithy.simple.extensions
+                        com.mastfrog.util.service
+                        com.mastfrog.util.streams.stdio
+                        io.netty.handler.codec.socks
+                        io.netty.handler.codec.socksx
+                        software.amazon
+                    </exclude>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+    <!-- POM originally generated by the ${project.groupId}:${project.artifactId} Maven Plugin
+    version ${project.version}. -->
+</project>
+
