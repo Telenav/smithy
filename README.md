@@ -693,3 +693,96 @@ which those generators can find (in practice this is rare).  That is also helpfu
 writing new code generators - you don't need to "boil the ocean" and support every possible
 type a Smithy model could contain to have something useful - you can pick off types as
 needed.
+
+
+Generation Plugin Entry Points
+==============================
+
+All extensions are found using [the Java Extension Mechanism](https://docs.oracle.com/javase/tutorial/ext/)
+which uses flat files in `META-INF/services` named by the fully-qualified name of the interface
+or class being implemented, which contain a list of types extending the type named by the file.
+
+You can create that file manually, or use an annotation processor to generate such files - the
+libraries here use `com.mastfrog:annotation-processors` `@ServiceProvider` annotation, e.g.
+
+```java
+@ServiceProvider(SmithyGenerator.class)
+public class SmithyJavaGenerators implements SmithyGenerator {
+```
+
+Main entry points from the framework are as follows; plugins my define their own service
+provider interfaces and types you can contribute as well.
+
+### SmithyGenerator
+
+Adds an implementation of `SmithyGenerator` to the set of those the code-generation infrastructure
+can see and will use.  Generators can be - and usually are - tied to a specific language
+and one or more "generation targets" (kinds of code being generated, typically associated with
+different output locations).
+
+Occasionally, you may write a generator that doesn't actually generate any code, but just
+puts something into the `SmithyGenerationContext` that alters the behavior of other code
+generators - for example, in `smithy-java-generators` there is an interface that lets the
+code that throws an exception when a model's constraints are violated be plugged in; the
+http extensions project in turn simply sets this up to throw a particular type the generated
+code knows how to handle.
+
+### ModelExtensions
+
+Plugins that define Smithy types (such as custom traits) that have an associated Smithy
+source file (so the Smithy parser can find and instantiate objects for those traits,
+validate them and report errors, etc.) will need to implement and register a
+`ModelExtensions` class - before parsing a `.smithy` model file, all of these are
+found and invoked, so that the model can be parsed.  They are quite simple, and
+contain convenience methods such as `addSmithyResource()`, used below, which looks
+up and reads and emits a file relative to the calling class on the classpath:
+
+
+```
+@ServiceProvider(ModelExtensions.class)
+public final class SimpleGenerationExtensions extends ModelExtensions {
+    @Override
+    protected void prepareModelAssembler(ModelAssembler ma) throws IOException {
+        addSmithyResource("prelude.smithy", ma);
+    }
+}
+```
+
+### StructureExtensions
+
+This interface is defined by `smithy-java-generators`, not the core generation framework.
+It allows micro-level intervention into how java model classes for `StructureShape`s
+are generated;  while the interface is quite complex, all methods have do-nothing default
+implementations, so you just override what you need.
+
+An example usage is [BuilderExtensionsJava](https://github.com/Telenav/smithy/blob/main/simple-smithy-extensions-java/src/main/java/com/telenav/smithy/extensions/java/BuilderExtensionJava.java)
+whose project defines the trait `@builder` that can be used on structures in a
+Smithy model (the project also contains a `ModelExtensions` to register the Smithy
+definition of those traits).
+
+What it does is allow "builder" classes to be generated for complex structure types,
+making it easy for users of the generated API to create instances of those structures.
+It does this, not by generating code directly, but rather, using an 
+[existing Java annotation processor library](https://github.com/timboudreau/builder-builder)
+to generate those builders - it just adds annotations to the constructor and its
+arguments so that the generated builder will be generated, and will know about default
+values, and any constraints on those values that should cause invalid values to be
+rejected rather than create an invalid object.
+
+(Note that Maven does *not*, by default, run annotation processors against sources
+generated into `target/generated-sources/*` and some intervention in the `pom.xml`
+is likely to be needed - 
+[here is an example of using the maven-processor-plugin](https://github.com/Telenav/smithy/blob/main/blog-example/blog-service-model/pom.xml#L157) to do that).
+
+### LoginOperationFinder
+
+This interface is defined by the typescript generation package, and is only used if
+you instruct it to generate  the optional (and expermental, and crude) web UI - in
+the case of operations that require a login, the browser's `XmlHttpRequest` will not
+automatically pop up a credentials dialog when encountering a `www-authenticate` header,
+so the generated UI needs a URL it can open in a 1-pixel IFrame to cause the browser
+to collect those credentials, so that `XmlHttpRequest`s can succeed. This interface
+allows the code generator for the web UI to identify some model-defined Operation
+which can be used for that purpose.  There is a default implementation that simply
+looks for a `GET` operation named `login` or `loginoperation` when its name is 
+lower-cased.
