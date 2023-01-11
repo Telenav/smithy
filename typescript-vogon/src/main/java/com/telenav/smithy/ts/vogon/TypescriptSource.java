@@ -34,13 +34,13 @@ import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.STATIC;
 import static java.lang.Character.isWhitespace;
 import java.util.ArrayList;
 import static java.util.Arrays.asList;
-import java.util.Collection;
 import static java.util.Collections.sort;
 import static java.util.EnumSet.noneOf;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -87,6 +87,7 @@ public final class TypescriptSource implements SourceFileBuilder {
     private final List<CodeGenerator> ifaces = new ArrayList<>();
     private final List<CodeGenerator> types = new ArrayList<>();
     private final List<CodeGenerator> functions = new ArrayList<>();
+    private final List<CodeGenerator> pendingComments = new LinkedList<>();
 
     TypescriptSource(String name) {
         this.name = name;
@@ -94,6 +95,11 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     public static TypescriptSource typescript(String sourceName) {
         return new TypescriptSource(sourceName);
+    }
+    
+    private void drainPendingComments(List<CodeGenerator> into) {
+        into.addAll(pendingComments);
+        pendingComments.clear();
     }
 
     TypescriptSource add(CodeGenerator gen) {
@@ -106,15 +112,23 @@ public final class TypescriptSource implements SourceFileBuilder {
         // should work for all cases.
         if (gen instanceof FunctionSignatureBuilderBase<?, ?, ?>) {
             emitDebugComment(functions);
+            drainPendingComments(functions);
             functions.add(gen);
-        } else if (gen instanceof InterfaceBuilder<?> || gen instanceof TypeIntersectionBuilder<?>) {
+        } else if (gen instanceof InterfaceBuilder<?> 
+                || gen instanceof TypeIntersectionBuilder<?> 
+                || gen instanceof StringEnumBuilder<?> 
+                || gen instanceof EnumBuilder<?> 
+                || gen instanceof IntEnumBuilder<?>) {
             emitDebugComment(ifaces);
+            drainPendingComments(ifaces);
             ifaces.add(gen);
         } else if (gen instanceof ClassBuilder<?>) {
             emitDebugComment(types);
+            drainPendingComments(types);
             types.add(gen);
         } else {
             emitDebugComment(contents);
+            drainPendingComments(contents);
             contents.add(gen);
         }
         return this;
@@ -162,8 +176,7 @@ public final class TypescriptSource implements SourceFileBuilder {
     public TypescriptSource trying(Consumer<? super TryCatchBuilder<Void>> c) {
         Holder<TypescriptSource> hold = new Holder<>();
         TryCatchBuilder<Void> result = new TryCatchBuilder<>(tcb -> {
-            contents.add(tcb);
-            hold.set(this);
+            hold.set(add(tcb));
             return null;
         });
         c.accept(result);
@@ -252,7 +265,7 @@ public final class TypescriptSource implements SourceFileBuilder {
     }
 
     public TypescriptSource lineComment(String text) {
-        contents.add(new LineComment(text, true));
+        pendingComments.add(new LineComment(text, true));
         return this;
     }
 
@@ -294,16 +307,14 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     public StringEnumBuilder<TypescriptSource> declareStringEnum(String name) {
         return new StringEnumBuilder<>(name, seb -> {
-            this.ifaces.add(seb);
-            return this;
+            return add(seb);
         });
     }
 
     public TypescriptSource declareEnum(String name, Consumer<EnumBuilder<Void>> c) {
         Holder<TypescriptSource> hold = new Holder<>();
         EnumBuilder<Void> result = new EnumBuilder<>(name, seb -> {
-            this.ifaces.add(seb);
-            hold.set(this);
+            hold.set(add(seb));
             return null;
         });
         c.accept(result);

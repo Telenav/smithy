@@ -97,7 +97,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
     
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(" + shape.getId().getName() + ")";
+        return shape.getId().getName() + " (" + getClass().getSimpleName()  + ")";
     }
     
     S shape() {
@@ -138,6 +138,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
         this.ctx = ctx;
         this.log = log;
         Set<GeneratedCode> code = new LinkedHashSet<>();
+        System.out.println("GENERATE " + this);
         generate(src -> {
             code.add(new TypescriptCode(dest, src, log, shape.getId()));
             ctx.registerPath("ts", dest);
