@@ -126,10 +126,9 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                             new PrimitiveTypeIdentificationStrategy("object", target));
                     break;
                 case STRING:
-                    Optional<PatternTrait> pat = e.getValue().getMemberTrait(model, PatternTrait.class);
-                    if (pat != null) {
-                        typeIdentificationStrategies.add(new StringWithRegexIdentificationStrategy(pat.get().getValue(), target));
-                    }
+                    e.getValue().getMemberTrait(model, PatternTrait.class)
+                            .ifPresent(pat -> typeIdentificationStrategies.add(
+                            new StringWithRegexIdentificationStrategy(pat.getValue(), target)));
                     typeIdentificationStrategies.add(
                             new PrimitiveTypeIdentificationStrategy("string", target));
                     break;

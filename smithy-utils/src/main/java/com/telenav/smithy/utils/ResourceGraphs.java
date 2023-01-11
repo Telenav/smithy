@@ -52,6 +52,14 @@ public final class ResourceGraphs {
         GraphHolder gh = map.computeIfAbsent(serviceShape, sh -> new GraphHolder(sh));
         return gh.get(model);
     }
+    
+    public static ResourceGraph graph(Model model) {
+        for (ServiceShape sh : model.getServiceShapes()) {
+            return graph(model, sh);
+        }
+        System.out.println("No services in model.");
+        return null;
+    }
 
     /**
      * Get the service graph containing a given shape.

@@ -85,6 +85,11 @@ limitations under the License.
                         <artifactId>simple-smithy-extensions-java</artifactId>
                         <version>${project.version}</version>
                     </dependency>
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>smithy-ts-generator</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
 
 <!--
                         All this does is bind the exception type that is
@@ -119,6 +124,7 @@ limitations under the License.
                             <settings>
                                 <foo>bar</foo>
                             </settings>
+<languages>java,typescript</languages>
                             <targets>model,modeltest</targets>
                             <namespaces>my.test.ns,sample.blog,smithy.playground</namespaces>
                         </configuration>

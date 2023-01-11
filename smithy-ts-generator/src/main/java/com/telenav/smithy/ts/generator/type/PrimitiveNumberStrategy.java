@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import com.telenav.smithy.names.NumberKind;
 import static com.telenav.smithy.names.NumberKind.forShape;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.bestMatch;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
@@ -23,6 +24,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.NumberShape;
+import software.amazon.smithy.model.shapes.ShapeType;
 
 /**
  *
@@ -54,12 +56,21 @@ final class PrimitiveNumberStrategy<S extends NumberShape> extends AbstractTypeS
     }
 
     private <B> B applyRawVarExpression(ExpressionBuilder<B> exp, TsVariable rawVar) {
+        NumberKind nk = forShape(shape);
+        String parseMethod;
+        if (nk == null && shape.getType() == ShapeType.BIG_DECIMAL) {
+            parseMethod = "parseFloat";
+        } else if (nk == null && shape.getType() == ShapeType.BIG_INTEGER) {
+            parseMethod = "parseInt";
+        } else {
+            parseMethod = nk.jsParseMethod();
+        }
         exp = exp.ternary("typeof " + rawVar.name() + " === 'string'")
-                .invoke(forShape(shape).jsParseMethod())
+                .invoke(parseMethod)
                 .withArgument(rawVar.name()).inScope()
                 .ternary("typeof " + rawVar.name() + " === 'number'")
                 .expression(rawVar.name());
-        return exp.invoke(forShape(shape).jsParseMethod())
+        return exp.invoke(parseMethod)
                 .withInvocationOf("toString").on(rawVar.name()).inScope();
     }
 

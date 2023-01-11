@@ -22,63 +22,58 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
-import software.amazon.smithy.model.shapes.BooleanShape;
-import software.amazon.smithy.model.traits.DocumentationTrait;
+import software.amazon.smithy.model.shapes.DocumentShape;
 
 /**
- * Boolean wrapper types are more than a little silly, but we need to support
- * them consistently with everything else.
  *
  * @author Tim Boudreau
  */
-final class BooleanWrapperGenerator extends AbstractTypescriptGenerator<BooleanShape> {
+final class DocumentGenerator extends AbstractTypescriptGenerator<DocumentShape> {
 
-    BooleanWrapperGenerator(BooleanShape shape, Model model,
-            LanguageWithVersion ver, Path dest, GenerationTarget target) {
+    DocumentGenerator(DocumentShape shape, Model model, LanguageWithVersion ver, Path dest, GenerationTarget target) {
         super(shape, model, ver, dest, target);
     }
 
     @Override
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource src = src();
+        
         src.declareClass(tsTypeName(shape), cb -> {
-            shape.getTrait(DocumentationTrait.class).ifPresent(dox -> {
-                cb.docComment(dox.getValue());
-            });
-            cb.property("value").readonly().setPublic().ofType("boolean");
+            cb.extending("Map<string, any>");
             cb.constructor(con -> {
-                con.withArgument("value").ofType("boolean");
-                con.makePublic();
+                con.makePublic().withArgument("obj").ofType("any");
                 con.body(bb -> {
-                    bb.assignField("value").ofThis().to("value");
+                    bb.invoke("forEach")
+                            .withLambda()
+                            .withArgument("v").ofType("any")
+                            .withArgument("k").ofType("string")
+                            .body(lbb -> {
+                                lbb.invoke("set")
+                                        .withArgument("k")
+                                        .withArgument("v")
+                                        .onThis();
+                            });
                 });
             });
-            generateAddTo(cb);
             generateToJson(cb);
             generateToJsonString(cb);
+            generateAddTo(cb);
             cb.method("fromJsonObject", mth -> {
-                mth.withArgument("obj").ofType("any");
-                mth.makePublic().makeStatic().returning(cb.name());
+                mth.makePublic().withArgument("obj").ofType("any");
                 mth.body(bb -> {
-                    bb.returningNew()
-                            .withArgument("true == obj")
-                            .ofType(tsTypeName(shape));
+                    bb.returningNew().withArgument("obj").ofType(cb.name());
                 });
             });
-            cb.method("toString")
-                    .makePublic()
-                    .returning("string")
-                    .returning().ternary("this.value")
-                    .literal("true").literal("false");
         });
         c.accept(src);
     }
 
     @Override
-    protected void addContentsToJsonObject(String nameVar, String targetVar,
-            TsBlockBuilder<Void> bb) {
-        bb.assignElement().expression(nameVar).of(targetVar)
-                .assignedToField("value").ofThis();
+    protected void addContentsToJsonObject(String nameVar, String targetVar, TsBlockBuilder<Void> bb) {
+        bb.assignElement().literal(nameVar).of(targetVar)
+                .assignedToInvocationOf("toJSON").on("this");
     }
+    
+    
 
 }

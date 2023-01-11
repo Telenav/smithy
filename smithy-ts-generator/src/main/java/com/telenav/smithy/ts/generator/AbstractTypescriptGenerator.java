@@ -53,7 +53,8 @@ import software.amazon.smithy.model.shapes.ShapeId;
  *
  * @author Tim Boudreau
  */
-public abstract class AbstractTypescriptGenerator<S extends Shape> implements ModelElementGenerator {
+public abstract class AbstractTypescriptGenerator<S extends Shape> 
+        implements ModelElementGenerator {
 
     private static final String[] KEYWORDS = new String[]{
         "break", "as", "any", "switch", "case", "if", "throw",
@@ -92,6 +93,19 @@ public abstract class AbstractTypescriptGenerator<S extends Shape> implements Mo
         this.dest = dest;
         this.target = target;
         strategies = TypeStrategies.strategies(model);
+    }
+    
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(" + shape.getId().getName() + ")";
+    }
+    
+    S shape() {
+        return shape;
+    }
+    
+    Model model() {
+        return model;
     }
 
     protected TypeStrategy strategy(Shape shape) {

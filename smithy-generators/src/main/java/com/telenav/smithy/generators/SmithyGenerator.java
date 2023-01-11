@@ -17,6 +17,8 @@ package com.telenav.smithy.generators;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import static java.util.Collections.emptyList;
+import java.util.List;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 
@@ -42,4 +44,23 @@ public interface SmithyGenerator {
             LanguageWithVersion language,
             SmithyGenerationSettings settings,
             SmithyGenerationLogger logger);
+
+    /**
+     * Some languages require that elements be added in topological dependency
+     * order to avoid forward references, while a Smithy model has no such
+     * requirement. This method allows a SmithyGenerator to collect the subset
+     * of generators it knows the type of and knows how to sort, and return
+     * <i>just those generators</i> them in a new ordered list; they will then
+     * be removed and replaced in the aggregate list of all generators to run,
+     * in the provided order.
+     *
+     * @param gens A collection of model element generators, some of which were
+     * presumably provided by this SmithyGenerator.
+     * 
+     * @return A subset of the original collection in the preferred order of
+     * generation.
+     */
+    default List<? extends ModelElementGenerator> subsortGenerators(Collection<? extends ModelElementGenerator> gens) {
+        return emptyList();
+    }
 }

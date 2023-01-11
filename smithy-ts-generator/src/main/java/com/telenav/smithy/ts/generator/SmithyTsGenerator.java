@@ -27,6 +27,8 @@ import com.telenav.smithy.generators.SmithyGenerationSettings;
 import com.telenav.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
 import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
+import com.telenav.smithy.utils.ResourceGraph;
+import com.telenav.smithy.utils.ResourceGraphs;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -140,7 +142,7 @@ public class SmithyTsGenerator implements SmithyGenerator {
                                 model, language, destSourceRoot, target));
                         break;
                     case STRING_VALUED:
-                    case INT_VALUED:
+                    case INT_VALUED: // these don't actually exist in smithy - delete
 //                        throw new UnsupportedOperationException("Huh? " + chars
 //                               + " for " + shape.getId().getName() );
                     case HETEROGENOUS:
@@ -161,12 +163,46 @@ public class SmithyTsGenerator implements SmithyGenerator {
                 result.add(new UnionTypeGenerator(shape.asUnionShape().get(),
                         model, language, destSourceRoot, target));
                 break;
-            case BLOB:
             case DOCUMENT:
+                result.add(new DocumentGenerator(shape.asDocumentShape().get(),
+                        model, language, destSourceRoot, target));
+                break;
+            case BLOB:
                 throw new UnsupportedOperationException("Type not supported: " + shape.getType()
                         + " for " + shape.getId());
         }
         return result;
+    }
+
+    @Override
+    public List<? extends ModelElementGenerator> subsortGenerators(Collection<? extends ModelElementGenerator> gens) {
+        List<AbstractTypescriptGenerator<?>> ours = new ArrayList<>();
+        for (ModelElementGenerator g : gens) {
+            if (g instanceof AbstractTypescriptGenerator<?>) {
+                ours.add((AbstractTypescriptGenerator<?>) g);
+            }
+        }
+        ours.sort(SmithyTsGenerator::compareTypescriptGenerators);
+        System.out.println("RE-SORT SORTED " + ours.size() + " generators");
+        ours.forEach(gen -> System.out.println(" * " + gen));
+        return ours;
+    }
+
+    private static <A extends Shape, B extends Shape> int compareTypescriptGenerators(AbstractTypescriptGenerator<A> a, AbstractTypescriptGenerator<B> b) {
+        if (a.model() != b.model()) {
+            return 0;
+        }
+        ResourceGraph graph = ResourceGraphs.graph(a.model());
+        if (graph == null) {
+            System.out.println("NO MODEL FOR " + a.shape().getId());
+            return 0;
+        }
+        if (graph.closure(a.shape()).contains(b.shape())) {
+            return -1;
+        } else if (graph.closure(b.shape()).contains(a.shape())) {
+            return 1;
+        }
+        return 0;
     }
 
 }

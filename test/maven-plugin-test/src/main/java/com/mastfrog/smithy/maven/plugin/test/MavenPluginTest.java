@@ -15,13 +15,8 @@
  */
 package com.mastfrog.smithy.maven.plugin.test;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.AbstractMap;
-import java.util.Map;
-import java.util.Set;
 import my.test.ns.model.Hoober;
 import static my.test.ns.model.Hoober.newHoober;
 import my.test.ns.model.Wug;

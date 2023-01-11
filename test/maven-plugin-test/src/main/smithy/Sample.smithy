@@ -5,7 +5,6 @@ namespace my.test.ns
 use com.telenav.smithy#identity
 use com.telenav.smithy#builder
 use com.telenav.smithy#samples
-use sample.blog#BlogHeading
 
 service MyService {
     version : "1.0"
@@ -17,6 +16,7 @@ resource MyResource {
 }
 
 @readonly
+@http(method:"POST", uri:"/meetings", code: 200)
 operation ReadSomething {
     input : ReadSomethingInput
     output : ReadSomethingOutput
@@ -525,8 +525,4 @@ enum SizeUnit {
     /// This is a kilometer
     KILOMETER,
     LEAGUE,
-}
-
-structure CrossNamespace {
-    blog: BlogHeading
 }

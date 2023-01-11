@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.NumberShape;
+import software.amazon.smithy.model.shapes.ShapeType;
 
 /**
  *
@@ -70,9 +71,20 @@ class NumberWrapperGenerator extends AbstractTypescriptGenerator<NumberShape> {
                     bb.ifTypeOf("value", "number")
                             .returningNew().withArgument("value as number").ofType(typeName());
 
+                    // Pending:  Probably we need real generators for big number types
+                    // and strategy corresponding to them
+                    NumberKind nk = NumberKind.forShape(shape);
+                    if (nk == null) {
+                        if (shape.getType() == ShapeType.BIG_DECIMAL) {
+                            nk = NumberKind.DOUBLE;
+                        } else {
+                            nk = NumberKind.LONG;
+                        }
+                    }
+
                     bb.ifTypeOf("value", "string")
                             .returningNew()
-                            .withInvocationOf(NumberKind.forShape(shape).jsParseMethod())
+                            .withInvocationOf(nk.jsParseMethod())
                             .withArgument().as("string").expression("value")
                             .inScope()
                             .ofType(typeName());

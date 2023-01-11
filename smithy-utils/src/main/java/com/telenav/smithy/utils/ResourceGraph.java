@@ -20,6 +20,7 @@ import com.mastfrog.graph.*;
 import static com.telenav.smithy.utils.RelationTag.ERROR_FOR_OPERATION;
 import static com.telenav.smithy.utils.RelationTag.INPUT_FOR_OPERATION;
 import static com.telenav.smithy.utils.RelationTag.MEMBER_OF_SHAPE;
+import static com.telenav.smithy.utils.RelationTag.MIXIN_OF_STRUCTURE;
 import static com.telenav.smithy.utils.RelationTag.OPERATION_FOR_RESOURCE;
 import static com.telenav.smithy.utils.RelationTag.OUTPUT_FOR_OPERATION;
 import static com.telenav.smithy.utils.RelationTag.RESOURCE_FOR_RESOURCE;
@@ -46,7 +47,7 @@ import software.amazon.smithy.model.shapes.ResourceShape;
 import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
-import software.amazon.smithy.model.shapes.ShapeType;
+import software.amazon.smithy.model.shapes.StructureShape;
 
 /**
  * A traversable graph of all relationships in the model that can supply
@@ -242,7 +243,9 @@ public final class ResourceGraph {
         Map<EdgeKey, RelationTag> tagForEdge = new HashMap<>();
 
         IntGraphBuilder bldr = IntGraph.builder();
-        shapeForId.put(service.getId(), service);
+        if (service != null) {
+            shapeForId.put(service.getId(), service);
+        }
         ToIntFunction<ShapeId> indexSupplier = shape -> {
             int result = allIds.indexOf(shape);
             if (result < 0) {
@@ -255,6 +258,7 @@ public final class ResourceGraph {
             int fix = indexSupplier.applyAsInt(from.getId());
             int tix = indexSupplier.applyAsInt(to.getId());
             bldr.addEdge(fix, tix);
+            System.out.println(from.getId().getName() + " -> " + to.getId().getName() + " " + tag);
             shapeForId.put(from.getId(), from);
             shapeForId.put(to.getId(), to);
             tagForEdge.put(new EdgeKey(fix, tix), tag);
@@ -269,9 +273,11 @@ public final class ResourceGraph {
 
             @Override
             public void accept(S t, RelationTag tag) {
-                addToGraph.accept(parent, t, tag);
+                if (parent != null) {
+                    addToGraph.accept(parent, t, tag);
+                }
                 if (null == t.getType()) {
-                    ResourceConsumer<Shape> members = new ResourceConsumer<Shape>(t);
+                    ResourceConsumer<Shape> members = new ResourceConsumer<>(t);
                     t.getAllMembers().forEach((name, member) -> {
                         members.accept(member, MEMBER_OF_SHAPE);
                         Shape targ = model.expectShape(member.getTarget());
@@ -295,24 +301,40 @@ public final class ResourceGraph {
                         case OPERATION:
                             OperationShape op = t.asOperationShape().get();
                             ResourceConsumer<Shape> io = new ResourceConsumer<>(op);
-                            io.accept(model.expectShape(op.getInputShape()), INPUT_FOR_OPERATION);
-                            io.accept(model.expectShape(op.getOutputShape()), OUTPUT_FOR_OPERATION);
+                            op.getInput().ifPresent((ShapeId input) -> {
+                                Shape inputShape = model.expectShape(input);
+                                io.accept(inputShape, INPUT_FOR_OPERATION);
+                                addToGraph.accept(op, inputShape, INPUT_FOR_OPERATION);
+                            });
+                            op.getOutput().ifPresent((ShapeId input) -> {
+                                Shape inputShape = model.expectShape(input);
+                                io.accept(inputShape, OUTPUT_FOR_OPERATION);
+                                addToGraph.accept(op, inputShape, OUTPUT_FOR_OPERATION);
+                            });
                             op.getIntroducedErrors().forEach(shp -> {
                                 io.accept(model.expectShape(shp), ERROR_FOR_OPERATION);
                             });
                             break;
+                        case STRUCTURE:
+                            StructureShape struct = t.asStructureShape().get();
+                            ResourceConsumer<Shape> x = new ResourceConsumer<>(struct);
+                            struct.getMixins().forEach(mixin -> {
+                                Shape mixinShape = model.expectShape(mixin);
+                                x.accept(mixinShape, MIXIN_OF_STRUCTURE);
+                            });
                         default:
-                            ResourceConsumer<Shape> members = new ResourceConsumer<Shape>(t);
+                            ResourceConsumer<Shape> members = new ResourceConsumer<>(t);
                             t.getAllMembers().forEach((name, member) -> {
-                                members.accept(member, MEMBER_OF_SHAPE);
                                 Shape targ = model.expectShape(member.getTarget());
-                                addToGraph.accept(member, targ, TARGET_OF_MEMBER);
+                                members.accept(targ, MEMBER_OF_SHAPE);
+//                                addToGraph.accept(member, targ, TARGET_OF_MEMBER);
                             });
                             break;
                     }
                 }
             }
         }
+        /*
         ResourceConsumer<ResourceShape> outers = new ResourceConsumer<>(service);
         service.getIntroducedResources().forEach(res -> {
             ResourceShape shp = model.expectShape(res, ResourceShape.class);
@@ -323,9 +345,21 @@ public final class ResourceGraph {
             OperationShape shp = model.expectShape(op, OperationShape.class);
             outerOps.accept(shp, OPERATION_FOR_RESOURCE);
         });
+         */
+        ResourceConsumer<Shape> rc = new ResourceConsumer<>(null);
+        for (ShapeId s : model.getShapeIds()) {
+
+            if (!"smithy.api".equals(s.getNamespace())) {
+                Shape ss = model.expectShape(s);
+                rc.accept(ss, null);
+            }
+        }
 
         IntGraph ig = bldr.build();
         ObjectGraph<ShapeId> graph = ig.toObjectGraph(allIds);
+
+        System.out.println("GRAPH:\n");
+        System.out.println(graph);
         return new ResourceGraph(allIds, shapeForId, tagForEdge, ig, graph);
     }
 

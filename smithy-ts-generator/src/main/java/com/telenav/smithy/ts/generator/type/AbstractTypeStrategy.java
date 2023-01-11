@@ -10,6 +10,7 @@ import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
+import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
 import software.amazon.smithy.model.traits.DefaultTrait;
 
 /**
@@ -121,10 +122,16 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
                         return Short.toString(num.shortValue());
                     case FLOAT:
                         return Float.toString(num.floatValue());
+                    case DOUBLE:
+                        return Double.toString(num.doubleValue());
                     case INT_ENUM:
                         return Integer.toString(num.intValue());
                     case BOOLEAN:
                         return Boolean.toString(num.longValue() != 0);
+                    case BIG_INTEGER:
+                        return Long.toString(num.longValue());
+                    case BIG_DECIMAL:
+                        return Double.toString(num.doubleValue());
                     default:
                         throw new IllegalArgumentException("Number default for "
                                 + shape.getType() + " " + shape.getId()

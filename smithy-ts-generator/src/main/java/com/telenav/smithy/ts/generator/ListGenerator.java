@@ -18,6 +18,7 @@ package com.telenav.smithy.ts.generator;
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.names.NumberKind;
+import com.telenav.smithy.ts.generator.type.MemberStrategy;
 import com.telenav.smithy.ts.generator.type.TsPrimitiveTypes;
 import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -248,6 +249,8 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
 //        String primitiveType = typeNameOf(target, false);
         String primitiveType = jsTypeOf(target);
         String typeName = tsTypeName(target);
+        
+        MemberStrategy<?> st = strategies.memberStrategy(shape.getMember(), target);
 
         bb.blankLine()
                 .lineComment("Target " + target.getId())
@@ -263,19 +266,8 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                 .withLambda(lb -> {
                     lb.withArgument("item").ofType(typeName);
                     lb.body(lbb -> {
-                        if (typeName.equals(primitiveType)) {
-                            lbb.lineComment("TN eq prim - simple push");
-                            lbb.invoke("push")
-                                    .withArgument("item")
-                                    .on("objs");
-                        } else {
-                            lbb.lineComment("TN ne prim - use toJson");
-                            lbb.invoke("push")
-                                    .withInvocationOf(TO_JSON)
-                                    .on("item")
-                                    .on("objs");
-                        }
-                        lbb.endBlock();
+                        st.convertToRawJsonObject(lbb, st.shapeType().variable("item"), "rawValue", true);
+                        lbb.invoke("push").withArgument("rawValue").on("objs");
                     });
                 })
                 .on("this");

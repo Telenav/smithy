@@ -39,6 +39,7 @@ import software.amazon.smithy.model.Model;
  */
 class RunNpmTask implements PostGenerateTask {
 
+    private static final Set<Path> WARNED = new HashSet<>();
     private final SmithyGenerationContext context;
     private final Path runIn;
     private final String[] targets;
@@ -48,13 +49,35 @@ class RunNpmTask implements PostGenerateTask {
         this.context = context;
         Path target = findNodeProjectRoot(tsSourcePath);
         if (target == null) {
-            throw new IllegalArgumentException("No package.json in "
-                    + tsSourcePath + " or any of its parents");
+            runIn = null;
+            targets = null;
+            scanForBuiltMarkupIn = null;
+//            throw new IllegalArgumentException("No package.json in "
+//                    + tsSourcePath + " or any of its parents");
+        } else {
+            this.runIn = target.toAbsolutePath();
+            targets = context.settings().getString("node-targets").orElse("clean,build,dist").split("[, ]+");
+            scanForBuiltMarkupIn = context.settings().getString("node-markup-relative-dests")
+                    .orElse("dist").split("[, ]+");
         }
-        this.runIn = target.toAbsolutePath();
-        targets = context.settings().getString("node-targets").orElse("clean,build,dist").split("[, ]+");
-        scanForBuiltMarkupIn = context.settings().getString("node-markup-relative-dests")
-                .orElse("dist").split("[, ]+");
+    }
+
+    private static void warn(Path path) {
+        try {
+            path = path.toAbsolutePath();
+            path = path.toRealPath();
+        } catch (IOException e) {
+            // ignore
+        }
+        if (WARNED.add(path)) {
+            System.out.println("\n\n***************** NO package.json in typescript project ****************\n\n"
+                    + "No package.json could be found in or in parents of\n"
+                    + path
+                    + "\n\nTypically you want to generate typescript into an npm managed project "
+                    + "\nwhich will run the typescript compiler on them.  The results can then "
+                    + "\n be scanned for markup which will be bundled with your server application."
+                    + "\n\n*********************************************************************************\n\n");
+        }
     }
 
     private static Path findNodeProjectRoot(Path path) {
@@ -72,6 +95,9 @@ class RunNpmTask implements PostGenerateTask {
             GenerationResults uncommittedResults,
             Function<? super String, ? extends Set<? extends Path>> pathRegistry,
             SmithyGenerationLogger logger) throws Exception {
+        if (targets == null) {
+            return;
+        }
         if (targets.length > 0) {
             uncommittedResults.onAfterCommit(generated -> {
                 Path dir = runIn.toAbsolutePath().toRealPath();

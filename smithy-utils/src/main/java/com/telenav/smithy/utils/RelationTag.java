@@ -40,6 +40,7 @@ enum RelationTag {
     ERROR_FOR_OPERATION,
     MEMBER_OF_SHAPE,
     TARGET_OF_MEMBER,
+    MIXIN_OF_STRUCTURE,
     OPERATION_FOR_SERVICE;
 
     public static enum CrudlOperation {

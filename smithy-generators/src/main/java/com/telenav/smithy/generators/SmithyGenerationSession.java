@@ -23,6 +23,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -140,17 +141,7 @@ public final class SmithyGenerationSession {
             if (problems.hasFatal()) {
                 throw new IOException(problems.toString());
             }
-            List<ModelElementGenerator.GeneratedCode> generated = new ArrayList<>();
-            for (Map.Entry<LanguageWithVersion, Map<ShapeId, Set<ModelElementGenerator>>> e
-                    : generatorsForLanguage.entrySet()) {
-                for (Map.Entry<ShapeId, Set<ModelElementGenerator>> e1 : e.getValue().entrySet()) {
-                    for (ModelElementGenerator meg : e1.getValue()) {
-                        generated.addAll(meg.generate(
-                                ctx,
-                                logger.child(e1.getKey().toString())));
-                    }
-                }
-            }
+            List<ModelElementGenerator.GeneratedCode> generated = runGenerators(generators, generatorsForLanguage, ctx, logger);
             GenerationResults uncommittedResults = new GenerationResults(ctx, generated, dests);
             while (!postTasks.isEmpty()) {
                 // Post tasks can potentially add more post tasks
@@ -163,6 +154,63 @@ public final class SmithyGenerationSession {
             }
             return uncommittedResults;
         });
+    }
+
+    private List<ModelElementGenerator.GeneratedCode> runGenerators(
+            Collection<? extends SmithyGenerator> generators,
+            Map<LanguageWithVersion, Map<ShapeId, Set<ModelElementGenerator>>> generatorsForLanguage, SmithyGenerationContext ctx, SmithyGenerationLogger logger) {
+        List<ModelElementGenerator.GeneratedCode> generated = new ArrayList<>();
+
+        List<ModelElementGenerator> all = new ArrayList<>();
+        Map<ModelElementGenerator, ShapeId> shapeForGenerator = new IdentityHashMap<>();
+
+        for (Map.Entry<LanguageWithVersion, Map<ShapeId, Set<ModelElementGenerator>>> e
+                : generatorsForLanguage.entrySet()) {
+            for (Map.Entry<ShapeId, Set<ModelElementGenerator>> e1 : e.getValue().entrySet()) {
+                for (ModelElementGenerator meg : e1.getValue()) {
+                    all.add(meg);
+                    shapeForGenerator.put(meg, e1.getKey());
+                }
+            }
+        }
+        // Allow generators that need to to topologically sort the model generators
+        // it created.  Typescript, in particular, needs this to avoid forward class
+        // references, or the result will not compile.
+        for (SmithyGenerator gen : generators) {
+            // THis gives us back a subset of all of the generators - the ones this
+            // particular generator knows how to sort, in the desired sort order
+            List<? extends ModelElementGenerator> ordered = gen.subsortGenerators(all);
+            // Get rid of the old entries at the old positions
+            all.removeAll(ordered);
+            // ANd put them back in the desired order
+            all.addAll(ordered);
+        }
+        // Now run code generation, resulting in a collection of GeneratedCode
+        // instances (still nothing written to disk, but this is where generation will
+        // fail if it's going to)
+        for (ModelElementGenerator meg : all) {
+            generated.addAll(meg.generate(ctx,
+                    logger.child(shapeForGenerator.get(meg).toString())
+                            .child(meg.getClass().getSimpleName())
+            ));
+        }
+
+        return generated;
+    }
+
+    private List<ModelElementGenerator.GeneratedCode> xrunGenerators(Map<LanguageWithVersion, Map<ShapeId, Set<ModelElementGenerator>>> generatorsForLanguage, SmithyGenerationContext ctx, SmithyGenerationLogger logger) {
+        List<ModelElementGenerator.GeneratedCode> generated = new ArrayList<>();
+        for (Map.Entry<LanguageWithVersion, Map<ShapeId, Set<ModelElementGenerator>>> e
+                : generatorsForLanguage.entrySet()) {
+            for (Map.Entry<ShapeId, Set<ModelElementGenerator>> e1 : e.getValue().entrySet()) {
+                for (ModelElementGenerator meg : e1.getValue()) {
+                    generated.addAll(meg.generate(
+                            ctx,
+                            logger.child(e1.getKey().toString())));
+                }
+            }
+        }
+        return generated;
     }
 
     private Set<LanguageWithVersion> languagesFor(SmithyGenerator g) {
