@@ -57,11 +57,11 @@ public class TimestampWrapperGenerator extends AbstractTypescriptGenerator<Times
                             .onNew().ofType("Date")
                             .ternary("value instanceof Date")
                             .invoke("getTime")
-                            .on("value as Date")
+                            .on("(value as Date)")
                             .ternary("typeof value === 'number'")
                             .expression("value as number")
                             .invoke("parse")
-                            .withArgument("value as number")
+                            .withArgument("(value as string)")
                             .on("Date")
                             .inScope();
                 });

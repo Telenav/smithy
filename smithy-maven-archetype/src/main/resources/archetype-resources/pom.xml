@@ -7,7 +7,7 @@
 
     <groupId>\${groupId}</groupId>
     <version>\${version}</version>
-    <artifactId>\${artifactId}-parent</artifactId>
+    <artifactId>\${aidLower}-parent</artifactId>
 
     <name>$nameCaps Parent</name>
 
@@ -45,9 +45,9 @@
         line of code to be emitted.
         -->
         <smithy-generators-debug>false</smithy-generators-debug>
-        
+
         <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>        
+        <maven.compiler.target>17</maven.compiler.target>
     </properties>
 
     <build>
@@ -169,7 +169,7 @@
                 <plugin>
                     <groupId>com.mastfrog</groupId>
                     <artifactId>revision-info-plugin</artifactId>
-                    <version>\${mastfrog.version}</version>                    
+                    <version>\${mastfrog.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -184,14 +184,13 @@
             </plugins>
         </pluginManagement>
         <plugins>
-            <plugin>
 
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
                 <executions>
 
                     <execution>
-
                         <id>enforce-versions</id>
                         <goals>
                             <goal>enforce</goal>
@@ -207,13 +206,10 @@
                                 <DependencyConvergence/>
                             </rules>
                         </configuration>
-
                     </execution>
-
                 </executions>
-
             </plugin>
-            
+
         </plugins>
     </build>
 
@@ -232,42 +228,42 @@
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <aidLower>\${aidLower}-model</aidLower>
+                <artifactId>\${aidLower}-model</artifactId>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <aidLower>\${aidLower}-implementation</aidLower>
+                <artifactId>\${aidLower}-implementation</artifactId>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <aidLower>\${aidLower}-acteur-application</aidLower>
+                <artifactId>\${aidLower}-acteur-application</artifactId>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <aidLower>\${aidLower}-vertx-application</aidLower>
+                <artifactId>\${aidLower}-vertx-application</artifactId>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <aidLower>\${aidLower}-generated-acteur-server</aidLower>
+                <artifactId>\${aidLower}-generated-acteur-server</artifactId>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <aidLower>\${aidLower}-generated-vertx-server</aidLower>
+                <artifactId>\${aidLower}-generated-vertx-server</artifactId>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <aidLower>\${aidLower}-generated-business-logic-spi</aidLower>
+                <artifactId>\${aidLower}-generated-business-logic-spi</artifactId>
                 <version>\${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>\${project.groupId}</groupId>
-                <aidLower>\${aidLower}-generated-client-sdk</aidLower>
+                <artifactId>\${aidLower}-generated-client-sdk</artifactId>
                 <version>\${project.version}</version>
             </dependency>
         </dependencies>

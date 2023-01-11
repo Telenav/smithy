@@ -126,12 +126,15 @@ public final class TypescriptSource implements SourceFileBuilder {
         return this;
     }
 
-    void emitDebugComment(Collection<? super CodeGenerator> c) {
-        debugStackTraceElementComment().ifPresent(c::add);
-    }
-
-    void emitDebugComment() {
-        debugStackTraceElementComment().ifPresent(contents::add);
+    static void emitDebugComment(List<? super CodeGenerator> into) {
+        Optional<LineComment> cmt = debugStackTraceElementComment();
+        cmt.ifPresent(lc -> {
+            // Ensure we don't emit consecutive duplicates - there
+            // are a few places that can happen
+            if (into.isEmpty() || !into.get(into.size() - 1).equals(lc)) {
+                into.add(lc);
+            }
+        });
     }
 
     public TypescriptSource blankLine() {
@@ -150,6 +153,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     public TryCatchBuilder<TypescriptSource> trying() {
         return new TryCatchBuilder<>(tcb -> {
+            emitDebugComment(contents);
             contents.add(tcb);
             return this;
         });
@@ -1311,7 +1315,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         @Override
         public void generateInto(LinesBuilder lines) {
-            lines.onNewLine();
+            lines.backup().onNewLine();
             if (!isDefault) {
                 lines.word("case");
             }
@@ -1596,7 +1600,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         public EnumBuilder<T> withMember(Consumer<? super EnumMemberBuilder<Void>> c) {
             Holder<EnumBuilder<T>> hold = new Holder<>();
             EnumMemberBuilder<Void> result = new EnumMemberBuilder<>((name, val, cmt) -> {
-                addMember(name, val, cmt);
+                hold.set(addMember(name, val, cmt));
                 return null;
             });
             c.accept(result);
@@ -1706,7 +1710,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         private TypeIntersectionBuilder<T> add(CodeGenerator g) {
-            debugStackTraceElementComment().ifPresent(contents::add);
+            emitDebugComment(contents);
             contents.add(g);
             return this;
         }
@@ -2383,6 +2387,33 @@ public final class TypescriptSource implements SourceFileBuilder {
         @Override
         public void generateInto(LinesBuilder lines) {
             lines.lineComment(!leadingNewline, txt);
+            lines.backup().onNewLine();
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 3;
+            hash = 97 * hash + Objects.hashCode(this.txt);
+            hash = 97 * hash + (this.leadingNewline ? 1 : 0);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final LineComment other = (LineComment) obj;
+            if (this.leadingNewline != other.leadingNewline) {
+                return false;
+            }
+            return Objects.equals(this.txt, other.txt);
         }
     }
 
@@ -3082,12 +3113,8 @@ public final class TypescriptSource implements SourceFileBuilder {
             return (B) this;
         }
 
-        void emitDebugComment() {
-            debugStackTraceElementComment().ifPresent(statements::add);
-        }
-
         B add(CodeGenerator gen) {
-            emitDebugComment();
+            emitDebugComment(statements);
             statements.add(gen);
             return cast();
         }
@@ -3095,8 +3122,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         public B throwing(Consumer<? super NewBuilder<Void>> c) {
             Holder<B> hold = new Holder<>();
             NewBuilder<Void> result = new NewBuilder<>(nb -> {
-                add(new ThrowError(nb));
-                hold.set(cast());
+                hold.set(add(new ThrowError(nb)));
                 return null;
             });
             c.accept(result);
@@ -3172,14 +3198,12 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public Assignment<B> declareConst(String name) {
             return new Assignment<>("const", name, as -> {
-                emitDebugComment();
                 return add(as);
             });
         }
 
         public Assignment<B> declare(String name) {
             return new Assignment<>("let", name, as -> {
-                emitDebugComment();
                 return add(as);
             });
         }
@@ -3187,7 +3211,6 @@ public final class TypescriptSource implements SourceFileBuilder {
         public FieldReferenceBuilder<ConditionalClauseBuilder<B>> ifFieldDefined(String what) {
             return new FieldReferenceBuilder<>(what, frb -> {
                 return new ConditionalClauseBuilder<>(new TypeCheck(frb), iff -> {
-                    emitDebugComment();
                     return add(iff);
                 });
             });
@@ -3196,7 +3219,6 @@ public final class TypescriptSource implements SourceFileBuilder {
         public ExpressionBuilder<ConditionalClauseBuilder<B>> iff() {
             return new ExpressionBuilder<>(eb -> {
                 return new ConditionalClauseBuilder<>(eb, iff -> {
-                    emitDebugComment();
                     return add(iff);
                 });
             });
@@ -3206,7 +3228,6 @@ public final class TypescriptSource implements SourceFileBuilder {
             Holder<B> hold = new Holder<>();
             ExpressionBuilder<ConditionalClauseBuilder<Void>> result = new ExpressionBuilder<>(eb -> {
                 return new ConditionalClauseBuilder<>(eb, iff -> {
-                    emitDebugComment();
                     hold.set(add(iff));
                     return null;
                 });
@@ -3217,21 +3238,18 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public ConditionalClauseBuilder<B> ifDefined(String what) {
             return new ConditionalClauseBuilder<>(new TypeCheck(what), iff -> {
-                emitDebugComment();
                 return add(iff);
             });
         }
 
         public ConditionalClauseBuilder<B> ifTypeOf(String what, String is) {
             return new ConditionalClauseBuilder<>(new TypeCheck(what, is, true), iff -> {
-                emitDebugComment();
                 return add(iff);
             });
         }
 
         public ConditionalClauseBuilder<B> iff(String condition) {
             return new ConditionalClauseBuilder<>(condition(condition), iff -> {
-                emitDebugComment();
                 return add(iff);
             });
         }
@@ -3240,7 +3258,6 @@ public final class TypescriptSource implements SourceFileBuilder {
             Holder<B> hold = new Holder<>();
             ConditionalClauseBuilder<Void> result = new ConditionalClauseBuilder<>(
                     new TypeCheck(what), ccb -> {
-                        emitDebugComment();
                         hold.set(add(ccb));
                         return null;
                     });
@@ -3253,7 +3270,6 @@ public final class TypescriptSource implements SourceFileBuilder {
             Holder<B> hold = new Holder<>();
             ConditionalClauseBuilder<Void> result = new ConditionalClauseBuilder<>(
                     new TypeCheck(what, is, true), ccb -> {
-                        emitDebugComment();
                         hold.set(add(ccb));
                         return null;
                     });
@@ -3266,7 +3282,6 @@ public final class TypescriptSource implements SourceFileBuilder {
             Holder<B> hold = new Holder<>();
             ConditionalClauseBuilder<Void> result = new ConditionalClauseBuilder<>(
                     condition(condition), ccb -> {
-                emitDebugComment();
                 hold.set(add(ccb));
                 return null;
             });
@@ -3298,7 +3313,6 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public B statement(String st) {
-            emitDebugComment();
             add(new Stmt(st));
             return cast();
         }
@@ -3395,8 +3409,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         public FieldReferenceBuilder<FieldAssignment<B>> assignField(String what) {
             return new FieldReferenceBuilder<>(what, frb -> {
                 return new FieldAssignment<>(frb, fa -> {
-                    statements.add(fa);
-                    return cast();
+                    return add(fa);
                 });
             });
         }
@@ -3417,16 +3430,14 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public TryCatchBuilder<B> trying() {
             return new TryCatchBuilder<>(tcb -> {
-                statements.add(tcb);
-                return cast();
+                return add(tcb);
             });
         }
 
         public B trying(Consumer<? super TryCatchBuilder<Void>> c) {
             Holder<B> hold = new Holder<>();
             TryCatchBuilder<Void> result = new TryCatchBuilder<>(tcb -> {
-                statements.add(tcb);
-                hold.set(cast());
+                hold.set(add(tcb));
                 return null;
             });
             c.accept(result);
@@ -3516,7 +3527,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         private final Set<CodeGenerator> implementing = new LinkedHashSet<>();
         private final List<CodeGenerator> methods = new ArrayList<>();
         private final List<CodeGenerator> properties = new ArrayList<>();
-        private final List<ConstructorBuilder<?>> constructors = new ArrayList<>();
+        private final List<CodeGenerator> constructors = new ArrayList<>();
         private DocComment docs;
 
         ClassBuilder(Function<? super ClassBuilder<T>, T> conv, String name) {
@@ -3555,6 +3566,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public ClassPropertyBuilder<ClassBuilder<T>> property(String name) {
             return new ClassPropertyBuilder<>(name, tdb -> {
+                emitDebugComment(properties);
                 properties.add(tdb);
                 return this;
             });
@@ -3564,6 +3576,7 @@ public final class TypescriptSource implements SourceFileBuilder {
             Holder<ClassBuilder<T>> hold = new Holder<>();
             ClassPropertyBuilder<Void> result = new ClassPropertyBuilder<>(name, pv -> {
                 hold.set(this);
+                emitDebugComment(properties);
                 properties.add(pv);
                 return null;
             });
@@ -3574,6 +3587,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         public ClassBuilder<T> method(String name, Consumer<? super MethodBuilder<Void>> c) {
             Holder<ClassBuilder<T>> hold = new Holder<>();
             MethodBuilder<Void> result = new MethodBuilder<>(msb -> {
+                emitDebugComment(methods);
                 methods.add(msb);
                 hold.set(this);
                 return null;
@@ -3585,6 +3599,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public MethodBuilder<ClassBuilder<T>> method(String name) {
             return new MethodBuilder<>(fsb -> {
+                emitDebugComment(properties);
                 methods.add(fsb);
                 return this;
             }, name);
@@ -3593,8 +3608,8 @@ public final class TypescriptSource implements SourceFileBuilder {
         public ClassBuilder<T> constructor(Consumer<? super ConstructorBuilder<Void>> c) {
             Holder<ClassBuilder<T>> hold = new Holder<>();
             ConstructorBuilder<Void> result = new ConstructorBuilder<>(fsb -> {
-                fsb.kind(CONSTRUCTOR);
-                constructors.add(fsb);
+                emitDebugComment(constructors);
+                constructors.add(fsb.kind(CONSTRUCTOR));
                 hold.set(this);
                 return null;
             }, null);
@@ -3605,8 +3620,8 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public ConstructorBuilder<ClassBuilder<T>> constructor() {
             return new ConstructorBuilder<>(fsb -> {
-                fsb.kind(CONSTRUCTOR);
-                constructors.add(fsb);
+                emitDebugComment(constructors);
+                constructors.add(fsb.kind(CONSTRUCTOR));
                 return this;
             }, null);
         }
@@ -3614,8 +3629,8 @@ public final class TypescriptSource implements SourceFileBuilder {
         public ClassBuilder<T> getter(String name, Consumer<? super TSGetterBlockBuilder<Void>> c) {
             Holder<ClassBuilder<T>> hold = new Holder<>();
             GetterBuilder<Void> result = new GetterBuilder<>(fsb -> {
-                fsb.kind(GETTER);
-                methods.add(fsb);
+                emitDebugComment(methods);
+                methods.add(fsb.kind(GETTER));
                 hold.set(this);
                 return null;
             }, name);
@@ -3626,8 +3641,8 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public TSGetterBlockBuilder<ClassBuilder<T>> getter(String name) {
             return new GetterBuilder<ClassBuilder<T>>(fsb -> {
-                fsb.kind(GETTER);
-                methods.add(fsb);
+                emitDebugComment(methods);
+                methods.add(fsb.kind(GETTER));
                 return this;
             }, name).body();
         }
@@ -3739,6 +3754,7 @@ public final class TypescriptSource implements SourceFileBuilder {
             Holder<InterfaceBuilder<T>> hold = new Holder<>();
             PropertyBuilder<Void> result = new PropertyBuilder<>(name, pv -> {
                 hold.set(this);
+                emitDebugComment(members);
                 members.add(pv);
                 return null;
             });
@@ -3749,6 +3765,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         public InterfaceBuilder<T> method(String name, Consumer<? super MethodSignatureBuilder<Void>> c) {
             Holder<InterfaceBuilder<T>> hold = new Holder<>();
             MethodSignatureBuilder<Void> result = new MethodSignatureBuilder<>(fsb -> {
+                emitDebugComment(members);
                 members.add(fsb);
                 hold.set(this);
                 return null;
@@ -3761,6 +3778,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public MethodSignatureBuilder<InterfaceBuilder<T>> method(String name) {
             return new MethodSignatureBuilder<>(fsb -> {
+                emitDebugComment(members);
                 members.add(fsb);
                 return this;
             }, name);
@@ -3951,11 +3969,17 @@ public final class TypescriptSource implements SourceFileBuilder {
             return hold.get("Object literal not completed");
         }
 
+        protected boolean newlineBeforeKeyword() {
+            return true;
+        }
+
         @Override
         public void generateInto(LinesBuilder lines) {
             lines.doubleHangingWrap(lbx -> {
                 if (leadingFunctionKeyword) {
-                    lines.onNewLine();
+                    if (newlineBeforeKeyword()) {
+                        lines.onNewLine();
+                    }
                     if (exported) {
                         lines.word("export");
                     }
@@ -4462,6 +4486,11 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         ConstructorBuilder(Function<? super ConstructorBuilder<T>, T> conv, String name) {
             super(false, conv, name);
+        }
+
+        @Override
+        protected boolean newlineBeforeKeyword() {
+            return false;
         }
 
         public ConstructorBuilder<T> makePublic() {

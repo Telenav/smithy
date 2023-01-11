@@ -15,8 +15,23 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import com.mastfrog.util.strings.Strings;
+import com.telenav.smithy.extensions.FuzzyNameMatchingTrait;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.STRING;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
+import com.telenav.smithy.ts.vogon.TypescriptSource.CaseBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.SwitchBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
+import com.telenav.smithy.utils.EnumCharacteristics;
+import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.EnumShape;
 import software.amazon.smithy.model.traits.DefaultTrait;
 
@@ -26,23 +41,125 @@ import software.amazon.smithy.model.traits.DefaultTrait;
  */
 class DefaultEnumStrategy extends AbstractEnumStrategy {
 
+    private final EnumCharacteristics chars;
+    private final boolean fuzzy;
+
     DefaultEnumStrategy(EnumShape shape, TypeStrategies strategies) {
         super(shape, strategies);
+        chars = characterizeEnum(shape);
+        fuzzy = shape.getTrait(FuzzyNameMatchingTrait.class).isPresent();
     }
 
     @Override
-    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public <T, B extends TsBlockBuilderBase<T, B>> void
+            instantiateFromRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
+        Assignment<B> assig = super.createTargetAssignment(rawVar, declare, block, instantiatedVar);
+        applyInstantiate(assig.assignedTo(), rawVar);
     }
 
     @Override
-    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>> void instantiateFromRawJsonObject(B block, TsVariable rawVar) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public <T, A extends InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>>
+            void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
+        if (rawVar.optional()) {
+            applyInstantiate(inv.withUndefinedIfUndefinedOr(rawVar.name()), rawVar);
+        } else {
+            applyInstantiate(inv.withArgument(), rawVar);
+        }
+    }
+
+    private static void permutationsOf(String what, Set<String> into) {
+        into.add(what);
+        into.add(what.toUpperCase());
+        into.add(what.toLowerCase());
+        into.add(Strings.capitalize(what.toLowerCase()));
+    }
+
+    private static Set<String> fuzzyPermutations(String name, String val) {
+        Set<String> result = new TreeSet<>();
+        permutationsOf(name, result);
+        permutationsOf(val, result);
+        return result;
+    }
+
+    private <B> void applyInstantiate(ExpressionBuilder<B> x, TsVariable rawVar) {
+//            x.element().expression(rawVar.name()).of(targetType());
+        x.selfExecutingFunction(bb -> {
+            SwitchBuilder<TsBlockBuilder<Void>> bl = null;
+            Set<String> values = new TreeSet<>();
+            for (Map.Entry<String, String> e : shape.getEnumValues().entrySet()) {
+                values.add(e.getValue());
+                if (bl == null) {
+                    CaseBuilder<SwitchBuilder<TsBlockBuilder<Void>>> cs
+                            = bb.switchStringLiteralCase(e.getValue());
+                    if (fuzzy) {
+                        cs = applyFuzzyPermutations(e, cs);
+                    }
+                    bl = cs.returningField(e.getKey()).of(targetType());
+                } else {
+                    CaseBuilder<SwitchBuilder<TsBlockBuilder<Void>>> cs
+                            = bl.inStringLiteralCase(e.getValue());
+                    if (fuzzy) {
+                        cs = applyFuzzyPermutations(e, cs);
+                    }
+                    bl = cs.returningField(e.getKey()).of(targetType());
+                }
+            }
+            if (bl == null) {
+                if (!rawVar.optional()) {
+                    bb.throwing(nb -> {
+                        nb.withStringLiteralArgument(shape.getId().getName() + " is an enum "
+                                + "with no enum constants and cannot ever be instantiated.");
+                    });
+                }
+            } else {
+                bl.inDefaultCase(cs -> {
+                    if (rawVar.optional()) {
+                        cs.lineComment("Fall through on invalid value - this field is optional");
+                        cs.invoke("log")
+                                .withStringConcatenation("Not a valid value for "
+                                        + targetType() + ": '")
+                                .appendExpression(rawVar.name())
+                                .append("'")
+                                .append(".  Possible values: ")
+                                .append(Strings.join(", ", values))
+                                .endConcatenation()
+                                .on("console");
+
+                    } else {
+                        cs.throwing(nb -> {
+                            nb.withStringConcatenation("Not a valid value for " + targetType() + ": '")
+                                    .appendExpression(rawVar.name())
+                                    .append("'")
+                                    .append(".  Possible values: ")
+                                    .append(Strings.join(", ", values))
+                                    .endConcatenation();
+                        });
+                    }
+                }).on(rawVar.name());
+            }
+        });
+    }
+
+    private CaseBuilder<SwitchBuilder<TsBlockBuilder<Void>>> applyFuzzyPermutations(Map.Entry<String, String> e, CaseBuilder<SwitchBuilder<TsBlockBuilder<Void>>> cs) {
+        for (String p : fuzzyPermutations(e.getKey(), e.getValue())) {
+            if (p.equals(e.getValue())) {
+                continue;
+            }
+            cs = cs.endBlock().inStringLiteralCase(p);
+        }
+        return cs;
     }
 
     @Override
-    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void convertToRawJsonObject(
+            B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+        String type = rawVar.optional() ? rawVarType().typeName() + " | undefined" : rawVarType().typeName();
+        Assignment<B> assig = (declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar));
+        if (rawVar.optional()) {
+            assig.assignedToUndefinedIfUndefinedOr(rawVar.name() + ".toString()");
+        } else {
+            assig.assignedTo(rawVar.name() + ".toString()");
+        }
     }
 
     @Override
@@ -57,7 +174,33 @@ class DefaultEnumStrategy extends AbstractEnumStrategy {
 
     @Override
     public <T> T applyDefault(DefaultTrait def, TypescriptSource.ExpressionBuilder<T> ex) {
-        return ex.element().literal(defaultValue(def)).of(targetType());
+        System.out.println("DEFAULT VALUE IS '" + def.toNode().asStringNode().get() + "'");
+        switch (chars) {
+            case NONE:
+                return ex.field(defaultValue(def)).of(targetType());
+            case STRING_VALUED:
+                String value = def.toNode().asStringNode().get().getValue();
+                Map.Entry<String, String> targetValue = null;
+                for (Map.Entry<String, String> e : shape.getEnumValues().entrySet()) {
+                    if (e.getValue().equals(value)) {
+                        targetValue = e;
+                        break;
+                    }
+                }
+                if (targetValue == null) {
+                    throw new ExpectationNotMetException(
+                            "Could not find a constant matching the default '"
+                            + value + "' on " + shape.getId(), def);
+                }
+                return ex.field(targetValue.getKey()).of(targetType());
+            case HETEROGENOUS:
+                throw new UnsupportedOperationException();
+            default:
+                throw new AssertionError(getClass().getName() + " should not be used for an enum of " + chars
+                        + ": " + shape.getId());
+        }
+//        return ex.element().literal(defaultValue(def)).of(targetType());
+
     }
 
 }

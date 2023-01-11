@@ -185,7 +185,7 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
             f.withArgument("val").ofType("any")
                     .returning().or().withType(tsTypeName(shape)).ofType("undefined");
             f.body(bb -> {
-                bb.ifTypeOf("val", "undefined").returning("undefined");
+                bb.ifTypeOf("val", "undefined").statement("return").endIf();
                 for (TypeIdentificationStrategy strat : typeIdentificationStrategies) {
                     bb.lineComment(strat.toString());
                     ConditionalClauseBuilder<TsBlockBuilder<Void>> test = bb.iff(strat.test("val"));

@@ -30,7 +30,7 @@
         <requiredProperty key="version">
             <defaultValue>0.0.1</defaultValue>
         </requiredProperty>
-        <requiredProperty key="aidlower">
+        <requiredProperty key="aidLower">
             <defaultValue>${artifactId.toLowerCase()}</defaultValue>
         </requiredProperty>
 

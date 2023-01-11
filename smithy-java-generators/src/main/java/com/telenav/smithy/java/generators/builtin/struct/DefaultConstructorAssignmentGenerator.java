@@ -16,6 +16,8 @@
 package com.telenav.smithy.java.generators.builtin.struct;
 
 import com.mastfrog.java.vogon.ClassBuilder;
+import static com.mastfrog.util.strings.Strings.decapitalize;
+import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Instant;
@@ -103,7 +105,11 @@ final class DefaultConstructorAssignmentGenerator implements ConstructorAssignme
                         break;
 
                     case INT_ENUM:
-                        defaultField.initializedFromInvocationOf("valueOf").withArgument(n.asNumberNode().get().getValue().intValue()).on(member.typeName()).ofType(member.typeName());
+                        String defaultMethod = escape(decapitalize(member.typeName()));
+                        defaultField.initializedFromInvocationOf(defaultMethod)
+                                .withArgument(
+                                        n.asNumberNode().get().getValue().intValue())
+                                .on(member.typeName()).ofType(member.typeName());
                         break;
                     case BIG_DECIMAL:
                         cb.importing(BigDecimal.class);

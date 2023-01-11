@@ -69,8 +69,8 @@ public class SmithyTsGenerator implements SmithyGenerator {
     }
 
     public Collection<? extends ModelElementGenerator> modelGeneratorsFor(Shape shape, Model model,
-            Path destSourceRoot, GenerationTarget target, LanguageWithVersion language, 
-            SmithyGenerationSettings settings, SmithyGenerationLogger logger) {        
+            Path destSourceRoot, GenerationTarget target, LanguageWithVersion language,
+            SmithyGenerationSettings settings, SmithyGenerationLogger logger) {
         List<ModelElementGenerator> result = new ArrayList<>();
         switch (shape.getType()) {
             case SERVICE:
@@ -80,6 +80,8 @@ public class SmithyTsGenerator implements SmithyGenerator {
                         model, language, destSourceRoot, target));
                 break;
             case BOOLEAN:
+                result.add(new BooleanWrapperGenerator(shape.asBooleanShape().get(),
+                        model, language, destSourceRoot, target));
                 break;
             case STRING:
                 result.add(new StringWrapperGenerator(shape.asStringShape().get(),
@@ -139,7 +141,8 @@ public class SmithyTsGenerator implements SmithyGenerator {
                         break;
                     case STRING_VALUED:
                     case INT_VALUED:
-                        throw new UnsupportedOperationException("Huh?");
+//                        throw new UnsupportedOperationException("Huh? " + chars
+//                               + " for " + shape.getId().getName() );
                     case HETEROGENOUS:
                     case NONE:
                         result.add(new GeneralEnumGenerator(shape.asEnumShape().get(),
@@ -162,7 +165,6 @@ public class SmithyTsGenerator implements SmithyGenerator {
             case DOCUMENT:
                 throw new UnsupportedOperationException("Type not supported: " + shape.getType()
                         + " for " + shape.getId());
-
         }
         return result;
     }

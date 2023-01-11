@@ -1924,6 +1924,19 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .on("probe");
                     });
 
+                    tri.tryWithResources("stream", decl -> {
+                        TryBuilder<Void> innerTry = decl.initializedWithNew(nb -> {
+                            nb.withArgumentFromInvoking("getByteBuf")
+                                    .on("buffer")
+                                    .ofType("ByteBufInputStream");
+                        }).as("InputStream");
+                        innerTry.assign("input")
+                                .toInvocation("readValue")
+                                .withArgument("stream")
+                                .withArgument("type")
+                                .onField("mapper").ofThis();                        
+                    });
+/*
                     tri.declare("stream")
                             .initializedWithNew(nb -> {
                                 nb.withArgumentFromInvoking("getByteBuf")
@@ -1940,6 +1953,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
                         innerTry.fynalli(fi -> fi.invoke("close").on("stream"));
                     });
+*/
                     ifProbe(() -> {
                         cb.importing(Optional.class);
                         tri.invoke("onAfterPayloadRead")

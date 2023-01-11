@@ -41,7 +41,7 @@ class IdentityEqualsGenerator implements StructureContributor {
         for (StructureMember<?> sm : members) {
             sb.append("\n<li>").append(sm.jsonName()).append(" as returned by the method <code>").append(sm.getterName()).append("()</code></li>");
         }
-        sb.append("</ul>\n@return whether or not the two objects are equal");
+        sb.append("</ul>\n@param o An object\n@return whether or not the two objects are equal");
         return sb.toString();
     }
 
