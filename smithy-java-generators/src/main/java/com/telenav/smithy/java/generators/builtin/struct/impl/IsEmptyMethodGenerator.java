@@ -68,7 +68,7 @@ final class IsEmptyMethodGenerator implements StructureContributor {
                                 + "\n@return true if all fields of this " + cb.className() + " are null")
                         .body(bb -> {
                             Value v = null;
-                            for (StructureMember mem : mems) {
+                            for (StructureMember<?> mem : mems) {
                                 Value fieldTest = variable(mem.field()).isNotNull();
                                 if (v == null) {
                                     v = fieldTest;

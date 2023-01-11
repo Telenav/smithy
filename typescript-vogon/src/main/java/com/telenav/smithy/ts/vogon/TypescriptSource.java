@@ -3122,7 +3122,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         public B throwing(Consumer<? super NewBuilder<Void>> c) {
             Holder<B> hold = new Holder<>();
             NewBuilder<Void> result = new NewBuilder<>(nb -> {
-                hold.set(add(new ThrowError(nb)));
+                hold.set(add(new ThrowError<>(nb)));
                 return null;
             });
             c.accept(result);
@@ -4379,8 +4379,6 @@ public final class TypescriptSource implements SourceFileBuilder {
             }
             if (kind.explicit()) {
                 lines.onNewLine();
-            } else {
-//                lines.doubleNewline();
             }
             super.generateInto(lines);
             if (fatArrow) {
@@ -5024,19 +5022,13 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    private static final class Parenthesize implements CodeGenerator {
-
-        private final CodeGenerator delegate;
-
-        Parenthesize(CodeGenerator delegate) {
-            this.delegate = delegate;
-        }
+    private record Parenthesize(CodeGenerator delegate) implements CodeGenerator {
 
         @Override
-        public void generateInto(LinesBuilder lines) {
-            lines.parens(lb -> delegate.generateInto(lb));
+            public void generateInto(LinesBuilder lines) {
+                lines.parens(lb -> delegate.generateInto(lb));
+            }
         }
-    }
 
     public static final class ImportBuilder<T> extends TypescriptCodeGenerator implements Comparable<ImportBuilder<?>> {
 
@@ -5200,20 +5192,18 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    private static final class NumberLiteral implements CodeGenerator {
+    private record NumberLiteral(Number num) implements CodeGenerator {
 
-        private final Number num;
+            private NumberLiteral(Number num) {
+                this.num = notNull("num", num);
+            }
 
-        NumberLiteral(Number num) {
-            this.num = notNull("num", num);
+            @Override
+            public void generateInto(LinesBuilder lines) {
+                // exponential notation must be lower-cased
+                lines.word(num.toString().toLowerCase());
+            }
         }
-
-        @Override
-        public void generateInto(LinesBuilder lines) {
-            // exponential notation must be lower-cased
-            lines.word(num.toString().toLowerCase());
-        }
-    }
 
     private static final class StringLiteral extends TypescriptCodeGenerator implements Comparable<StringLiteral> {
 
@@ -5423,7 +5413,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    public static final class Assignment<T> extends TypescriptCodeGenerator implements ExpressionAssignment {
+    public static final class Assignment<T> extends TypescriptCodeGenerator implements ExpressionAssignment<T> {
 
         private CodeGenerator what = new Adhoc("undefined");
         private final Function<Assignment<T>, T> conv;

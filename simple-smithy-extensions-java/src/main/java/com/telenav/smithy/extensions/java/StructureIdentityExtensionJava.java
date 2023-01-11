@@ -83,7 +83,7 @@ public final class StructureIdentityExtensionJava implements StructureExtensions
         }
     }
 
-    Set<StructureMember<?>> identityMembers(Collection<? extends StructureMember> members) {
+    Set<StructureMember<?>> identityMembers(Collection<? extends StructureMember<?>> members) {
         Set<StructureMember<?>> result = null;
         for (StructureMember<?> sm : members) {
             if (sm.member().getTrait(IdentityTrait.class).isPresent()) {

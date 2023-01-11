@@ -190,7 +190,7 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                     ConditionalClauseBuilder<TsBlockBuilder<Void>> test = bb.iff(strat.test("val"));
                     test.lineComment("Recognize" + strat.shape().getId().getName() + "?");
 
-                    TypeStrategy ts = this.strategies.strategy(strat.shape());
+                    TypeStrategy<?> ts = this.strategies.strategy(strat.shape());
                     ts.instantiateFromRawJsonObject(test, TsPrimitiveTypes.ANY.variable("val"), "result", true);
                     test.returning("result");
                 }

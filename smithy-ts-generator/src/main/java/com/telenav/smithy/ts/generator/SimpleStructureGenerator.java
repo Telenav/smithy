@@ -79,7 +79,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         });
     }
 
-    protected void eachMember(QuadConsumer<String, MemberShape, Shape, MemberStrategy> c) {
+    protected void eachMember(QuadConsumer<String, MemberShape, Shape, MemberStrategy<?>> c) {
         for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
             Shape tgt = model.expectShape(e.getValue().getTarget());
             c.accept(e.getKey(), e.getValue(), tgt, memberStrategies.get(e.getKey()));
@@ -98,7 +98,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         return shape.getAllMembers().size() == defaultTraits().size();
     }
 
-    protected void eachMemberOptionalLast(PetaConsumer<String, MemberShape, Shape, Boolean, MemberStrategy> c) {
+    protected void eachMemberOptionalLast(PetaConsumer<String, MemberShape, Shape, Boolean, MemberStrategy<?>> c) {
         // Typescript needs optional arguments last, like varargs
         List<Map.Entry<String, MemberShape>> sorted
                 = new ArrayList<>(shape.getAllMembers().entrySet());
@@ -426,7 +426,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         }
     }
 
-    private <S extends Shape, B> void addMemberFor(TypescriptSource tb, String key, MemberShape value, S target, InterfaceBuilder<B> ib, MemberStrategy strategy) {
+    private <S extends Shape, B> void addMemberFor(TypescriptSource tb, String key, MemberShape value, S target, InterfaceBuilder<B> ib, MemberStrategy<?> strategy) {
         MemberStrategy<S> mem = strategies.memberStrategy(value, target);
         mem.generateField(ib);
         if (!isNotUserType(mem.shape())) {
@@ -434,7 +434,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         }
     }
 
-    private <S extends Shape, B> void addMemberFor(TypescriptSource tb, String key, MemberShape value, S target, ClassBuilder<B> ib, MemberStrategy strategy) {
+    private <S extends Shape, B> void addMemberFor(TypescriptSource tb, String key, MemberShape value, S target, ClassBuilder<B> ib, MemberStrategy<?> strategy) {
         MemberStrategy<S> mem = strategies.memberStrategy(value, target);
         mem.generateField(ib);
         if (!isNotUserType(mem.shape())) {
@@ -467,7 +467,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
     }
 
     public <C, B extends TsBlockBuilderBase<C, B>> void generateObjectFieldAssignment(Shape target, MemberShape member,
-            B bb, String name, MemberStrategy strategy, boolean required) {
+            B bb, String name, MemberStrategy<?> strategy, boolean required) {
         String jn = jsonName(member.getMemberName(), member);
         String nm = strategy.structureFieldName() + "Loc";
         strategy.convertToRawJsonObject(bb,
@@ -485,7 +485,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
             p.initializedWithNew(nb -> {
                 eachMemberOptionalLast((name, member, targetShape, required, strategy) -> {
                     DefaultTrait def = defaults.get(name);
-                    TypeStrategy strat = memberStrategies.get(name);
+                    TypeStrategy<?> strat = memberStrategies.get(name);
                     ExpressionBuilder<NewBuilder<Void>> ex = nb.withArgument();
                     strat.applyDefault(def, ex);
                 });

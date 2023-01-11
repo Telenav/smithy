@@ -63,8 +63,6 @@ final class BooleanModelGenerator extends AbstractJavaGenerator<BooleanShape> {
         ClassBuilder<String> cb = classHead();
         applyDocumentation(cb);
 
-        Supplier s;
-
         cb.importing("java.util.function.BooleanSupplier",
                 "java.util.function.Supplier")
                 .implementing("BooleanSupplier", "Supplier<Boolean>");

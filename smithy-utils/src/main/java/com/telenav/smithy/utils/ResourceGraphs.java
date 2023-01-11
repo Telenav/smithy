@@ -58,7 +58,7 @@ public final class ResourceGraphs {
             return graph(model, sh);
         }
         System.out.println("No services in model.");
-        return null;
+        return ResourceGraph.create(null, model);
     }
 
     /**

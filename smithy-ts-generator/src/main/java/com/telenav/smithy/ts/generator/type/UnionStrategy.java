@@ -58,7 +58,7 @@ class UnionStrategy extends AbstractTypeStrategy<UnionShape> {
         TypescriptSource.ConditionalClauseBuilder<B> iff = null;
         for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
             Shape target = strategies.model().expectShape(e.getValue().getTarget());
-            TypeStrategy childStrategy = strategies.strategy(target);
+            TypeStrategy<?> childStrategy = strategies.strategy(target);
             if (iff == null) {
                 iff = bb.iff(childStrategy.typeTest().test(rawVar.name(), childStrategy.targetType()));
             } else {

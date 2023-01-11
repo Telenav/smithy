@@ -490,7 +490,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                 }
             } else {
                 Optional<HttpQueryTrait> query = m.getValue().getTrait(HttpQueryTrait.class);
-                if ((query.isPresent() && query.get().getValue().equals(queryParam)) || m.getKey().equals(label)) {
+                if ((query.isPresent() && query.get().getValue().equals(label)) || m.getKey().equals(label)) {
                     String getterMethod = escape(decapitalize(m.getKey()));
 
                     found = true;

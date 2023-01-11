@@ -46,7 +46,7 @@ final class CompositeSmithyResponse<T> implements SmithyResponse<T> {
     }
 
     @Override
-    public SmithyResponse status(int code) {
+    public SmithyResponse<T> status(int code) {
         checkCompleted();
         head.status(code);
         return this;

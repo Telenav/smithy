@@ -77,7 +77,7 @@ public final class StructureMember<S extends Shape> implements Comparable<Struct
      * @param owner The owning structure
      * @return A new Structure Member
      */
-    public static <S extends Shape> StructureMember create(MemberShape member, S target, final StructureGenerationHelper owner) {
+    public static <S extends Shape> StructureMember<S> create(MemberShape member, S target, final StructureGenerationHelper owner) {
         return new StructureMember<>(member, target, owner);
     }
 

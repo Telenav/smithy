@@ -7,6 +7,7 @@ derby.log
 .rej
 .tmp
 .swp
+.idea/
 tags/
 gensrc/
 .ant-targets-build.xml
@@ -59,7 +60,6 @@ Thumbs.db
 /blog-example/blog-generated-client-sdk/src/main/java/*
 /blog-example/blog-generated-acteur-server/src/main/java/*
 /blog-example/blog-generated-business-logic-spi/src/main/java/*
-/blog-example/blog-generated-acteur-server/src/main/java/*
 /blog-example/blog-generated-acteur-server/src/test/java/*
 /blog-example/blog-generated-acteur-server/src/main/resources/com
 /blog-example/blog-generated-vertx-server/src/main/java
@@ -71,4 +71,3 @@ Thumbs.db
 /blog-example/blog-model-typescript/dist/
 /blog-example/blog-model-typescript/node_modules/
 /blog-example/blog-web-ui
-/blog-example/blog-demo-backend/nbproject/

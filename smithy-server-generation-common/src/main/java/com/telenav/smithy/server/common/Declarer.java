@@ -377,7 +377,7 @@ public interface Declarer<B extends BlockBuilderBase<Tr, B, Rr>, Tr, Rr, Ir exte
     public static <B extends BlockBuilderBase<Tr, B, Rr>, Tr, Rr>
             Declarer<B, Tr, Rr, NewBuilder<TypeAssignment<B>>> withDefaultFor(
                     DefaultTrait trait, Shape shape, Model model, Consumer<InvocationBuilder<TypeAssignment<B>>> c) {
-        if ("smithy.api".equals(shape.getId())) {
+        if ("smithy.api".equals(shape.getId().getNamespace())) {
             throw new UnsupportedOperationException(trait + " " + shape + " " + shape.getType());
         } else {
             Declarer<B, Tr, Rr, InvocationBuilder<TypeAssignment<B>>> initial

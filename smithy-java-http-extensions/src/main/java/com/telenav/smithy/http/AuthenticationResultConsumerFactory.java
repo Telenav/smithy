@@ -108,7 +108,7 @@ public abstract class AuthenticationResultConsumerFactory {
 
         @Override
         protected <T> AuthenticationResultConsumer<T> create(CompletableFuture<T> fut, boolean optional) {
-            return new FailoverAuthenticationResultConsumer(fut, optional);
+            return new FailoverAuthenticationResultConsumer<>(fut, optional);
         }
 
     }

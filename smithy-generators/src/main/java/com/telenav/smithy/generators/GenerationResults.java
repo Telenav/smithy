@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * In-memory results of code-generation - call commit() to write them to disk.
@@ -72,7 +73,10 @@ public final class GenerationResults {
     private void deleteChildrenOf(Path path) throws IOException {
         if (Files.exists(path)) {
             Set<Path> all = new LinkedHashSet<>();
-            Files.list(path).filter(p -> Files.isDirectory(p)).forEachOrdered(all::add);
+            try (Stream<Path> str = Files.list(path).filter(p -> Files.isDirectory(p))) {
+                str.forEachOrdered(all::add);
+            }
+
             for (Path p : all) {
                 deltree(p);
             }

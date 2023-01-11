@@ -197,11 +197,16 @@ public class SmithyTsGenerator implements SmithyGenerator {
             System.out.println("NO MODEL FOR " + a.shape().getId());
             return 0;
         }
-        if (graph.closure(a.shape()).contains(b.shape())) {
+        if (graph.children(a.shape()).contains(b.shape())) {
             return -1;
-        } else if (graph.closure(b.shape()).contains(a.shape())) {
+        } else if (graph.children(b.shape()).contains(a.shape())) {
             return 1;
         }
+//        if (graph.closure(a.shape()).contains(b.shape())) {
+//            return 1;
+//        } else if (graph.closure(b.shape()).contains(a.shape())) {
+//            return -1;
+//        }
         return 0;
     }
 

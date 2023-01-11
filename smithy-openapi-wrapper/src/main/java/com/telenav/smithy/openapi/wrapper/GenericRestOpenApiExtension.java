@@ -31,7 +31,7 @@ public class GenericRestOpenApiExtension implements Smithy2OpenApiExtension {
 
     @Override
     public List<OpenApiProtocol<? extends Trait>> getProtocols() {
-        return Arrays.asList(new GenericRestProtocol());
+        return List.of(new GenericRestProtocol());
     }
 
 }

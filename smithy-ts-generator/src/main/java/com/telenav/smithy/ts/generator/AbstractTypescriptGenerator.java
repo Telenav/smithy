@@ -108,7 +108,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
         return model;
     }
 
-    protected TypeStrategy strategy(Shape shape) {
+    protected <S extends Shape> TypeStrategy<?> strategy(Shape shape) {
         return strategies.strategy(shape);
     }
 

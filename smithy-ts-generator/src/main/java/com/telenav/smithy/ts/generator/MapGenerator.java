@@ -149,8 +149,8 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
     }
 
     private void generateFromJson(TypescriptSource.ClassBuilder<Void> cb) {
-        TypeStrategy keyStrategy = strategy(keyShape);
-        TypeStrategy valStrategy = strategy(valShape);
+        TypeStrategy<?> keyStrategy = strategy(keyShape);
+        TypeStrategy<?> valStrategy = strategy(valShape);
         cb.method("fromJsonObject", mth -> {
             mth.docComment("Create a `" + cb.name() + "` from an ad-hoc object returned by JSON.parse().");
             mth.makePublic().makeStatic().withArgument("obj").ofType("any")

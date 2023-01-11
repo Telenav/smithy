@@ -27,6 +27,8 @@ import java.nio.file.Path;
 
 import static java.util.Arrays.asList;
 import java.util.Collection;
+import java.util.List;
+
 import static java.util.Collections.emptyList;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
@@ -54,7 +56,7 @@ public class SmithyServeSwaggerGenerator implements SmithyGenerator {
             LanguageWithVersion language, SmithyGenerationSettings settings,
             SmithyGenerationLogger logger) {
         if (shape.isServiceShape()) {
-            return asList(new ServeSwaggerGenerator(shape.asServiceShape().get(),
+            return List.of(new ServeSwaggerGenerator(shape.asServiceShape().get(),
                     model, destSourceRoot, targets, language, settings));
         }
         return emptyList();

@@ -334,18 +334,19 @@ public final class ResourceGraph {
                 }
             }
         }
-        /*
-        ResourceConsumer<ResourceShape> outers = new ResourceConsumer<>(service);
-        service.getIntroducedResources().forEach(res -> {
-            ResourceShape shp = model.expectShape(res, ResourceShape.class);
-            outers.accept(shp, RESOURCE_FOR_SERVICE);
-        });
-        ResourceConsumer<OperationShape> outerOps = new ResourceConsumer<>(service);
-        service.getOperations().forEach(op -> {
-            OperationShape shp = model.expectShape(op, OperationShape.class);
-            outerOps.accept(shp, OPERATION_FOR_RESOURCE);
-        });
-         */
+        if (service != null) {
+            ResourceConsumer<ResourceShape> outers = new ResourceConsumer<>(service);
+            service.getIntroducedResources().forEach(res -> {
+                ResourceShape shp = model.expectShape(res, ResourceShape.class);
+                outers.accept(shp, RESOURCE_FOR_SERVICE);
+            });
+            ResourceConsumer<OperationShape> outerOps = new ResourceConsumer<>(service);
+            service.getOperations().forEach(op -> {
+                OperationShape shp = model.expectShape(op, OperationShape.class);
+                outerOps.accept(shp, OPERATION_FOR_RESOURCE);
+            });
+        }
+
         ResourceConsumer<Shape> rc = new ResourceConsumer<>(null);
         for (ShapeId s : model.getShapeIds()) {
 

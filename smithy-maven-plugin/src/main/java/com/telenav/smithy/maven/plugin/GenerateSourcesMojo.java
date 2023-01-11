@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
+
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -414,10 +416,12 @@ public class GenerateSourcesMojo extends AbstractMojo {
                     + " does not exist");
         }
         Set<Path> result = new HashSet<>();
-        Files.walk(smithyRoot(), 128).filter(pth -> {
+        try (Stream<Path> str = Files.walk(smithyRoot(), 128).filter(pth -> {
             return !Files.isDirectory(pth)
                     && pth.getFileName().toString().endsWith(".smithy");
-        }).forEach(result::add);
+        })) {
+            str.forEach(result::add);
+        }
         return result;
     }
 

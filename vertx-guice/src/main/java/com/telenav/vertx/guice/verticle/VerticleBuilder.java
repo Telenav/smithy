@@ -78,7 +78,7 @@ public final class VerticleBuilder<T> {
         return this;
     }
 
-    public VerticleBuilder customizingHttpOptionsWith(
+    public VerticleBuilder<T> customizingHttpOptionsWith(
             Class<? extends UnaryOperator<HttpServerOptions>> f) {
         httpOptionsConfigurer.add(f);
         return this;

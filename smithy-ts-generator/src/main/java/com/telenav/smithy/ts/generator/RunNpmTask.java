@@ -31,6 +31,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.stream.Stream;
+
 import software.amazon.smithy.model.Model;
 
 /**
@@ -174,9 +176,9 @@ class RunNpmTask implements PostGenerateTask {
             relativePath = relativePath.trim();
             Path dir = in.resolve(relativePath);
             if (Files.exists(dir)) {
-                Files.walk(dir, 200, FileVisitOption.FOLLOW_LINKS)
-                        .filter(f -> !Files.isDirectory(f))
-                        .forEach(result::add);
+                try (Stream<Path> str = Files.walk(dir, 200, FileVisitOption.FOLLOW_LINKS).filter(f -> !Files.isDirectory(f))) {
+                    str.forEach(result::add);
+                }
             }
         }
         return result;

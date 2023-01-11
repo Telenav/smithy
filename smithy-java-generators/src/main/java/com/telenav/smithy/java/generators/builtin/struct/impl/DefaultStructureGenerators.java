@@ -422,9 +422,7 @@ final class DefaultStructureGenerators implements StructureExtensions {
 
     private void collectHashCodeWrappers(StructureGenerationHelper helper, List<? super HashCodeWrapper<?>> contributors) {
         for (StructureMember<?> s : helper.membersSortedByWeight()) {
-            for (HashCodeWrapper<?> hc : hashCodeContribs(s, helper)) {
-                contributors.add(hc);
-            }
+            contributors.addAll(hashCodeContribs(s, helper));
         }
     }
 

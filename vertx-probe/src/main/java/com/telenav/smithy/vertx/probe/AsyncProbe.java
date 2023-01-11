@@ -22,6 +22,8 @@ import io.vertx.core.Verticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
 import static java.util.Arrays.asList;
+
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.Optional;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -49,7 +51,7 @@ final class AsyncProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
     private final Thread emitter = new Thread(this::emitLoop, "async-probe");
 
     AsyncProbe(Probe<Ops> delegate) {
-        super(asList(delegate));
+        super(Collections.singletonList(delegate));
         emitter.setPriority(Thread.NORM_PRIORITY - 1);
         emitter.setDaemon(true);
     }

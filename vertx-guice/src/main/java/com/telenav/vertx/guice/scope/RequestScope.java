@@ -120,9 +120,7 @@ public final class RequestScope implements Scope {
             return ScopeEntry.NO_OP;
         }
         LinkedList<Object> newContents = new LinkedList<>();
-        for (Object o : with) {
-            newContents.add(o);
-        }
+        newContents.addAll(with);
         contents.addFirst(newContents);
         return () -> contents.removeFirst();
     }

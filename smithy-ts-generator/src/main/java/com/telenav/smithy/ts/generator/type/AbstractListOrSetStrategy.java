@@ -14,7 +14,7 @@ import software.amazon.smithy.model.shapes.Shape;
 abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape> {
 
     protected final Shape member;
-    protected TypeStrategy memberStrategy;
+    protected final TypeStrategy<?> memberStrategy;
     private final String collectionType;
 
     protected AbstractListOrSetStrategy(ListShape shape, TypeStrategies strategies, Shape member, String collectionType) {

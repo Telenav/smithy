@@ -62,6 +62,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 /**
  *
@@ -105,11 +106,13 @@ public class BlogStore {
 
     private void load() throws IOException {
         List<Path> bodyJsons = new ArrayList<>();
-        Files.list(dir).filter(Files::isDirectory)
-                .filter(p -> Files.exists(p.resolve("body.json")))
-                .forEach(blogDir -> {
-                    bodyJsons.add(blogDir.resolve("body.json"));
-                });
+        try (Stream<Path> str = Files.list(dir)){
+        str.filter(Files::isDirectory)
+                    .filter(p -> Files.exists(p.resolve("body.json")))
+                    .forEach(blogDir -> {
+                        bodyJsons.add(blogDir.resolve("body.json"));
+                    });
+        }
         Collections.sort(bodyJsons, (a, b) -> {
             try {
                 return Files.getLastModifiedTime(b).compareTo(Files.getLastModifiedTime(a));
@@ -178,8 +181,8 @@ public class BlogStore {
         boolean present = map.containsKey(id);
         List<Comment> result = present ? map.get(id) : new ArrayList<>();
         if (!present) {
-            try {
-                Files.list(blogDir(id, published)).filter(pth -> pth.getFileName().toString().endsWith(".comment"))
+            try (Stream<Path> str = Files.list(blogDir(id, published))){
+                str.filter(pth -> pth.getFileName().toString().endsWith(".comment"))
                         .filter(pth -> Files.isRegularFile(pth))
                         .forEachOrdered(cmtFile -> {
                             try {

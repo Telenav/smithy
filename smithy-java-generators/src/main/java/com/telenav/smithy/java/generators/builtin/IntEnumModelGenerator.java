@@ -428,8 +428,7 @@ final class IntEnumModelGenerator extends AbstractJavaGenerator<IntEnumShape> {
         byNameJavadoc.append("\n</ul>\n@param name A name"
                 + "\n@return an instance, if possible");
         cb.method("valueOf")
-                .docComment("Get an instance by name, if possible.\n"
-                        + "@param name A name\n@return an instance, if possible")
+                .docComment(byNameJavadoc.toString())
                 .withModifier(PUBLIC, STATIC, FINAL)
                 .addArgument("String", "name")
                 .returning("Optional<" + cb.className() + ">")
