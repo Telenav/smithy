@@ -16,8 +16,8 @@ limitations under the License.
 -->
 
 <project
-     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
@@ -39,7 +39,7 @@ limitations under the License.
         <module>smithy-antlr</module>
 
         <!-- This has external dependencies not in central and probably should be moved -->
-<!--
+        <!--
             <module>smithy-netbeans-plugin</module>
         -->
 
@@ -85,6 +85,7 @@ limitations under the License.
         <vertx.version>4.3.4</vertx.version>
         <verx.guice.version>1.0.0</verx.guice.version>
         <netbeans.hint.license>apache20</netbeans.hint.license>
+        <mastfrog.graph.version>${mastfrog.version}.1</mastfrog.graph.version>
     </properties>
 
     <build>
@@ -310,7 +311,7 @@ limitations under the License.
             <dependency>
                 <groupId>com.mastfrog</groupId>
                 <artifactId>graph</artifactId>
-                <version>${mastfrog.version}</version>
+                <version>${mastfrog.graph.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.mastfrog</groupId>

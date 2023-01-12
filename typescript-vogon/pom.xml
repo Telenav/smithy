@@ -23,9 +23,9 @@ limitations under the License.
         <version>1.0.2</version>
     </parent>
 
-    <groupId>com.telenav.smithy</groupId>
     <artifactId>typescript-vogon</artifactId>
-    <version>1.0.2</version>
+
+    <name>Typescript Vogon</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -38,6 +38,10 @@ limitations under the License.
             <groupId>com.mastfrog</groupId>
             <artifactId>code-generation-common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>graph</artifactId>
+        </dependency>
     </dependencies>
-    <name>typescript-vogon</name>
+
 </project>

@@ -71,7 +71,8 @@ final class PrimitiveNumberStrategy<S extends NumberShape> extends AbstractTypeS
                 .ternary("typeof " + rawVar.name() + " === 'number'")
                 .expression(rawVar.name());
         return exp.invoke(parseMethod)
-                .withInvocationOf("toString").on(rawVar.name()).inScope();
+                .withInvocationOf("toString").on("(" + rawVar.name()
+                + " as any)").inScope();
     }
 
     @Override

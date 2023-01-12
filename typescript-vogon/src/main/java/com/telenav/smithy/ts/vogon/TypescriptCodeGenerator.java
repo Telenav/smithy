@@ -17,6 +17,13 @@ package com.telenav.smithy.ts.vogon;
 
 import com.mastfrog.code.generation.common.CodeGenerator;
 import com.mastfrog.code.generation.common.LinesBuilder;
+import static java.util.Collections.emptySet;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Base class for typescript generators.
@@ -30,5 +37,77 @@ public abstract class TypescriptCodeGenerator implements CodeGenerator {
         LinesBuilder lb = newLinesBuilder();
         generateInto(lb);
         return lb.toString();
+    }
+
+    protected void visitReferencedTypes(BiConsumer<? super CodeGenerator, ? super String> gen) {
+        directlyReferencedTypeNames().forEach(name -> {
+            gen.accept(this, name);
+        });
+        visitContents(child -> {
+            if (child instanceof TypescriptCodeGenerator) {
+                ((TypescriptCodeGenerator) child).visitReferencedTypes(gen);
+            }
+        });
+    }
+
+    protected abstract void visitContents(Consumer<? super CodeGenerator> c);
+
+    Set<String> directlyReferencedTypeNames() {
+        Set<String> names = new HashSet<>(8);
+        visitContents(child -> {
+            if (child instanceof TypeName t) {
+                names.add(t.name());
+            }
+        });
+        return emptySet();
+    }
+
+    public String structure() {
+        StringBuilder sb = new StringBuilder();
+        class C implements Consumer<CodeGenerator> {
+
+            LinkedList<String> path = new LinkedList<>();
+
+            @Override
+            public void accept(CodeGenerator t) {
+                if (t instanceof NamedTypescriptCodeGenerator n) {
+                    path.push(n.name());
+                    if (sb.length() > 0) {
+                        sb.append('\n');
+                    }
+                    for (Iterator<String> it = path.iterator(); it.hasNext();) {
+                        String s = it.next();
+                        sb.append(s);
+                        if (it.hasNext()) {
+                            sb.append('.');
+                        }
+                    }
+                }
+                if (t instanceof TypescriptCodeGenerator ty) {
+                    ty.visitContents(this);
+                }
+                if (t instanceof NamedTypescriptCodeGenerator) {
+                    path.pop();
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    public static abstract class ChildlessTypescriptCodeGenerator extends TypescriptCodeGenerator {
+
+        Set<String> directlyReferencedTypeNames() {
+            return emptySet();
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            // do nothing
+        }
+    }
+
+    public static abstract class NamedTypescriptCodeGenerator extends TypescriptCodeGenerator {
+
+        abstract String name();
     }
 }

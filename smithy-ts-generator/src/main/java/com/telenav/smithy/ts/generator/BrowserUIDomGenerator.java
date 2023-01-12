@@ -332,11 +332,12 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
 
             importModelObject(name, src);
             src.declareTopConst(enumMappingConstName(name))
-                    .ofType("Map<string, number>")
+//                    .ofType("Map<string, number>")
+                    .ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("number"))
                     .assignedToSelfExecutingFunction(f -> {
                         f.declareConst("result")
-                                .ofType("Map<string, number>")
-                                .assignedToNew().ofType("Map<string, number>");
+                                .ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("number"))
+                                .assignedToNew().ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("number"));
                         s.getEnumValues().forEach((enumConstName, num) -> {
                             f.invoke("set")
                                     .withStringLiteralArgument(enumConstName)
@@ -369,8 +370,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                             .ofType("Map<string, string>")
                             .assignedToSelfExecutingFunction(f -> {
                                 f.declareConst("result")
-                                        .ofType("Map<string, string>")
-                                        .assignedToNew().ofType("Map<string, string>");
+                                        .ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("number"))
+                                        .assignedToNew().ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("number"));
                                 s.getEnumValues().forEach((k, v) -> {
                                     f.invoke("set")
                                             .withStringLiteralArgument(k)
@@ -397,8 +398,6 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         importComponents(src, "Row", "Panel", "NavPanel",
                 "ProblemsPanel", "StaticText", "EventType",
                 "TextField", "Spinner", "Button", "Clickable");
-
-        src.generateDebugLogCode();
 
         generateLoginMethod(src);
 
@@ -565,7 +564,6 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                             -> sh.asOperationShape().orElse(null)));
 
             Map<OperationShape, String> panelForOp = new HashMap<>();
-//            src.generateDebugLogCode();
             for (OperationShape op : ops) {
                 String pnl = generateUiCodeForOp(op, panels, rows, src, ifaces, blocks, createUiBody, lasts);
                 panelForOp.put(op, pnl);

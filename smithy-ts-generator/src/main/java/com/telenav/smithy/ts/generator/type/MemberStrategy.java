@@ -84,7 +84,24 @@ public interface MemberStrategy<S extends Shape> extends TypeStrategy<S> {
         String fld = structureFieldName();
         Optional<DefaultTrait> defs = defaults();
         defs.ifPresent(defaults -> {
-            ConditionalClauseBuilder<B> test = bb.ifTypeOf(constructorArgumentName(), "undefined");
+            ConditionalClauseBuilder<B> test;
+            // Types which HAVE a value that will pass a !varName test,
+            // such as number and boolean, need their assignedness checked;
+            // the simpler !varName test will work for the rest.
+            switch (shape().getType()) {
+                case BOOLEAN:
+                case INTEGER:
+                case BYTE:
+                case LONG:
+                case FLOAT:
+                case DOUBLE:
+                case BIG_INTEGER:
+                case BIG_DECIMAL:
+                    test = bb.iff("typeof " + constructorArgumentName() + " === 'undefined'");
+                    break;
+                default:
+                    test = bb.ifTypeOf(constructorArgumentName(), "undefined");
+            }
             test = applyDefault(defaults, test.assign(constructorArgumentName()).assignedTo());
             test.endIf();
         });

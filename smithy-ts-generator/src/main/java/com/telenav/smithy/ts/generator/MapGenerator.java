@@ -17,10 +17,12 @@ package com.telenav.smithy.ts.generator;
 
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.ts.generator.type.MemberStrategy;
 import com.telenav.smithy.ts.generator.type.TsPrimitiveTypes;
 import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ElementExpression;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import java.nio.file.Path;
 import java.util.function.Consumer;
@@ -28,6 +30,7 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeType;
 
 /**
  *
@@ -67,12 +70,12 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
         TypescriptSource src = src();
 
         src.declareClass(tsTypeName(shape), cb -> {
-            cb.extending(supertype);
+            cb.extending("Map", pt -> pt.withTypeParameter(keyType).withTypeParameter(valType));
 
             cb.constructor(con -> {
                 con.withArgument("orig")
                         .optional()
-                        .ofType(supertype);
+                        .ofType("Map", pt -> pt.withTypeParameter(keyType).withTypeParameter(valType));
                 con.body(bb -> {
                     bb.invoke("super").inScope();
 
@@ -111,6 +114,10 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
             generateToJsonString(cb);
             generateToJson(cb);
             generateFromJson(cb);
+            cb.method("toString")
+                    .makePublic()
+                    .returning("string")
+                    .returningInvocationOf(TO_JSON_STRING).onThis();
         });
 
         c.accept(src);
@@ -124,27 +131,45 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
                 .withArgument("v").ofType(valType)
                 .withArgument("k").ofType(keyType)
                 .body(lbb -> {
-                    Assignment<TsBlockBuilder<Void>> assig;
-                    if (keyPrimitive) {
-                        assig = lbb.assignRawProperty("k")
-                                .of("result");
+                    MemberStrategy<?> keyStrat = strategies.memberStrategy(keyMember);
+                    
+                    ElementExpression<Assignment<TsBlockBuilder<Void>>> exp;
+                    if (!keyStrat.isModelDefined() && keyStrat.shape().getType() == ShapeType.STRING) {
+                        exp = lbb.assignElement().expression("k");
                     } else {
-                        assig = lbb.assignRawProperty().invoke("toString").on("k").of("result");
+                        exp = lbb.assignElement().invoke("toString").on("k");
                     }
-                    if (valPrimitive) {
-                        assig.assignedTo("v");
-                    } else {
-                        switch (valShape.getType()) {
-                            case STRUCTURE:
-                            case LIST:
-                            case MAP:
-                            case SET:
-                                assig.assignedToInvocationOf("toJSON").on("v");
-                                break;
-                            default:
-                                assig.assignedToInvocationOf("toString").on("v");
-                        }
-                    }
+                    
+                    
+                    MemberStrategy<?> valStrat = strategies.memberStrategy(valMember);
+                    valStrat.convertToRawJsonObject(lbb, 
+                            valStrat.rawVarType().variable("v"), "value", true);
+                    
+                    exp.of("result").assignedTo("value");
+                    
+//                    Assignment<TsBlockBuilder<Void>> assig;
+//                    if (keyPrimitive) {
+//                        assig = lbb.assignRawProperty("k")
+//                                .of("result");
+//                    } else {
+//                        assig = lbb.assignRawProperty().invoke("toString").on("k").of("result");
+//                    }
+//                    if (valPrimitive) {
+//                        assig.assignedTo("v");
+//                    } else {
+//                        
+//                        
+//                        switch (valShape.getType()) {
+//                            case STRUCTURE:
+//                            case LIST:
+//                            case MAP:
+//                            case SET:
+//                                assig.assignedToInvocationOf("toJSON").on("v");
+//                                break;
+//                            default:
+//                                assig.assignedToInvocationOf("toString").on("v");
+//                        }
+//                    }
                 }).onThis();
     }
 

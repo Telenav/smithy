@@ -37,15 +37,6 @@
         <!-- Update this variable to globally update the version of
         the smithy code generators used to generate code. -->
         <smithy-tools.version>${project.version}</smithy-tools.version>
-        <!--
-        If set to true, code generators will emit a single stack
-        trace line as a line comment preceding lines of code such as
-        assignments, invocations, if/thens, and similar, for tracking
-        down the exact line of generation code that caused a particular
-        line of code to be emitted.
-        -->
-        <smithy-generators-debug>false</smithy-generators-debug>
-
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
     </properties>
@@ -57,10 +48,6 @@
                     <groupId>${project.groupId}</groupId>
                     <artifactId>smithy-maven-plugin</artifactId>
                     <version>\${smithy-tools.version}</version>
-                    <configuration>
-                        <languages>java,typescript</languages>
-                        <debug>\${smithy-generators-debug}</debug>
-                    </configuration>
                     <!--
                     These dependencies determine what traits are available for use
                     in Smithy models, and what and code generators are available

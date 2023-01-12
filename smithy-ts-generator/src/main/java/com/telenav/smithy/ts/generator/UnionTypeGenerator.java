@@ -19,6 +19,7 @@ import com.mastfrog.code.generation.common.LinesBuilder;
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
 import com.mastfrog.util.strings.Strings;
+import com.telenav.smithy.ts.generator.type.MemberStrategy;
 import com.telenav.smithy.ts.generator.type.TsPrimitiveTypes;
 import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -34,7 +35,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -68,9 +68,11 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
 
         PropertyBuilder<TypeIntersectionBuilder<TypescriptSource>> type = src.declareType(tsTypeName(shape)).or();
 
+        // Pending:  We should check for repeated types that do not have
+        // mutually exclusive constraints, and fail on those
         for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
-            Shape unionOption = model.expectShape(e.getValue().getTarget());
-            String tn = typeNameOf(unionOption, true);
+            MemberStrategy mem = strategies.memberStrategy(e.getValue());
+            String tn = mem.targetType();
             type = type.withType(tn);
         }
 

@@ -20,6 +20,7 @@ import com.telenav.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.names.NumberKind;
 import com.telenav.smithy.ts.generator.type.MemberStrategy;
 import com.telenav.smithy.ts.generator.type.TsPrimitiveTypes;
+import com.telenav.smithy.ts.generator.type.TsTypeUtils;
 import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
@@ -29,6 +30,7 @@ import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeType;
 import static software.amazon.smithy.model.shapes.ShapeType.STRING;
 import software.amazon.smithy.model.traits.UniqueItemsTrait;
 
@@ -36,58 +38,92 @@ import software.amazon.smithy.model.traits.UniqueItemsTrait;
  *
  * @author Tim Boudreau
  */
-public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
+final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
 
     final Shape memberTarget;
+    private final boolean isSet;
+    private final MemberStrategy<?> memberStrat;
 
-    public ListGenerator(ListShape shape, Model model, LanguageWithVersion ver, Path dest, GenerationTarget target) {
+    @SuppressWarnings("deprecation")
+    ListGenerator(ListShape shape, Model model, LanguageWithVersion ver, Path dest, GenerationTarget target) {
         super(shape, model, ver, dest, target);
         memberTarget = model.expectShape(shape.getMember().getTarget());
+        isSet = shape.isSetShape() || shape.getTrait(UniqueItemsTrait.class).isPresent();
+        memberStrat = strategies.memberStrategy(shape.getMember());
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource tb = src();
-
-        boolean isSet = shape.isSetShape() || shape.getTrait(UniqueItemsTrait.class).isPresent();
 
         tb.declareClass(typeName(), cb -> {
             Shape target = model.expectShape(shape.getMember().getTarget());
             importShape(target, tb);
             boolean canBePrimitive = "smithy.api".equals(target.getId().getNamespace());
             String primitiveType = typeNameOf(target, false);
-            String targetTypeName = canBePrimitive ? primitiveType : tsTypeName(target);
+            String targetTypeName = memberStrat.targetType();
             String ext = isSet ? "Set<" + targetTypeName + ">" : "Array<" + targetTypeName + ">";
             cb.extending(ext);
             cb.exported();
+            boolean needStringGuard = TsTypeUtils.isNotUserType(target)
+                    && target.getType() == ShapeType.STRING;
 
             cb.constructor(con -> {
-                con.withArgument("items").ofType(targetTypeName + "[]");
+                con.makePublic().withArgument("items").ofType(targetTypeName + "[]");
                 con.body(bb -> {
-                    if (canBePrimitive) {
-                        // We can be called with a string where it should be string[],
-                        // and if you create a new Set from a string, you get one
-                        // element for each letter
-                        if (memberTarget.getType() == STRING) {
+                    if (!isSet) {
+                        if (needStringGuard) {
+                            bb.lineComment("Need special handling of the case of being ")
+                                    .lineComment("called with a single string, since otherwise ")
+                                    .lineComment("it will be dissected into characters.");
+                            bb.invoke("super").withField("length")
+                                    .of("items").inScope();
+                            bb.ifTypeOf("items", "string")
+                                    .invoke("push")
+                                    .withArgument("items as string")
+                                    .onThis()
+                                    .orElse()
+                                    .invoke("forEach")
+                                    .withLambda()
+                                    .withArgument("item").inferringType()
+                                    .body(lbb -> {
+                                        lbb.invoke("push")
+                                                .withArgument("item")
+                                                .onThis();
+                                    })
+                                    .onThis()
+                                    .endIf();
+
+//                            bb.invoke("super")
+//                                    .withTernary("Array.isArray(items)")
+//                                    .expression("...items")
+//                                    .expression("...[items as string]")
+//                                    .inScope();
+                        } else {
+                            bb.invoke("super")
+                                    .withArgument("...items").inScope();
+                        }
+                    } else {
+                        /*
+    public constructor(items: string[]) {
+        // lambda$generate$0(ListGenerator.java:80)
+        super(items.length);
+        if (typeof items === 'string') {
+            this.push(items as string);
+        } else {
+            items.forEach(item => this.push(item));
+        }
+    };                        
+                         */
+                        if (needStringGuard) {
                             bb.invoke("super")
                                     .withTernary("Array.isArray(items)")
                                     .expression("items")
                                     .expression("[items as string]")
                                     .inScope();
+
                         } else {
-                            bb.invoke("super")
-                                    .withArgument("items").inScope();
-                        }
-                    } else {
-                        if (memberTarget.getType() == STRING) {
-                            bb.invoke("super")
-                                    .withTernary("Array.isArray(items)")
-                                    .expression("items")
-                                    .expression((isSet ? "" : "...") + "[items as string]")
-                                    .inScope();
-                        } else {
-                            bb.invoke("super").withArgument(isSet ? "items" : "...items").inScope();
+                            bb.invoke("super").withArgument("items").inScope();
                         }
                     }
                 });
@@ -249,7 +285,7 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
 //        String primitiveType = typeNameOf(target, false);
         String primitiveType = jsTypeOf(target);
         String typeName = tsTypeName(target);
-        
+
         MemberStrategy<?> st = strategies.memberStrategy(shape.getMember(), target);
 
         bb.blankLine()
@@ -260,7 +296,7 @@ public class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                 .lineComment("jsTypeName of shape " + jsTypeOf(shape));
 
         bb.declare("objs")
-                .ofType(primitiveType + "[]")
+                .ofType(st.rawVarType() + "[]")
                 .assignedTo("[]");
         bb.invoke("forEach")
                 .withLambda(lb -> {

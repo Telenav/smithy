@@ -45,15 +45,18 @@ class GeneralEnumGenerator extends AbstractTypescriptGenerator<EnumShape> {
         TypescriptSource src = src();
 
         src.declareEnum(tsTypeName(shape), enu -> {
+            enu.exported();
             shape.getTrait(DocumentationTrait.class).ifPresent(dox -> {
                 enu.docComment(dox.getValue());
             });
-            if (EnumCharacteristics.characterizeEnum(shape).canBeConst()) {
-                enu.constant();
-            }
+            // Pending:  If we do this, it makes it impossible for the
+            // generated web ui's mapping method to use the enum members
+            // as map keys.
+//            if (EnumCharacteristics.characterizeEnum(shape).canBeConst()) {
+//                enu.constant();
+//            }
             for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
-                Shape target = model.expectShape(e.getValue().getTarget());
-                System.out.println("ENUM TARGET IS " + target + " " + target.getType());
+                Shape enumTarget = model.expectShape(e.getValue().getTarget());
                 Optional<EnumValueTrait> ev = e.getValue().getTrait(EnumValueTrait.class);
                 enu.withMember(mem -> {
                     e.getValue().getTrait(DocumentationTrait.class)

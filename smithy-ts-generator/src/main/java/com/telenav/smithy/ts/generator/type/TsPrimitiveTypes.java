@@ -113,10 +113,7 @@ public enum TsPrimitiveTypes implements TsSimpleType {
 
     @Override
     public String toString() {
-        if (isArray()) {
-            return name().toLowerCase() + "[]";
-        }
-        return name().toLowerCase();
+        return typeName();
     }
 
     @Override
@@ -136,7 +133,34 @@ public enum TsPrimitiveTypes implements TsSimpleType {
 
     @Override
     public String typeName() {
-        return toString();
+        switch (this) {
+            case ANY:
+                return "any";
+            case ANY_ARRAY:
+                return "any[]";
+            case BIGINT:
+                return "BigInt";
+            case BIGINT_ARRAY:
+                return "BigInt[]";
+            case BOOLEAN:
+                return "boolean";
+            case BOOLEAN_ARRAY:
+                return "boolean[]";
+            case NUMBER:
+                return "number";
+            case NUMBER_ARRAY:
+                return "number[]";
+            case OBJECT:
+                return "object";
+            case OBJECT_ARRAY:
+                return "object[]";
+            case STRING:
+                return "string";
+            case STRING_ARRAY:
+                return "string[]";
+            default:
+                throw new AssertionError(this);
+        }
     }
 
     @Override

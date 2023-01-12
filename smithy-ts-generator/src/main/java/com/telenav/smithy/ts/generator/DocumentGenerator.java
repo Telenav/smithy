@@ -37,12 +37,17 @@ final class DocumentGenerator extends AbstractTypescriptGenerator<DocumentShape>
     @Override
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource src = src();
-        
+
         src.declareClass(tsTypeName(shape), cb -> {
-            cb.extending("Map<string, any>");
+            cb.exported()
+                    .extending("Map",
+                            pt
+                            -> pt.withTypeParameter("string")
+                                    .withTypeParameter("number"));
             cb.constructor(con -> {
                 con.makePublic().withArgument("obj").ofType("any");
                 con.body(bb -> {
+                    bb.invoke("super").inScope();
                     bb.invoke("forEach")
                             .withLambda()
                             .withArgument("v").ofType("any")
@@ -52,7 +57,7 @@ final class DocumentGenerator extends AbstractTypescriptGenerator<DocumentShape>
                                         .withArgument("k")
                                         .withArgument("v")
                                         .onThis();
-                            });
+                            }).on("obj");
                 });
             });
             generateToJson(cb);
@@ -64,6 +69,14 @@ final class DocumentGenerator extends AbstractTypescriptGenerator<DocumentShape>
                     bb.returningNew().withArgument("obj").ofType(cb.name());
                 });
             });
+
+            cb.method("toString")
+                    .makePublic()
+                    .returning("string")
+                    .returningInvocationOf("stringify")
+                    .withInvocationOf("toJSON")
+                    .onThis()
+                    .on("JSON");
         });
         c.accept(src);
     }
@@ -73,7 +86,21 @@ final class DocumentGenerator extends AbstractTypescriptGenerator<DocumentShape>
         bb.assignElement().literal(nameVar).of(targetVar)
                 .assignedToInvocationOf("toJSON").on("this");
     }
-    
-    
+
+    @Override
+    public void generateToJson(TypescriptSource.ClassBuilder<?> cb) {
+        cb.method(TO_JSON, mth -> {
+            TsBlockBuilder<Void> bb = mth.returning("object");
+            bb.declare("result").ofType("object").assignedTo("{}");
+            bb.invoke("forEach")
+                    .withLambda().withArgument("v").inferringType()
+                    .withArgument("k").inferringType()
+                    .body(lbb -> {
+                        lbb.assignElement().expression("k").of("result")
+                                .assignedTo("v");
+                    }).onThis();
+            bb.returning("result");
+        });
+    }
 
 }

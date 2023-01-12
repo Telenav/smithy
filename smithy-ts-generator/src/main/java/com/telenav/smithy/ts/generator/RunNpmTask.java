@@ -32,7 +32,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Stream;
-
 import software.amazon.smithy.model.Model;
 
 /**
@@ -41,14 +40,20 @@ import software.amazon.smithy.model.Model;
  */
 class RunNpmTask implements PostGenerateTask {
 
+    public static final String SETTINGS_KEY_FAIL_ON_NPM_FAILURE = "failOnNpmFailure";
+    public static final String SETTINGS_KEY_FAIL_ON_NPM_ABSENT = "failOnNpmAbsent";
     private static final Set<Path> WARNED = new HashSet<>();
     private final SmithyGenerationContext context;
     private final Path runIn;
     private final String[] targets;
     private final String[] scanForBuiltMarkupIn;
+    private final boolean failIfNoNpm;
+    private final boolean failIfNpmFails;
 
     RunNpmTask(SmithyGenerationContext context, Path tsSourcePath) {
         this.context = context;
+        failIfNoNpm = context.settings().getBoolean(SETTINGS_KEY_FAIL_ON_NPM_ABSENT).orElse(false);
+        failIfNpmFails = context.settings().getBoolean(SETTINGS_KEY_FAIL_ON_NPM_FAILURE).orElse(false);
         Path target = findNodeProjectRoot(tsSourcePath);
         if (target == null) {
             runIn = null;
@@ -98,6 +103,9 @@ class RunNpmTask implements PostGenerateTask {
             Function<? super String, ? extends Set<? extends Path>> pathRegistry,
             SmithyGenerationLogger logger) throws Exception {
         if (targets == null) {
+            if (failIfNoNpm) {
+                throw new IOException("No npm found on $PATH");
+            }
             return;
         }
         if (targets.length > 0) {
@@ -166,6 +174,10 @@ class RunNpmTask implements PostGenerateTask {
             } else {
                 throw ioe;
             }
+        }
+        if (exitCode != 0 && failIfNpmFails) {
+            throw new IOException("Npm exit code was " + exitCode
+                    + " for '" + Strings.join(' ', args) + "' in " + dir);
         }
         return exitCode == 0;
     }

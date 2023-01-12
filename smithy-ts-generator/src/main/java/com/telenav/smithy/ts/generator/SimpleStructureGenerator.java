@@ -184,9 +184,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
     @Override
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource tb = src();
-        tb.generateDebugLogCode();
         _generate(tb, c);
-//        tb.disableDebugLogCode();
     }
 
     private void _generate(TypescriptSource tb, Consumer<TypescriptSource> c) {

@@ -82,7 +82,6 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
         src.importing("ServiceClient").and("serviceClient")
                 .from("./ServiceClient");
 
-//        src.generateDebugLogCode();
         String configInterface = escape(shape.getId().getName() + "Config");
 
         generateConfigInterface(src, configInterface);

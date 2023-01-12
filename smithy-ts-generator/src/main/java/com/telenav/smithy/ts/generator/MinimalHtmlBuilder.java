@@ -50,6 +50,11 @@ public class MinimalHtmlBuilder extends TypescriptCodeGenerator {
         html.add(body);
     }
 
+    @Override
+    protected void visitContents(Consumer<? super CodeGenerator> c) {
+        // do nothing
+    }
+
     public static void main(String[] args) {
         MinimalHtmlBuilder h = new MinimalHtmlBuilder()
                 .withTitle("An HTML PAGE")

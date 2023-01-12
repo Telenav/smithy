@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.vogon;
 
+import com.mastfrog.abstractions.list.IndexedResolvable;
 import com.mastfrog.code.generation.common.CodeGenerator;
 import com.mastfrog.code.generation.common.LinesBuilder;
 import static com.mastfrog.code.generation.common.LinesBuilder.escape;
@@ -23,6 +24,13 @@ import com.mastfrog.code.generation.common.SourceFileBuilder;
 import com.mastfrog.code.generation.common.general.Adhoc;
 import com.mastfrog.code.generation.common.util.Holder;
 import static com.mastfrog.code.generation.common.util.Utils.notNull;
+import com.mastfrog.function.IntBiConsumer;
+import com.mastfrog.function.state.Int;
+import com.mastfrog.graph.IntGraph;
+import com.mastfrog.graph.IntGraphBuilder;
+import com.mastfrog.graph.IntPath;
+import com.mastfrog.graph.ObjectGraph;
+import static com.telenav.smithy.ts.vogon.TypeName.typeName;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.FunctionKind.CONSTRUCTOR;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.FunctionKind.FUNCTION;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.FunctionKind.GETTER;
@@ -34,9 +42,13 @@ import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.STATIC;
 import static java.lang.Character.isWhitespace;
 import java.util.ArrayList;
 import static java.util.Arrays.asList;
+import java.util.BitSet;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.sort;
 import static java.util.EnumSet.noneOf;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -50,10 +62,12 @@ import static java.util.Optional.of;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 /**
  * Typescript code generation, with a fluent API very similar to java-vogon,
@@ -78,7 +92,7 @@ import java.util.function.Supplier;
  *
  * @author Tim Boudreau
  */
-public final class TypescriptSource implements SourceFileBuilder {
+public final class TypescriptSource extends TypescriptCodeGenerator implements SourceFileBuilder {
 
     private final String name;
     private final Set<ImportBuilder<?>> imports = new TreeSet<>();
@@ -88,15 +102,26 @@ public final class TypescriptSource implements SourceFileBuilder {
     private final List<CodeGenerator> types = new ArrayList<>();
     private final List<CodeGenerator> functions = new ArrayList<>();
     private final List<CodeGenerator> pendingComments = new LinkedList<>();
+    private boolean classesSorted;
 
     TypescriptSource(String name) {
         this.name = name;
     }
 
+    @Override
+    protected void visitContents(Consumer<? super CodeGenerator> visitor) {
+        imports.forEach(visitor);
+        top.forEach(visitor);
+        ifaces.forEach(visitor);
+        types.forEach(visitor);
+        functions.forEach(visitor);
+        pendingComments.forEach(visitor);
+    }
+
     public static TypescriptSource typescript(String sourceName) {
         return new TypescriptSource(sourceName);
     }
-    
+
     private void drainPendingComments(List<CodeGenerator> into) {
         into.addAll(pendingComments);
         pendingComments.clear();
@@ -114,18 +139,20 @@ public final class TypescriptSource implements SourceFileBuilder {
             emitDebugComment(functions);
             drainPendingComments(functions);
             functions.add(gen);
-        } else if (gen instanceof InterfaceBuilder<?> 
-                || gen instanceof TypeIntersectionBuilder<?> 
-                || gen instanceof StringEnumBuilder<?> 
-                || gen instanceof EnumBuilder<?> 
+        } else if (gen instanceof InterfaceBuilder<?>
+                || gen instanceof TypeIntersectionBuilder<?>
+                || gen instanceof StringEnumBuilder<?>
+                || gen instanceof EnumBuilder<?>
                 || gen instanceof IntEnumBuilder<?>) {
             emitDebugComment(ifaces);
             drainPendingComments(ifaces);
             ifaces.add(gen);
+            classesSorted = false;
         } else if (gen instanceof ClassBuilder<?>) {
             emitDebugComment(types);
             drainPendingComments(types);
             types.add(gen);
+            classesSorted = false;
         } else {
             emitDebugComment(contents);
             drainPendingComments(contents);
@@ -135,6 +162,7 @@ public final class TypescriptSource implements SourceFileBuilder {
     }
 
     TypescriptSource addTop(CodeGenerator gen) {
+        drainPendingComments(top);
         emitDebugComment(top);
         top.add(gen);
         return this;
@@ -451,6 +479,11 @@ public final class TypescriptSource implements SourceFileBuilder {
             return new ElementFactory().initial();
         }
 
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            elements.forEach(c);
+        }
+
         final class ElementFactory implements Function<CodeGenerator, ArrayElementBuilder<T>>,
                 Supplier<T> {
 
@@ -483,7 +516,6 @@ public final class TypescriptSource implements SourceFileBuilder {
         public T endArrayLiteral() {
             return ender.get();
         }
-
     }
 
     public static final class RawPropertyBuilder<T> extends TypescriptCodeGenerator {
@@ -497,6 +529,20 @@ public final class TypescriptSource implements SourceFileBuilder {
                 Function<? super RawPropertyBuilder<T>, ? extends T> conv) {
             this.conv = conv;
             this.propertyName = notNull("propertyName", propertyName);
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            c.accept(propertyName);
+            c.accept(on);
+        }
+
+        @Override
+        Set<String> directlyReferencedTypeNames() {
+            if (cast != null) {
+                return Set.of(cast);
+            }
+            return super.directlyReferencedTypeNames();
         }
 
         public T of(String expression) {
@@ -562,7 +608,18 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         TernaryBuilder(CodeGenerator test, Function<? super TernaryBuilder<T>, ? extends T> conv) {
             this.conv = conv;
-            this.test = test;
+            this.test = notNull("test", test);
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            c.accept(test);
+            if (leftSide != null) {
+                c.accept(leftSide);
+            }
+            if (rightSide != null) {
+                c.accept(rightSide);
+            }
         }
 
         public ExpressionBuilder<ExpressionBuilder<T>> leftSide() {
@@ -591,12 +648,18 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         private final boolean parens;
         private final CodeGenerator target;
-        private final String as;
+        private final CodeGenerator as;
 
         Cast(boolean parens, CodeGenerator target, String as) {
             this.parens = parens;
             this.target = target;
-            this.as = as;
+            this.as = typeName(as);
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            c.accept(target);
+            c.accept(as);
         }
 
         @Override
@@ -611,7 +674,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         private void doGenerate(LinesBuilder lines) {
             target.generateInto(lines);
             lines.word("as");
-            lines.word(as);
+            as.generateInto(lines);
         }
     }
 
@@ -841,6 +904,13 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            c.accept(leftSide);
+            c.accept(op);
+            c.accept(rightSide);
+        }
+
+        @Override
         public void generateInto(LinesBuilder lines) {
             lines.wrappable(lb -> {
                 leftSide.generateInto(lines);
@@ -915,6 +985,11 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         StringConcatenation(Function<? super StringConcatenation<T>, ? extends T> conv) {
             this.conv = conv;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            elements.forEach(c);
         }
 
         public T endConcatenation() {
@@ -1076,6 +1151,13 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            if (what != null) {
+                c.accept(what);
+            }
+        }
+
+        @Override
         public void generateInto(LinesBuilder lines) {
             lines.onNewLine();
             lines.word("throw");
@@ -1091,6 +1173,14 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public SwitchBuilder(Function<? super SwitchingOn<T>, ? extends T> conv) {
             this.conv = conv;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            cases.forEach(c);
+            if (defaultCase != null) {
+                c.accept(defaultCase);
+            }
         }
 
         public CaseBuilder<SwitchBuilder<T>> inCase(int value) {
@@ -1205,6 +1295,14 @@ public final class TypescriptSource implements SourceFileBuilder {
         public SwitchingOn(SwitchBuilder<T> cases, Function<? super SwitchingOn<T>, ? extends T> conv) {
             this.cases = cases;
             this.conv = conv;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            c.accept(cases);
+            if (target != null) {
+                c.accept(target);
+            }
         }
 
         public T on(String expression) {
@@ -1345,7 +1443,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    private static final class BlankLine extends TypescriptCodeGenerator {
+    private static final class BlankLine extends ChildlessTypescriptCodeGenerator {
 
         @Override
         public void generateInto(LinesBuilder lines) {
@@ -1353,7 +1451,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static final class IntEnumBuilder<T> extends TypescriptCodeGenerator {
+    public static final class IntEnumBuilder<T> extends NamedTypescriptCodeGenerator {
 
         private final Map<String, Long> consts = new TreeMap<>();
         private final Map<String, DocComment> docCmtForMember = new HashMap<>();
@@ -1366,6 +1464,15 @@ public final class TypescriptSource implements SourceFileBuilder {
         IntEnumBuilder(String name, Function<? super IntEnumBuilder<T>, T> conv) {
             this.name = name;
             this.conv = conv;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            // do nothing
+        }
+
+        public String name() {
+            return name;
         }
 
         public IntEnumBuilder<T> constant() {
@@ -1442,7 +1549,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static final class StringEnumBuilder<T> extends TypescriptCodeGenerator {
+    public static final class StringEnumBuilder<T> extends NamedTypescriptCodeGenerator {
 
         private final Function<? super StringEnumBuilder<T>, T> conv;
         private final Set<String> consts = new TreeSet<>();
@@ -1453,6 +1560,31 @@ public final class TypescriptSource implements SourceFileBuilder {
         StringEnumBuilder(String name, Function<? super StringEnumBuilder<T>, T> conv) {
             this.conv = conv;
             this.name = name.trim();
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            // do nothing
+        }
+
+        @Override
+        public String structure() {
+            return name;
+        }
+
+        @Override
+        Set<String> directlyReferencedTypeNames() {
+            return emptySet();
+        }
+
+        @Override
+        protected void visitReferencedTypes(BiConsumer<? super CodeGenerator, ? super String> gen) {
+            // do nothing
         }
 
         public StringEnumBuilder<T> docComment(String cmt) {
@@ -1508,7 +1640,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static final class EnumBuilder<T> extends TypescriptCodeGenerator {
+    public static final class EnumBuilder<T> extends NamedTypescriptCodeGenerator {
 
         private final Map<String, Object> consts = new TreeMap<>();
         private final Map<String, DocComment> docCmtForMember = new HashMap<>();
@@ -1521,6 +1653,31 @@ public final class TypescriptSource implements SourceFileBuilder {
         EnumBuilder(String name, Function<? super EnumBuilder<T>, T> conv) {
             this.name = name;
             this.conv = conv;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            // do nothing
+        }
+
+        @Override
+        public String structure() {
+            return name;
+        }
+
+        @Override
+        Set<String> directlyReferencedTypeNames() {
+            return emptySet();
+        }
+
+        @Override
+        protected void visitReferencedTypes(BiConsumer<? super CodeGenerator, ? super String> gen) {
+            // do nothing
         }
 
         public EnumBuilder<T> constant() {
@@ -1703,7 +1860,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    public static final class TypeIntersectionBuilder<T> extends TypescriptCodeGenerator {
+    public static final class TypeIntersectionBuilder<T> extends NamedTypescriptCodeGenerator {
 
         // PENDING: This class is not really doing anything that couldn't be done
         // with PropertyBuilder.  Should merge it into that.
@@ -1718,6 +1875,16 @@ public final class TypescriptSource implements SourceFileBuilder {
                 Function<? super TypeIntersectionBuilder<T>, T> conv) {
             this.conv = conv;
             this.name = name;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            contents.forEach(c);
         }
 
         private TypeIntersectionBuilder<T> add(CodeGenerator g) {
@@ -1739,11 +1906,11 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public TypeIntersectionBuilder<T> andType(String tp) {
-            return add(new Adhoc(tp));
+            return add(typeName(tp));
         }
 
         public TypeIntersectionBuilder<T> orType(String tp) {
-            return or().add(new Adhoc(tp));
+            return or().add(typeName(tp));
         }
 
         public TypeIntersectionBuilder<T> or() {
@@ -1777,7 +1944,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    private static class Append extends TypescriptCodeGenerator {
+    private static class Append extends ChildlessTypescriptCodeGenerator {
 
         private final String what;
 
@@ -1886,6 +2053,14 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         AbstractInvocationBuilder(Function<R, T> conv) {
             this.conv = conv;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            arguments.forEach(c);
+            if (target != null) {
+                c.accept(target);
+            }
         }
 
         @SuppressWarnings("unchecked")
@@ -2077,7 +2252,7 @@ public final class TypescriptSource implements SourceFileBuilder {
                 return null;
             });
             c.accept(result);
-            return hold.get("ofType never called on " + result);
+            return hold.get("ofType never called on NewBuilder " + result);
         }
 
         @Override
@@ -2165,8 +2340,21 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public T ofType(String what) {
-            target = new Adhoc(what);
+            target = typeName(what);
             return conv.apply(this);
+        }
+
+        public T ofType(String s, Consumer<? super ParameterizedTypeBuilder<Void>> c) {
+            Holder<T> hold = new Holder<>();
+            ParameterizedTypeBuilder<Void> result = new ParameterizedTypeBuilder<>(typeName(s),
+                    ptb -> {
+                        target = ptb;
+                        hold.set(conv.apply(this));
+                        return null;
+                    });
+            c.accept(result);
+            hold.ifUnset(result::endType);
+            return hold.get("ParameterizedTypeBuilder not completed for " + s);
         }
 
         @Override
@@ -2196,6 +2384,27 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public T on(String what) {
             target = new Append(what);
+            return close();
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            if (name != null) {
+                c.accept(name);
+            }
+            super.visitContents(c);
+        }
+
+        /**
+         * Invoke a static method - this needs to be distinguished from the
+         * plain on() method so the builder can correctly topo-sort by type
+         * references.
+         *
+         * @param what The type that owns the thing being invoked
+         * @return The result of this builder
+         */
+        public T onType(String what) {
+            target = typeName(what);
             return close();
         }
 
@@ -2349,6 +2558,14 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            c.accept(what);
+            if (type != null) {
+                c.accept(typeName(type));
+            }
+        }
+
+        @Override
         public void generateInto(LinesBuilder lines) {
             if (!eq && "undefined".equals(type)) {
                 what.generateInto(lines);
@@ -2380,7 +2597,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    private static final class LineComment extends TypescriptCodeGenerator {
+    private static final class LineComment extends ChildlessTypescriptCodeGenerator {
 
         private final String txt;
         private final boolean leadingNewline;
@@ -2468,8 +2685,18 @@ public final class TypescriptSource implements SourceFileBuilder {
             this.conv = conv;
         }
 
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            if (target != null) {
+                c.accept(target);
+            }
+            if (as != null) {
+                c.accept(as);
+            }
+        }
+
         public FieldReferenceBuilder<T> as(String castTo) {
-            this.as = new Adhoc(castTo);
+            this.as = typeName(castTo);
             return this;
         }
 
@@ -2502,6 +2729,24 @@ public final class TypescriptSource implements SourceFileBuilder {
         public T of(String expression) {
             target = new Adhoc(expression);
             return conv.apply(this);
+        }
+
+        public T ofType(String typeName) {
+            target = typeName(typeName);
+            return conv.apply(this);
+        }
+
+        public T ofType(String s, Consumer<? super ParameterizedTypeBuilder<Void>> c) {
+            Holder<T> hold = new Holder<>();
+            ParameterizedTypeBuilder<Void> result = new ParameterizedTypeBuilder<>(typeName(s),
+                    ptb -> {
+                        target = ptb;
+                        hold.set(conv.apply(this));
+                        return null;
+                    });
+            c.accept(result);
+            hold.ifUnset(result::endType);
+            return hold.get("ParameterizedTypeBuilder not completed for " + s);
         }
 
         public T ofThis() {
@@ -2542,6 +2787,14 @@ public final class TypescriptSource implements SourceFileBuilder {
         public T over(String what) {
             over = new Adhoc(what);
             return endBlock();
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            super.visitContents(c);
+            if (over != null) {
+                c.accept(over);
+            }
         }
 
         public FieldReferenceBuilder<T> overField(String fieldName) {
@@ -2633,6 +2886,16 @@ public final class TypescriptSource implements SourceFileBuilder {
             this.condition = condition;
             this.parent = parent;
             children = parent == null ? new ArrayList<>() : null;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            if (condition != null) {
+                c.accept(condition);
+            }
+            if (children != null) {
+                children.forEach(c);
+            }
         }
 
         private ConditionalClauseBuilder<T> top() {
@@ -2728,7 +2991,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    private static final class BreakableCondition extends TypescriptCodeGenerator {
+    private static final class BreakableCondition extends ChildlessTypescriptCodeGenerator {
 
         private final String test;
 
@@ -2915,7 +3178,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public ArrayElementBuilder<R> returningArrayLiteral() {
-            return new ArrayLiteralBuilder<R>(alb -> {
+            return new ArrayLiteralBuilder<>(alb -> {
                 add(new ReturnStatement(alb));
                 return onReturn();
             }).element();
@@ -2955,7 +3218,7 @@ public final class TypescriptSource implements SourceFileBuilder {
                 hold.set(onReturn());
                 return null;
             });
-            result.target = new Adhoc(what);
+            result.target = typeName(what);
             c.accept(result);
             hold.ifUnset(result::close);
             return hold.get(() -> "NewBuilder not completed: " + result);
@@ -2983,6 +3246,17 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         public TryCatchBuilder(Function<? super TryCatchBuilder<T>, T> conv) {
             super(true, conv);
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            super.visitContents(c);
+            if (catchBlock != null) {
+                c.accept(catchBlock);
+            }
+            if (finallyBlock != null) {
+                c.accept(finallyBlock);
+            }
         }
 
         @Override
@@ -3079,7 +3353,6 @@ public final class TypescriptSource implements SourceFileBuilder {
             owner.catchBlock = this;
             return owner.finalli(c);
         }
-
     }
 
     public static class StandardReturnableBlockBuilderBase<T, B extends StandardReturnableBlockBuilderBase<T, B>> extends ReturnableBlockBuilderBase<T, B, T> {
@@ -3112,6 +3385,11 @@ public final class TypescriptSource implements SourceFileBuilder {
         TsBlockBuilderBase(boolean openBlock, Function<? super B, T> conv) {
             this.openBlock = openBlock;
             this.conv = conv;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            statements.forEach(c);
         }
 
         @Override
@@ -3481,6 +3759,13 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            if (what != null) {
+                c.accept(what);
+            }
+        }
+
+        @Override
         public void generateInto(LinesBuilder lines) {
             lines.onNewLine().statement(lb -> {
                 lb.word("return");
@@ -3505,6 +3790,11 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            c.accept(stmt);
+        }
+
+        @Override
         public void generateInto(LinesBuilder lines) {
             lines.onNewLine();
             stmt.generateInto(lines);
@@ -3512,24 +3802,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static void main(String[] args) {
-        TypescriptSource src = new TypescriptSource("Blah");
-        src.declareClass("SomeType", cl -> {
-            cl.constructor(con -> {
-                con.withArgument("foo").ofType("string")
-                        .withArgument("bar").ofType("Bar")
-                        .body(bb -> {
-                            bb.invoke("log")
-                                    .withArgument("foo")
-                                    .withArgument("bar")
-                                    .on("console");
-                        });
-            });
-        });
-        System.out.println(src);
-    }
-
-    public static final class ClassBuilder<T> extends TypescriptCodeGenerator {
+    public static final class ClassBuilder<T> extends NamedTypescriptCodeGenerator {
 
         private final Function<? super ClassBuilder<T>, T> conv;
         private final String name;
@@ -3544,6 +3817,15 @@ public final class TypescriptSource implements SourceFileBuilder {
         ClassBuilder(Function<? super ClassBuilder<T>, T> conv, String name) {
             this.conv = conv;
             this.name = name;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            extending.forEach(c);
+            implementing.forEach(c);
+            methods.forEach(c);
+            properties.forEach(c);
+            constructors.forEach(c);
         }
 
         public ClassBuilder<T> docComment(String docs) {
@@ -3566,8 +3848,21 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public ClassBuilder<T> extending(String what) {
-            extending.add(new Adhoc(what));
+            extending.add(typeName(what));
             return this;
+        }
+
+        public ClassBuilder<T> extending(String s, Consumer<? super ParameterizedTypeBuilder<Void>> c) {
+            Holder<ClassBuilder<T>> hold = new Holder<>();
+            ParameterizedTypeBuilder<Void> result = new ParameterizedTypeBuilder<>(typeName(s),
+                    ptb -> {
+                        extending.add(ptb);
+                        hold.set(this);
+                        return null;
+                    });
+            c.accept(result);
+            hold.ifUnset(result::endType);
+            return hold.get("ParameterizedTypeBuilder not completed for " + s);
         }
 
         public ClassBuilder<T> exported() {
@@ -3720,7 +4015,7 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     }
 
-    public static final class InterfaceBuilder<T> extends TypescriptCodeGenerator {
+    public static final class InterfaceBuilder<T> extends NamedTypescriptCodeGenerator {
 
         private final List<CodeGenerator> members = new ArrayList<>();
 
@@ -3735,6 +4030,12 @@ public final class TypescriptSource implements SourceFileBuilder {
             this.name = name;
         }
 
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            extending.forEach(c);
+            members.forEach(c);
+        }
+
         public String name() {
             return name;
         }
@@ -3745,7 +4046,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public InterfaceBuilder<T> extending(String what) {
-            extending.add(new Adhoc(what));
+            extending.add(typeName(what));
             return this;
         }
 
@@ -3859,7 +4160,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static abstract class FunctionSignatureBuilderBase<T, F extends FunctionSignatureBuilderBase<T, F, R>, R> extends TypescriptCodeGenerator {
+    public static abstract class FunctionSignatureBuilderBase<T, F extends FunctionSignatureBuilderBase<T, F, R>, R> extends NamedTypescriptCodeGenerator {
 
         final Function<? super F, T> conv;
         final String name;
@@ -3880,6 +4181,20 @@ public final class TypescriptSource implements SourceFileBuilder {
             this.conv = conv;
             this.name = name;
             this.leadingFunctionKeyword = leadingFunctionKeyword;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            arguments.forEach(c);
+            typeParameters.forEach(c);
+            if (returning != null) {
+                c.accept(returning);
+            }
         }
 
         F kind(FunctionKind kind) {
@@ -3932,15 +4247,28 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public R returningVoid() {
-            returning = new Adhoc("void");
+            returning = typeName("void");
             return onReturnSet();
         }
 
         abstract R onReturnSet();
 
         public R returning(String what) {
-            returning = new Adhoc(what);
+            returning = typeName(what);
             return onReturnSet();
+        }
+
+        public R ofType(String s, Consumer<? super ParameterizedTypeBuilder<Void>> c) {
+            Holder<R> hold = new Holder<>();
+            ParameterizedTypeBuilder<Void> result = new ParameterizedTypeBuilder<>(typeName(s),
+                    ptb -> {
+                        returning = ptb;
+                        hold.set(onReturnSet());
+                        return null;
+                    });
+            c.accept(result);
+            hold.ifUnset(result::endType);
+            return hold.get("ParameterizedTypeBuilder not completed for " + s);
         }
 
         public PropertyBuilder<R> returning() {
@@ -4037,14 +4365,30 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            c.accept(function);
+        }
+
+        @Override
         public void generateInto(LinesBuilder lines) {
             lines.parens(lb -> {
                 lb.word("()").word("=>");
-                if (function.statements.size() == 1) {
-                    function.statements.get(0).generateInto(lines);
-                } else {
-                    function.generateInto(lines);
-                }
+                // Pending:  This could be nice, and would work,
+                // but we need a way to ask the single statement
+                // if it is capable of being a single-line - e.g.
+                // (() => foo.bar()}.
+                //
+                // Certain kinds of Typescript statements are not
+                // supported for this form - for example, a single
+                // switch statement as the only element of the
+                // lambda will not compile (even though it seems like
+                // it should)
+
+//                if (function.statements.size() == 1) {
+//                    function.statements.get(0).generateInto(lines);
+//                } else {
+                function.generateInto(lines);
+//                }
             });
             lines.backup().appendRaw("()");
         }
@@ -4138,7 +4482,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    private static class BlockComment extends TypescriptCodeGenerator {
+    private static class BlockComment extends ChildlessTypescriptCodeGenerator {
 
         private final String text;
 
@@ -4156,7 +4500,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    private static class DocComment extends TypescriptCodeGenerator {
+    private static class DocComment extends ChildlessTypescriptCodeGenerator {
 
         private final List<String> text;
 
@@ -4201,8 +4545,16 @@ public final class TypescriptSource implements SourceFileBuilder {
             };
 
             boolean lastWasWhitespace = true;
+            char last = 0;
             for (int i = 0; i < text.length(); i++) {
                 char c = text.charAt(i);
+                if (c == '/' && last == '*') {
+                    // The doc comment contains a closing */ - and the
+                    // parser will treat our subsequent closing */ as an unterminated
+                    // regular expression.  So insert a space to avoid that.
+                    sb.append(' ');
+                }
+                last = c;
                 switch (c) {
                     case '\n':
                         lastWasWhitespace = true;
@@ -4255,6 +4607,12 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            modifiers.forEach(c);
+            super.visitContents(c);
+        }
+
+        @Override
         public MethodBuilder<T> docComment(String what) {
             docs = new DocComment(what);
             return this;
@@ -4279,7 +4637,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public T returning(String type, Consumer<? super TsBlockBuilder<Void>> c) {
-            this.returning = new Adhoc(type);
+            this.returning = typeName(type);
             Holder<T> hold = new Holder<>();
             TsBlockBuilder<Void> result = new TsBlockBuilder<>(true, block -> {
                 body = block;
@@ -4354,6 +4712,14 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            super.visitContents(c);
+            if (body != null) {
+                c.accept(body);
+            }
+        }
+
+        @Override
         TSGetterBlockBuilder<T> onReturnSet() {
             return body();
         }
@@ -4415,7 +4781,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public TSGetterBlockBuilder<T> withExplicitReturnType(String what) {
-            type.accept(new Adhoc(what));
+            type.accept(typeName(what));
             return this;
         }
 
@@ -4441,6 +4807,14 @@ public final class TypescriptSource implements SourceFileBuilder {
         public FunctionBuilder<T> docComment(String dox) {
             this.docs = new DocComment(dox);
             return this;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            super.visitContents(c);
+            if (body != null) {
+                c.accept(body);
+            }
         }
 
         @Override
@@ -4500,6 +4874,16 @@ public final class TypescriptSource implements SourceFileBuilder {
         @Override
         protected boolean newlineBeforeKeyword() {
             return false;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            if (modifier != null) {
+                c.accept(modifier);
+            }
+            if (body != null) {
+                c.accept(body);
+            }
         }
 
         public ConstructorBuilder<T> makePublic() {
@@ -4579,7 +4963,6 @@ public final class TypescriptSource implements SourceFileBuilder {
         public T endBlock() {
             return super.endBlock();
         }
-
     }
 
     public static final class ObjectLiteralBuilder<T> extends TypescriptCodeGenerator {
@@ -4589,6 +4972,11 @@ public final class TypescriptSource implements SourceFileBuilder {
 
         ObjectLiteralBuilder(Function<ObjectLiteralBuilder<T>, T> conv) {
             this.conv = conv;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            members.values().forEach(c);
         }
 
         public To<ObjectLiteralBuilder<T>> assigning(String name) {
@@ -4765,6 +5153,17 @@ public final class TypescriptSource implements SourceFileBuilder {
             super(name, conv);
         }
 
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            super.visitContents(c);
+            if (isStatic) {
+                c.accept(Modifiers.STATIC);
+            }
+            if (initializer != null) {
+                c.accept(initializer);
+            }
+        }
+
         public ClassPropertyBuilder<T> setPublic() {
             modifiers.remove(PRIVATE);
             modifiers.remove(PROTECTED);
@@ -4888,7 +5287,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
     }
 
-    public static class PropertyBuilder<T> extends TypescriptCodeGenerator {
+    public static class PropertyBuilder<T> extends NamedTypescriptCodeGenerator {
 
         final String name;
         final Function<? super PropertyBuilder<T>, T> conv;
@@ -4901,6 +5300,16 @@ public final class TypescriptSource implements SourceFileBuilder {
         PropertyBuilder(String name, Function<? super PropertyBuilder<T>, T> conv) {
             this.conv = conv;
             this.name = name;
+        }
+
+        String name() {
+            return name;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            modifiers.forEach(c);
+            types.forEach(c);
         }
 
         public PropertyBuilder<T> docComment(String cmt) {
@@ -4933,18 +5342,31 @@ public final class TypescriptSource implements SourceFileBuilder {
         }
 
         public T ofType(String type) {
-            types.add(new Adhoc(type));
+            types.add(typeName(type));
             return conv.apply(this);
         }
 
+        public T ofType(String s, Consumer<? super ParameterizedTypeBuilder<Void>> c) {
+            Holder<T> hold = new Holder<>();
+            ParameterizedTypeBuilder<Void> result = new ParameterizedTypeBuilder<>(typeName(s),
+                    ptb -> {
+                        types.add(ptb);
+                        hold.set(conv.apply(this));
+                        return null;
+                    });
+            c.accept(result);
+            hold.ifUnset(result::endType);
+            return hold.get("ParameterizedTypeBuilder not completed for " + s);
+        }
+
         public PropertyBuilder<T> withType(String type) {
-            types.add(new Adhoc(type));
+            types.add(typeName(type));
             return this;
         }
 
         public PropertyBuilder<T> orType(String type) {
             and = false;
-            types.add(new Adhoc(type));
+            types.add(typeName(type));
             return this;
         }
 
@@ -5036,10 +5458,10 @@ public final class TypescriptSource implements SourceFileBuilder {
     private record Parenthesize(CodeGenerator delegate) implements CodeGenerator {
 
         @Override
-            public void generateInto(LinesBuilder lines) {
-                lines.parens(lb -> delegate.generateInto(lb));
-            }
+        public void generateInto(LinesBuilder lines) {
+            lines.parens(lb -> delegate.generateInto(lb));
         }
+    }
 
     public static final class ImportBuilder<T> extends TypescriptCodeGenerator implements Comparable<ImportBuilder<?>> {
 
@@ -5055,7 +5477,15 @@ public final class TypescriptSource implements SourceFileBuilder {
             }
         }
 
-        static class ImportTarget implements CodeGenerator, Comparable<ImportTarget> {
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            if (from != null) {
+                c.accept(from);
+            }
+            toImport.forEach(c);
+        }
+
+        static class ImportTarget extends ChildlessTypescriptCodeGenerator implements Comparable<ImportTarget> {
 
             private final String what;
 
@@ -5205,18 +5635,18 @@ public final class TypescriptSource implements SourceFileBuilder {
 
     private record NumberLiteral(Number num) implements CodeGenerator {
 
-            private NumberLiteral(Number num) {
-                this.num = notNull("num", num);
-            }
-
-            @Override
-            public void generateInto(LinesBuilder lines) {
-                // exponential notation must be lower-cased
-                lines.word(num.toString().toLowerCase());
-            }
+        private NumberLiteral(Number num) {
+            this.num = notNull("num", num);
         }
 
-    private static final class StringLiteral extends TypescriptCodeGenerator implements Comparable<StringLiteral> {
+        @Override
+        public void generateInto(LinesBuilder lines) {
+            // exponential notation must be lower-cased
+            lines.word(num.toString().toLowerCase());
+        }
+    }
+
+    private static final class StringLiteral extends ChildlessTypescriptCodeGenerator implements Comparable<StringLiteral> {
 
         private final String text;
 
@@ -5275,6 +5705,16 @@ public final class TypescriptSource implements SourceFileBuilder {
         FieldAssignment(CodeGenerator head, Function<FieldAssignment<T>, T> conv) {
             this.leftSide = head;
             this.conv = conv;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            if (leftSide != null) {
+                c.accept(leftSide);
+            }
+            if (rightSide != null) {
+                c.accept(rightSide);
+            }
         }
 
         public T to(String expression) {
@@ -5430,7 +5870,7 @@ public final class TypescriptSource implements SourceFileBuilder {
         private final Function<Assignment<T>, T> conv;
         private final String prefix;
         private final CodeGenerator name;
-        private String type;
+        private CodeGenerator type;
 
         Assignment(String name, Function<Assignment<T>, T> conv) {
             this(null, new Adhoc(name), conv);
@@ -5446,9 +5886,35 @@ public final class TypescriptSource implements SourceFileBuilder {
             this.name = name;
         }
 
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            if (name != null) {
+                c.accept(name);
+            }
+            if (what != null) {
+                c.accept(what);
+            }
+            if (type != null) {
+                c.accept(type);
+            }
+        }
+
         public Assignment<T> ofType(String type) {
-            this.type = type;
+            this.type = typeName(type);
             return this;
+        }
+
+        public Assignment<T> ofType(String s, Consumer<? super ParameterizedTypeBuilder<Void>> c) {
+            Holder<Assignment<T>> hold = new Holder<>();
+            ParameterizedTypeBuilder<Void> result = new ParameterizedTypeBuilder<>(typeName(s),
+                    ptb -> {
+                        this.type = ptb;
+                        hold.set(this);
+                        return null;
+                    });
+            c.accept(result);
+            hold.ifUnset(result::endType);
+            return hold.get("ParameterizedTypeBuilder not completed for " + s);
         }
 
         @Override
@@ -5679,7 +6145,8 @@ public final class TypescriptSource implements SourceFileBuilder {
                 }
                 lb.generateOrPlaceholder(name);
                 if (type != null) {
-                    lb.appendRaw(':').word(type);
+                    lb.appendRaw(':');
+                    type.generateInto(lb);
                 }
                 if (what != null) {
                     lb.word("=");
@@ -5708,6 +6175,14 @@ public final class TypescriptSource implements SourceFileBuilder {
         ElementExpression(CodeGenerator element, Function<? super ElementExpression<T>, ? extends T> conv) {
             this.conv = conv;
             this.element = element;
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            c.accept(element);
+            if (target != null) {
+                c.accept(target);
+            }
         }
 
         public T of(String val) {
@@ -5755,8 +6230,45 @@ public final class TypescriptSource implements SourceFileBuilder {
         return lb.toString();
     }
 
+    private boolean topo = true;
+
     @Override
     public void generateInto(LinesBuilder lines) {
+        if (topo) {
+            topoGenerateInto(lines);
+        } else {
+            legacyGenerateInto(lines);
+        }
+    }
+
+    private void topoGenerateInto(LinesBuilder lines) {
+        drainPendingComments(contents);
+        for (CodeGenerator cg : imports) {
+            cg.generateInto(lines);
+        }
+        if (!imports.isEmpty()) {
+            lines.doubleNewline();
+        }
+        for (CodeGenerator cg : top) {
+            lines.onNewLine();
+            cg.generateInto(lines);
+        }
+
+        for (CodeGenerator cg : topoSortedMembers()) {
+            lines.doubleNewline();
+            cg.generateInto(lines);
+        }
+
+        if (!contents.isEmpty()) {
+            lines.doubleNewline();
+        }
+        for (CodeGenerator cg : contents) {
+            cg.generateInto(lines);
+        }
+    }
+
+    private void legacyGenerateInto(LinesBuilder lines) {
+        drainPendingComments(contents);
         for (CodeGenerator cg : imports) {
             cg.generateInto(lines);
         }
@@ -5817,6 +6329,73 @@ public final class TypescriptSource implements SourceFileBuilder {
         return this;
     }
 
+    public static class ParameterizedTypeBuilder<T> extends TypescriptCodeGenerator {
+
+        private final Function<? super ParameterizedTypeBuilder<T>, T> conv;
+        private int arrayDepth = 0;
+        private final CodeGenerator leadingName;
+        private final List<CodeGenerator> typeParameters = new ArrayList<>();
+
+        public ParameterizedTypeBuilder(CodeGenerator leadingName, Function<? super ParameterizedTypeBuilder<T>, T> conv) {
+            this.conv = conv;
+            this.leadingName = leadingName;
+        }
+
+        // pending - should have or and and types here too
+        public ParameterizedTypeBuilder<T> withTypeParameter(String typeParam) {
+            typeParameters.add(typeName(typeParam));
+            return this;
+        }
+
+        public ParameterizedTypeBuilder<T> withTypeParameter(String name, Consumer<ParameterizedTypeBuilder<Void>> subc) {
+            Holder<ParameterizedTypeBuilder<T>> hold = new Holder<>();
+            ParameterizedTypeBuilder<Void> pt = new ParameterizedTypeBuilder<>(typeName(name), ptb -> {
+                hold.set(this);
+                typeParameters.add(ptb);
+                return null;
+            });
+            hold.ifUnset(pt::endType);
+            return hold.get("Parameterized type not completed");
+        }
+
+        public ParameterizedTypeBuilder<T> array() {
+            arrayDepth++;
+            return this;
+        }
+
+        public ParameterizedTypeBuilder<T> array(int nDimensions) {
+            if (nDimensions < 0) {
+                throw new IllegalStateException("Negative array dimensions");
+            }
+            arrayDepth = nDimensions;
+            return this;
+        }
+
+        public T endType() {
+            return conv.apply(this);
+        }
+
+        @Override
+        protected void visitContents(Consumer<? super CodeGenerator> c) {
+            c.accept(leadingName);
+            typeParameters.forEach(c);
+        }
+
+        @Override
+        public void generateInto(LinesBuilder lines) {
+            leadingName.generateInto(lines);
+            if (!typeParameters.isEmpty()) {
+                lines.hangingWrap(lb1 -> {
+                    lb1.angleBrackets(lb -> lb.joining(",", typeParameters));
+                });
+            }
+            for (int i = 0; i < arrayDepth; i++) {
+                lines.appendRaw("[]");
+            }
+        }
+
+    }
+
     private static final String PKG = TypescriptSource.class.getPackage().getName();
     private static final String PKG2 = CodeGenerator.class.getPackage().getName();
 
@@ -5851,6 +6430,215 @@ public final class TypescriptSource implements SourceFileBuilder {
             }
         }
         return s.substring(start);
+    }
+
+    List<CodeGenerator> topoSortedMembers() {
+        return topoSort(this.ifaces, this.types, this.functions);
+    }
+
+    private void topoSortClasses() {
+        if (!classesSorted) {
+            classesSorted = true;
+            performClassesTopoSort(types);
+        }
+    }
+
+    @SafeVarargs
+    private List<CodeGenerator> topoSort(List<CodeGenerator>... all) {
+        List<CodeGenerator> result = new ArrayList<>();
+        for (List<CodeGenerator> g : all) {
+            result.addAll(g);
+        }
+        performClassesTopoSort(result);
+        return result;
+    }
+
+    private void performClassesTopoSort(List<CodeGenerator> all) {
+        if (all.size() <= 1) {
+            return;
+        }
+        IntGraphBuilder igb = IntGraph.builder();
+        Int counter = Int.create();
+
+        Map<String, Integer> mapping = new IdentityHashMap<>();
+        Map<Integer, String> reverseMapping = new HashMap<>();
+
+        ToIntFunction<String> indexForName = cg -> {
+            switch (cg) {
+                case "string":
+                case "number":
+                case "any":
+                case "object":
+                case "void":
+                case "this":
+                case "BigInt":
+                case "undefined":
+                    return -1;
+            }
+            Integer index = mapping.get(cg);
+            if (index == null) {
+                int ix = counter.increment();
+                mapping.put(cg, ix);
+                reverseMapping.put(ix, cg);
+                return ix;
+            }
+            return index;
+        };
+
+        IntBiConsumer edges = (a, b) -> {
+            if (a == b || a < 0 || b < 0) {
+                return;
+            }
+            igb.addEdge(b, a);
+        };
+
+        List<NamedTypescriptCodeGenerator> nameds = new ArrayList<>();
+        Map<String, NamedTypescriptCodeGenerator> byName = new HashMap<>();
+        Map<NamedTypescriptCodeGenerator, List<CodeGenerator>> precedingNonNamedForNamed = new HashMap<>();
+
+        BitSet toSort = new BitSet();
+
+        List<CodeGenerator> currentPrecedingItems = new LinkedList<>();
+        // Preload the things we will actually sort so they are low
+        // numbered, and collect any preceding items so we can restore them
+        for (CodeGenerator gen : all) {
+            if (gen instanceof NamedTypescriptCodeGenerator n) {
+                nameds.add(n);
+                byName.put(n.name(), n);
+                precedingNonNamedForNamed.put(n, new ArrayList<>(currentPrecedingItems));
+                currentPrecedingItems.clear();
+                int ix = indexForName.applyAsInt(n.name());
+                if (ix >= 0) {
+                    toSort.set(ix);
+                }
+            } else {
+                currentPrecedingItems.add(gen);
+            }
+        }
+        for (NamedTypescriptCodeGenerator ty : nameds) {
+            int parentIndex = indexForName.applyAsInt(ty.name());
+            ty.visitReferencedTypes((sub, name) -> {
+                System.out.println(ty.name() + " references " + name
+                        + " via " + sub.getClass().getSimpleName());
+                int ix = indexForName.applyAsInt(name);
+                edges.accept(parentIndex, ix);
+            });
+        }
+        System.out.println("GRAPH:");
+        IntGraph graph = igb.build();
+
+        ObjectGraph<String> og = graph.toObjectGraph(new IndexedResolvable<String>() {
+            @Override
+            public String forIndex(int i) {
+                return reverseMapping.get(i);
+            }
+
+            @Override
+            public int size() {
+                return mapping.size();
+            }
+
+            @Override
+            @SuppressWarnings("element-type-mismatch")
+            public int indexOf(Object o) {
+                return mapping.get(o);
+            }
+        });
+
+        Set<String> names = new HashSet<>();
+        for (NamedTypescriptCodeGenerator g : nameds) {
+            String nm = g.name();
+            for (String s : og.children(nm)) {
+                System.out.println(nm + " -> " + s);
+            }
+            names.add(nm);
+        }
+
+        System.out.println("\n--- O topo ---");
+        for (String s : og.topologicalSort(names)) {
+            System.out.println(" * " + s);
+        }
+        System.out.println("-----\n");
+
+
+        /*
+        graph.walk(new IntGraphVisitor() {
+            int depth;
+
+            @Override
+            public void enterNode(int i, int i1) {
+                depth++;
+                char[] ind = new char[depth * 2];
+                Arrays.fill(ind, ' ');
+                String s = new String(ind);
+                System.out.println(s + reverseMapping.get(i) + " -> " + reverseMapping.get(i1));
+            }
+
+            @Override
+            public void exitNode(int node, int depth) {
+                depth--;
+            }
+        });
+         */
+        List<CodeGenerator> result = new ArrayList<>();
+        IntPath sortOrder = graph.topologicalSort(toSort);
+        System.out.println("SORT ORDER " + sortOrder);
+        sortOrder.forEachInt(index -> {
+            String nm = reverseMapping.get(index);
+            NamedTypescriptCodeGenerator g = byName.get(nm);
+            result.addAll(precedingNonNamedForNamed.get(g));
+            result.add(g);
+        });
+        // Add any trailing stuff
+        result.addAll(currentPrecedingItems);
+        all.clear();
+        all.addAll(result);
+    }
+
+    public static void main(String[] args) {
+        TypescriptSource src = new TypescriptSource("Blah");
+        src.declareInterface("Bar", iface -> {
+            iface.property("thing").ofType("Things");
+            iface.property("weebles").ofType("Weebles");
+        });
+        src.declareInterface("Bug", iface -> {
+        });
+        src.declareClass("Blarg", blarg -> {
+            blarg.property("whatevs")
+                    .ofType("Map", tp -> tp.withTypeParameter("string").withTypeParameter("Bug"));
+        });
+        src.declareEnum("Things", en -> {
+            en.addMember("CHEESE", "cheese", "Some cheese.");
+            en.addMember("TOYS", "Toys", "Not potatoes.");
+            en.addMember("CARS", "Cars", "Vehicular conveyance.");
+        });
+        src.declareStringEnum("Weebles", "wobble", "dont", "fall", "down");
+        src.declareClass("OtherThing", cl -> {
+            cl.property("something").ofType("SomeType");
+        });
+        src.declareClass("ReferencingType", cl -> {
+            cl.property("something").ofType("SomeType");
+            cl.property("otherthing").ofType("OtherThing");
+        });
+
+        src.declareClass("SomeType", cl -> {
+            cl.constructor(con -> {
+                con.withArgument("foo").ofType("string")
+                        .withArgument("bar").ofType("Bar")
+                        .body(bb -> {
+                            bb.invoke("log")
+                                    .withArgument("foo")
+                                    .withArgument("bar")
+                                    .on("console");
+                        });
+            });
+        });
+        src.function("thingToString", f -> {
+            f.withArgument("st").ofType("SomeType")
+                    .returning("string")
+                    .returningInvocationOf("toString").on("st");
+        });
+        System.out.println(src);
     }
 
 }

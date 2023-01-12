@@ -23,6 +23,14 @@
     <properties>
         <!-- Ensure javadoc includes generated smithy sources and builders. -->
         <sourcepath>src/main/java:target/generated-sources/smithy:target/generated-sources/annotations</sourcepath>
+        <!--
+        If set to true, code generators will emit a single stack
+        trace line as a line comment preceding lines of code such as
+        assignments, invocations, if/thens, and similar, for tracking
+        down the exact line of generation code that caused a particular
+        line of code to be emitted.
+        -->
+        <smithy-generators-debug>false</smithy-generators-debug>
     </properties>
 
     <build>
@@ -68,20 +76,73 @@
                             <settings>
                                 <!-- If true, will generate a crude HTML UI for
                                 manually testing the generated server: -->
-                                <generate-test-ui>false</generate-test-ui>
+                                <generate-test-ui>true</generate-test-ui>
                             </settings>
+
                             <!-- What code do we want to generate?  These are the generation
                             targets passed to plugins to tell them what kind of code they
-                            should generate: -->
+                            should generate.  Plugins can invent their own generation targets;
+                            ones supported by default are:
+
+                             * model - generate data-model classes in whatever languages are configured
+                               (note you also need a plugin in the <dependencies> section above which
+                               will really *do* something for that language for the model target
+                             * modeltest - for Java, generate JUnit 5 tests of the generated model classes,
+                               which prove they are implemented correctly (JSON and Java serialization
+                               result in deserializing an object which equals() the original, constraints
+                               are honored - note that you may need to use the @samples Smithy trait to
+                               provide correct and incorrect examples of things like String properties
+                               validated by regular expressions - the plugin will not *guess* what might
+                               be a valid or invalid value).
+                             * server - generate the default (Acteur) server
+                             * server-spi - generate the SPI the generated servers will call, which you
+                               will implement to provide business logic for the generated server
+                             * client - generate a Java (and perhaps other languages) SDK client
+                             * docs - generate Swagger documentation
+                             * vertx-server - generate a Vert.x server
+
+                             All of these targets only do something if, in the <dependencies> stanza
+                             above for the PLUGIN (not for the project - you do not need or want this
+                             stuff as runtime dependencies), there exists a plugin that will actually
+                             DO something for the target + language combination in question.
+
+                            -->
                             <targets>model,modeltest,server,server-spi,client,docs,vertx-server</targets>
 
-                            <!--<languages>java,typescript</languages>-->
-                            <languages>java</languages>
+                            <languages>java,typescript</languages>
+
+                            <!-- If set to true, a line comment will precede every
+                            statement in the generated typescript source, showing
+                            the line of code in the smithy code generator plugin that
+                            caused that line of code to be emitted.  If the generated
+                            code is incorrect, this is important information for diagnosing
+                            that. -->
+                            <debug>\${smithy-generators-debug}</debug>
+
                             #set ($gidLower = $groupId.toLowerCase())
                             #set ($aidLower = $artifactId.toLowerCase())
 
+                            <!-- Smithy generation will only run for the set of namespaces listed
+                                 here - this MUST *exactly match* the namespace declaration(s) in
+                                 your .smithy file.
+
+                                 If you are using third party libraries that have their own generated
+                                 code from Smithy, you would not want to generate code for them - you
+                                 are already pulling in compiled code from that library.
+
+                                 If code generation seems to run successfully and produce nothing,
+                                 the namespace setting is likely to be the problem.
+                            -->
                             <namespaces>${gidLower}.${aidLower}</namespaces>
 
+                            <!-- This is where we map language + generation target to output source roots.
+                                 Note that everything *underneath* these source roots will be DELETED
+                                 before generation writes any files there.
+
+                                 The mapping can either be just the generation target, or a combination
+                                 of language DOT target to put sources in a particular language in a
+                                 project for that language.
+                            -->
                             <destinations>
                                 <typescript.model>\${basedir}/../\${aidLower}-model-typescript/src/model</typescript.model>
                                 <client>\${basedir}/../\${aidLower}-generated-client-sdk/src/main/java</client>
