@@ -332,7 +332,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
 
             importModelObject(name, src);
             src.declareTopConst(enumMappingConstName(name))
-//                    .ofType("Map<string, number>")
+                    //                    .ofType("Map<string, number>")
                     .ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("number"))
                     .assignedToSelfExecutingFunction(f -> {
                         f.declareConst("result")
@@ -357,6 +357,8 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
             EnumCharacteristics characteristics = characterizeEnum(s);
             switch (characteristics) {
                 case NONE:
+                    generateEnumMapping(src, name, "string");
+                    break;
                 case STRING_VALUED:
                 case HETEROGENOUS:
                     generateEnumMapping(src, name, "string");
@@ -367,11 +369,11 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
                 case STRING_VALUED_MATCHING_NAMES:
                     String nm = enumMappingConstName(name);
                     src.declareTopConst(nm)
-                            .ofType("Map<string, string>")
+                            .ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("string"))
                             .assignedToSelfExecutingFunction(f -> {
                                 f.declareConst("result")
-                                        .ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("number"))
-                                        .assignedToNew().ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("number"));
+                                        .ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("string"))
+                                        .assignedToNew().ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("string"));
                                 s.getEnumValues().forEach((k, v) -> {
                                     f.invoke("set")
                                             .withStringLiteralArgument(k)

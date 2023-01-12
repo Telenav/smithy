@@ -176,6 +176,11 @@ public class SmithyTsGenerator implements SmithyGenerator {
 
     @Override
     public List<? extends ModelElementGenerator> subsortGenerators(Collection<? extends ModelElementGenerator> gens) {
+        if (true) {
+            // This may be taken care of now for typescript - ts-vogon topo sorts
+            // class references before generation.
+            return emptyList();
+        }
         List<AbstractTypescriptGenerator<?>> ours = new ArrayList<>();
         for (ModelElementGenerator g : gens) {
             if (g instanceof AbstractTypescriptGenerator<?>) {
