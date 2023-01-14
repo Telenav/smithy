@@ -47,7 +47,6 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.sort;
 import static java.util.EnumSet.noneOf;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -125,6 +124,20 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
     private void drainPendingComments(List<CodeGenerator> into) {
         into.addAll(pendingComments);
         pendingComments.clear();
+    }
+
+    public boolean containsTypeNamed(String name) {
+        for (CodeGenerator gen : types) {
+            if (gen instanceof NamedTypescriptCodeGenerator n && n.name().equals(name)) {
+                return true;
+            }
+        }
+        for (CodeGenerator gen : contents) {
+            if (gen instanceof NamedTypescriptCodeGenerator n && n.name().equals(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     TypescriptSource add(CodeGenerator gen) {
@@ -769,6 +782,10 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             return new StringConcatenation<>(this::finish).append(what);
         }
 
+        public StringConcatenation<T> concatenate() {
+            return new StringConcatenation<>(this::finish);
+        }
+
         public FieldReferenceBuilder<T> field(String what) {
             return new FieldReferenceBuilder<>(what, this::finish);
         }
@@ -934,7 +951,11 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
         BITWISE_OR("|"),
         LOGICAL_OR("||"),
         BITWISE_AND("&"),
-        LOGICAL_AND("&&"),;
+        LOGICAL_AND("&&"),
+        LESS_THAN("<"),
+        LESS_THAN_OR_EQUAL_TO("<="),
+        GREATER_THAN(">"),
+        GREATER_THAN_OR_EQUAL_TO(">="),;
         private final String operator;
 
         BinaryOperations(String op) {
@@ -1046,6 +1067,31 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             });
             c.accept(result);
             return hold.get("Expression in string concatenation not completed");
+        }
+
+        public ExpressionBuilder<ExpressionBuilder<StringConcatenation<T>>> appendOperation(BinaryOperations op) {
+            return new ExpressionBuilder<>(left -> {
+                return new ExpressionBuilder<>(right -> {
+                    CodeGenerator gen = new BinaryOperation<>(left, op, right);
+                    elements.add(gen);
+                    return this;
+                });
+            });
+        }
+
+        public StringConcatenation<T> appendOperation(
+                BinaryOperations op, Consumer<? super ExpressionBuilder<ExpressionBuilder<Void>>> c) {
+            Holder<StringConcatenation<T>> hold = new Holder<>();
+            ExpressionBuilder<ExpressionBuilder<Void>> result = new ExpressionBuilder<>(left -> {
+                return new ExpressionBuilder<>(right -> {
+                    CodeGenerator gen = new BinaryOperation<>(left, op, right);
+                    elements.add(gen);
+                    hold.set(this);
+                    return null;
+                });
+            });
+            c.accept(result);
+            return hold.get(() -> op.name() + " Binary expression not completed");
         }
 
         public StringConcatenation<T> append(Number literal) {
@@ -2071,6 +2117,28 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
         R add(CodeGenerator arg) {
             arguments.add(arg);
             return cast();
+        }
+
+        public ExpressionBuilder<ExpressionBuilder<R>> withOperation(BinaryOperations op) {
+            return new ExpressionBuilder<>(left -> {
+                return new ExpressionBuilder<>(right -> {
+                    CodeGenerator gen = new BinaryOperation<>(left, op, right);
+                    return add(gen);
+                });
+            });
+        }
+
+        public R operation(BinaryOperations op, Consumer<? super ExpressionBuilder<ExpressionBuilder<Void>>> c) {
+            Holder<R> hold = new Holder<>();
+            ExpressionBuilder<ExpressionBuilder<Void>> result = new ExpressionBuilder<>(left -> {
+                return new ExpressionBuilder<>(right -> {
+                    CodeGenerator gen = new BinaryOperation<>(left, op, right);
+                    hold.set(add(gen));
+                    return null;
+                });
+            });
+            c.accept(result);
+            return hold.get(() -> op.name() + " Expression builder not completed");
         }
 
         @Override
@@ -3934,12 +4002,12 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
         public ClassBuilder<T> getter(String name, Consumer<? super TSGetterBlockBuilder<Void>> c) {
             Holder<ClassBuilder<T>> hold = new Holder<>();
-            GetterBuilder<Void> result = new GetterBuilder<>(fsb -> {
+            GetterBuilder<Void> result = new GetterBuilder<Void>(fsb -> {
                 emitDebugComment(methods);
                 methods.add(fsb.kind(GETTER));
                 hold.set(this);
                 return null;
-            }, name);
+            }, name).makePublic();
             c.accept(result.body());
             hold.ifUnset(result::returningVoid);
             return hold.get("GetterBuilder not completed");
@@ -3950,7 +4018,7 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
                 emitDebugComment(methods);
                 methods.add(fsb.kind(GETTER));
                 return this;
-            }, name).body();
+            }, name).makePublic().body();
         }
 
         public T close() {
@@ -4701,6 +4769,7 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
         CodeGenerator body;
         DocComment docs;
+        Modifiers mod;
 
         public GetterBuilder(Function<? super GetterBuilder<T>, T> conv, String name) {
             super(false, conv, name);
@@ -4708,6 +4777,11 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
         public GetterBuilder<T> docComment(String dox) {
             this.docs = new DocComment(dox);
+            return this;
+        }
+
+        public GetterBuilder<T> makePublic() {
+            this.mod = Modifiers.PUBLIC;
             return this;
         }
 
@@ -4750,12 +4824,20 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
         }
 
         @Override
+        protected boolean newlineBeforeKeyword() {
+            return mod == null;
+        }
+
+        @Override
         public void generateInto(LinesBuilder lines) {
             if (docs != null) {
                 docs.generateInto(lines);
             }
             if (kind.explicit()) {
                 lines.onNewLine();
+            }
+            if (mod != null) {
+                mod.generateInto(lines);
             }
             super.generateInto(lines);
             if (fatArrow) {
@@ -5886,6 +5968,11 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             this.name = name;
         }
 
+        T finish(CodeGenerator gen) {
+            this.what = gen;
+            return conv.apply(this);
+        }
+
         @Override
         protected void visitContents(Consumer<? super CodeGenerator> c) {
             if (name != null) {
@@ -5904,6 +5991,13 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             return this;
         }
 
+        public ParameterizedTypeBuilder<Assignment<T>> ofComplexType(String initialName) {
+            return new ParameterizedTypeBuilder<>(typeName(initialName), ptb -> {
+                this.type = ptb;
+                return this;
+            });
+        }
+
         public Assignment<T> ofType(String s, Consumer<? super ParameterizedTypeBuilder<Void>> c) {
             Holder<Assignment<T>> hold = new Holder<>();
             ParameterizedTypeBuilder<Void> result = new ParameterizedTypeBuilder<>(typeName(s),
@@ -5919,32 +6013,27 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
         @Override
         public T assignedTo(String what) {
-            this.what = new Adhoc(what);
-            return conv.apply(this);
+            return finish(new Adhoc(what));
         }
 
         public T assignedTo(Number num) {
-            this.what = new NumberLiteral(num);
-            return conv.apply(this);
+            return finish(new NumberLiteral(num));
         }
 
         public T assignedTo(boolean bool) {
-            this.what = new Adhoc(Boolean.toString(bool));
-            return conv.apply(this);
+            return finish(new Adhoc(Boolean.toString(bool)));
         }
 
         public RawPropertyBuilder<T> assignedToRawProperty(String propertyName) {
             return new RawPropertyBuilder<>(new StringLiteral(propertyName), rp -> {
-                this.what = rp;
-                return conv.apply(this);
+                return finish(rp);
             });
         }
 
         public T assignedToRawProperty(String propertyName, Consumer<? super RawPropertyBuilder<Void>> c) {
             Holder<T> hold = new Holder<>();
             RawPropertyBuilder<Void> result = new RawPropertyBuilder<>(new StringLiteral(propertyName), rpb -> {
-                this.what = rpb;
-                hold.set(conv.apply(this));
+                hold.set(finish(rpb));
                 return null;
             });
             c.accept(result);
@@ -5952,22 +6041,29 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
         }
 
         public T assignedToStringLiteral(String what) {
-            this.what = new StringLiteral(what);
-            return conv.apply(this);
+            return finish(new StringLiteral(what));
+        }
+
+        public StringConcatenation<T> assignedToStringConcatenation(String initial) {
+            return assignedToStringConcatenation().append(initial);
+        }
+
+        public StringConcatenation<T> assignedToStringConcatenation() {
+            return new StringConcatenation<>(sc -> {
+                return finish(sc);
+            });
         }
 
         public StringConcatenation<T> assignedToConcatenation(String initial) {
             return new StringConcatenation<T>(sb -> {
-                this.what = sb;
-                return conv.apply(this);
+                return finish(sb);
             }).append(initial);
         }
 
         public T assignedToConcatenation(String initial, Consumer<? super StringConcatenation<Void>> c) {
             Holder<T> hold = new Holder<>();
             StringConcatenation<Void> result = new StringConcatenation<>(sb -> {
-                this.what = sb;
-                hold.set(conv.apply(this));
+                hold.set(finish(sb));
                 return null;
             });
             c.accept(result);
@@ -5977,23 +6073,20 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
         public ExpressionBuilder<ExpressionBuilder<T>> assignedToTernary(String test) {
             return new TernaryBuilder<T>(new Adhoc(test), tb -> {
-                this.what = tb;
-                return conv.apply(this);
+                return finish(tb);
             }).leftSide();
         }
 
         public ExpressionBuilder<T> assignedToUndefinedIfUndefinedOr(String defVar) {
             return new TernaryBuilder<T>(new TypeCheck(defVar, "undefined", true), tb -> {
-                this.what = tb;
-                return conv.apply(this);
+                return finish(tb);
             }).leftSide().expression("undefined");
         }
 
         public T assignedToTernary(String test, Consumer<? super ExpressionBuilder<ExpressionBuilder<Void>>> c) {
             Holder<T> hold = new Holder<>();
             TernaryBuilder<Void> result = new TernaryBuilder<>(new Adhoc(test), tb -> {
-                this.what = tb;
-                hold.set(conv.apply(this));
+                hold.set(finish(tb));
                 return null;
             });
             c.accept(result.leftSide());
@@ -6002,8 +6095,7 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
         public FieldReferenceBuilder<T> assignedToField(String what) {
             return new FieldReferenceBuilder<>(what, frb -> {
-                this.what = frb;
-                return conv.apply(this);
+                return finish(frb);
             });
         }
 
@@ -6011,25 +6103,45 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             return assignedToNew().ofType(what);
         }
 
+        public ExpressionBuilder<ExpressionBuilder<T>> assignedTo(BinaryOperations op) {
+            return new ExpressionBuilder<>(left -> {
+                return new ExpressionBuilder<>(right -> {
+                    CodeGenerator gen = new BinaryOperation<>(left, op, right);
+                    return finish(gen);
+                });
+            });
+        }
+
+        public T assignedTo(
+                BinaryOperations op, Consumer<? super ExpressionBuilder<ExpressionBuilder<Void>>> c) {
+            Holder<T> hold = new Holder<>();
+            ExpressionBuilder<ExpressionBuilder<Void>> result = new ExpressionBuilder<>(left -> {
+                return new ExpressionBuilder<>(right -> {
+                    CodeGenerator gen = new BinaryOperation<>(left, op, right);
+                    hold.set(finish(gen));
+                    return null;
+                });
+            });
+            c.accept(result);
+            return hold.get(() -> op.name() + " Binary expression not completed");
+        }
+
         public NewBuilder<T> assignedToNew() {
             return new NewBuilder<>(nb -> {
-                this.what = nb;
-                return conv.apply(this);
+                return finish(nb);
             });
         }
 
         public TsBlockBuilder<T> assignedToSelfExecutingFunction() {
             return new TsBlockBuilder<>(true, tsb -> {
-                this.what = new SelfExecutingFunction(tsb);
-                return conv.apply(this);
+                return finish(new SelfExecutingFunction(tsb));
             });
         }
 
         public T assignedToSelfExecutingFunction(Consumer<? super TsBlockBuilder<Void>> c) {
             Holder<T> hold = new Holder<>();
             TsBlockBuilder<Void> result = new TsBlockBuilder<>(true, tsb -> {
-                this.what = new SelfExecutingFunction(tsb);
-                hold.set(conv.apply(this));
+                hold.set(finish(new SelfExecutingFunction(tsb)));
                 return null;
             });
             c.accept(result);
@@ -6040,16 +6152,14 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
         public ExpressionBuilder<ElementExpression<T>> assignedToElement() {
             return new ExpressionBuilder<>(eb -> {
                 return new ElementExpression<>(eb, ee -> {
-                    this.what = ee;
-                    return conv.apply(this);
+                    return finish(ee);
                 });
             });
         }
 
         public ExpressionBuilder<T> assignedTo() {
             return new ExpressionBuilder<>(eb -> {
-                this.what = eb;
-                return conv.apply(this);
+                return finish(eb);
             });
         }
 
@@ -6058,8 +6168,7 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             ExpressionBuilder<ElementExpression<Void>> result
                     = new ExpressionBuilder<>(eb -> {
                         return new ElementExpression<>(eb, ee -> {
-                            this.what = ee;
-                            hold.set(conv.apply(this));
+                            hold.set(finish(ee));
                             return null;
                         });
                     });
@@ -6070,8 +6179,7 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
         public T assignedToNew(Consumer<? super NewBuilder<Void>> c) {
             Holder<T> hold = new Holder<>();
             NewBuilder<Void> result = new NewBuilder<>(nb -> {
-                this.what = nb;
-                hold.set(conv.apply(this));
+                hold.set(finish(nb));
                 return null;
             });
             c.accept(result);
@@ -6080,16 +6188,14 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
         public InvocationBuilder<T> assignedToInvocationOf(String what) {
             return new InvocationBuilder<>(ib -> {
-                this.what = ib;
-                return conv.apply(this);
+                return finish(ib);
             }, what);
         }
 
         public T assignedToInvocationOf(String what, Consumer<? super InvocationBuilder<Void>> c) {
             Holder<T> hold = new Holder<>();
             InvocationBuilder<Void> result = new InvocationBuilder<>(ib -> {
-                this.what = ib;
-                hold.set(conv.apply(this));
+                hold.set(finish(ib));
                 return null;
             }, name);
             c.accept(result);
@@ -6099,16 +6205,14 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
         public ArrayElementBuilder<T> assignedToArrayLiteral() {
             return new ArrayLiteralBuilder<T>(alb -> {
-                this.what = alb;
-                return conv.apply(this);
+                return finish(alb);
             }).element();
         }
 
         public T assignedToArrayLiteral(Consumer<? super ArrayElementBuilder<Void>> c) {
             Holder<T> hold = new Holder<>();
             ArrayLiteralBuilder<Void> result = new ArrayLiteralBuilder<>(alb -> {
-                this.what = alb;
-                hold.set(conv.apply(this));
+                hold.set(finish(alb));
                 return null;
             });
             ArrayElementBuilder<Void> el = result.element();
@@ -6119,16 +6223,14 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
         public ObjectLiteralBuilder<T> assignedToObjectLiteral() {
             return new ObjectLiteralBuilder<>(olb -> {
-                this.what = olb;
-                return conv.apply(this);
+                return finish(olb);
             });
         }
 
         public T assignedToObjectLiteral(Consumer<? super ObjectLiteralBuilder<Void>> c) {
             Holder<T> hold = new Holder<>();
             ObjectLiteralBuilder<Void> result = new ObjectLiteralBuilder<>(olb -> {
-                this.what = olb;
-                hold.set(conv.apply(this));
+                hold.set(finish(olb));
                 return null;
             });
             c.accept(result);
@@ -6331,14 +6433,52 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
     public static class ParameterizedTypeBuilder<T> extends TypescriptCodeGenerator {
 
-        private final Function<? super ParameterizedTypeBuilder<T>, T> conv;
+        private final Function<? super CodeGenerator, T> conv;
         private int arrayDepth = 0;
         private final CodeGenerator leadingName;
         private final List<CodeGenerator> typeParameters = new ArrayList<>();
 
-        public ParameterizedTypeBuilder(CodeGenerator leadingName, Function<? super ParameterizedTypeBuilder<T>, T> conv) {
+        public ParameterizedTypeBuilder(CodeGenerator leadingName, Function<? super CodeGenerator, T> conv) {
             this.conv = conv;
             this.leadingName = leadingName;
+        }
+
+        private static class CompoundEntry extends TypescriptCodeGenerator {
+
+            private final char joinedBy;
+            private final CodeGenerator a;
+            private final CodeGenerator b;
+
+            public CompoundEntry(char joinedBy, CodeGenerator a, CodeGenerator b) {
+                this.joinedBy = joinedBy;
+                this.a = a;
+                this.b = b;
+            }
+
+            @Override
+            protected void visitContents(Consumer<? super CodeGenerator> c) {
+                c.accept(a);
+                c.accept(b);
+            }
+
+            @Override
+            public void generateInto(LinesBuilder lines) {
+                a.generateInto(lines);
+                lines.word("" + joinedBy);
+                b.generateInto(lines);
+            }
+        }
+
+        public ParameterizedTypeBuilder<T> or(String type) {
+            return new ParameterizedTypeBuilder<>(typeName(type), ptb -> {
+                return conv.apply(new CompoundEntry('|', this, ptb));
+            });
+        }
+
+        public ParameterizedTypeBuilder<T> and(String type) {
+            return new ParameterizedTypeBuilder<>(typeName(type), ptb -> {
+                return conv.apply(new CompoundEntry('&', this, ptb));
+            });
         }
 
         // pending - should have or and and types here too
@@ -6518,13 +6658,10 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
         for (NamedTypescriptCodeGenerator ty : nameds) {
             int parentIndex = indexForName.applyAsInt(ty.name());
             ty.visitReferencedTypes((sub, name) -> {
-                System.out.println(ty.name() + " references " + name
-                        + " via " + sub.getClass().getSimpleName());
                 int ix = indexForName.applyAsInt(name);
                 edges.accept(parentIndex, ix);
             });
         }
-        System.out.println("GRAPH:");
         IntGraph graph = igb.build();
 
         ObjectGraph<String> og = graph.toObjectGraph(new IndexedResolvable<String>() {
@@ -6545,44 +6682,8 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             }
         });
 
-        Set<String> names = new HashSet<>();
-        for (NamedTypescriptCodeGenerator g : nameds) {
-            String nm = g.name();
-            for (String s : og.children(nm)) {
-                System.out.println(nm + " -> " + s);
-            }
-            names.add(nm);
-        }
-
-        System.out.println("\n--- O topo ---");
-        for (String s : og.topologicalSort(names)) {
-            System.out.println(" * " + s);
-        }
-        System.out.println("-----\n");
-
-
-        /*
-        graph.walk(new IntGraphVisitor() {
-            int depth;
-
-            @Override
-            public void enterNode(int i, int i1) {
-                depth++;
-                char[] ind = new char[depth * 2];
-                Arrays.fill(ind, ' ');
-                String s = new String(ind);
-                System.out.println(s + reverseMapping.get(i) + " -> " + reverseMapping.get(i1));
-            }
-
-            @Override
-            public void exitNode(int node, int depth) {
-                depth--;
-            }
-        });
-         */
         List<CodeGenerator> result = new ArrayList<>();
         IntPath sortOrder = graph.topologicalSort(toSort);
-        System.out.println("SORT ORDER " + sortOrder);
         sortOrder.forEachInt(index -> {
             String nm = reverseMapping.get(index);
             NamedTypescriptCodeGenerator g = byName.get(nm);

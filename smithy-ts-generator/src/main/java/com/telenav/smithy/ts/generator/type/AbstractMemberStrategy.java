@@ -1,11 +1,36 @@
-
+/* 
+ * Copyright 2023 Telenav.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.escape;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import static com.telenav.smithy.ts.vogon.TypescriptSource.BinaryOperations.GREATER_THAN;
+import static com.telenav.smithy.ts.vogon.TypescriptSource.BinaryOperations.LESS_THAN;
+import static com.telenav.smithy.ts.vogon.TypescriptSource.BinaryOperations.NOT_EQUALLING;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
+import java.util.function.Consumer;
+import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.DefaultTrait;
+import software.amazon.smithy.model.traits.LengthTrait;
+import software.amazon.smithy.model.traits.PatternTrait;
+import software.amazon.smithy.model.traits.RangeTrait;
+import software.amazon.smithy.model.traits.RequiredTrait;
+import software.amazon.smithy.model.traits.Trait;
 
 /**
  *
@@ -80,6 +105,192 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
     @Override
     public TypeStrategies origin() {
         return typeStrategy.origin();
+    }
+
+    @Override
+    public Model model() {
+        return typeStrategy.model();
+    }
+
+    public String owningType(Class<? extends Trait> trait) {
+        if (member.getTrait(trait).isPresent()) {
+            return new TsTypeUtils(model()).tsTypeName(model().expectShape(member.getContainer()));
+        }
+        return targetType();
+    }
+
+    public Shape owningShape() {
+        return model().expectShape(member.getContainer());
+    }
+
+    @Override
+    public String owningTypeName(Class<? extends Trait> trait) {
+        if (member().getTrait(trait).isPresent()) {
+            Shape sh = model().expectShape(member.getContainer());
+            return origin().tsTypeName(sh);
+        }
+        return typeStrategy.owningType(trait);
+    }
+
+    @Override
+    public String patternFieldName() {
+        if (member().getTrait(PatternTrait.class).isPresent()) {
+            Shape sh = model().expectShape(member.getContainer());
+            return escape(origin().strategy(sh).patternFieldName()
+                    + "_" + member().getMemberName().toUpperCase());
+        }
+        return typeStrategy.patternFieldName();
+    }
+
+    @Override
+    public String toString() {
+        return member.getContainer().getName() + "." + member.getMemberName()
+                + "(" + typeStrategy + ")";
+    }
+
+    @Override
+    public <T, B extends TsBlockBuilderBase<T, B>> void validate(String pathVar, B bb, String on, boolean canBeNull) {
+        boolean wasCanBeNull = canBeNull;
+        canBeNull |= !member.getTrait(RequiredTrait.class).isPresent();
+        doValidate(owningType(PatternTrait.class), patternFieldName(), member, lengthProperty(),
+                pathVar, bb, on, canBeNull, member.getContainer().getName() + "." + member().getMemberName());
+
+        if (typeStrategy.isModelDefined() && typeStrategy.hasValidatableValues()) {
+            if (shape().isUnionShape()) {
+                typeStrategy.validate(pathVar, bb, on, canBeNull);
+                return;
+            }
+            if (canBeNull) {
+
+                bb.ifDefined(on).invoke("validate").withArgument(pathVar).withArgument("onProblem")
+                        .on(on).endIf();
+            } else {
+                bb.invoke("validate").withArgument(pathVar).withArgument("onProblem")
+                        .on(on);
+            }
+        }
+    }
+
+    private static <T, B extends TsBlockBuilderBase<T, B>> void doValidate(String owningType,
+            String patternField, MemberShape shape, String lengthProperty, String pathVar, B bb,
+            String on, boolean canBeNull, String name) {
+
+        if (!shape.getTrait(LengthTrait.class).isPresent()
+                && !shape.getTrait(PatternTrait.class).isPresent()
+                && !shape.getTrait(RangeTrait.class).isPresent()) {
+            return;
+        }
+        bb.blankLine();
+        bb.lineComment("Validate " + on + " " + pathVar + " nullable? " + canBeNull);
+//        bb.lineComment("Model defined? " + isModelDefined());
+
+        Consumer<Consumer<TsBlockBuilderBase<?, ?>>> testApplier;
+        TypescriptSource.ConditionalClauseBuilder<B> ifExists = null;
+        if (canBeNull) {
+            TypescriptSource.ConditionalClauseBuilder<B> ie = ifExists = bb.ifDefined(on);
+            testApplier = cons -> {
+                cons.accept(ie);
+            };
+        } else {
+            testApplier = cons -> {
+                cons.accept(bb);
+            };
+        }
+
+        shape.getTrait(LengthTrait.class).ifPresent(len -> {
+            len.getMin().ifPresent(min -> {
+                if (min != 0L) {
+                    boolean same = len.getMax().map(val -> val.equals(min)).orElse(false);
+                    testApplier.accept(tsbb -> {
+                        if (same) {
+                            tsbb.iff().operation(NOT_EQUALLING).field(lengthProperty)
+                                    .of(on)
+                                    .literal(min)
+                                    .invoke("onProblem")
+                                    .withArgument(pathVar + " + '.length'")
+                                    .withStringLiteralArgument(name
+                                            + " length must be exactly " + min)
+                                    .inScope()
+                                    .endIf();
+                        } else {
+                            tsbb.iff().operation(LESS_THAN).field(lengthProperty)
+                                    .of(on)
+                                    .literal(min)
+                                    .invoke("onProblem")
+                                    .withArgument(pathVar + " + '.length'")
+                                    .withStringLiteralArgument(name
+                                            + " length must be >= " + min)
+                                    .inScope()
+                                    .endIf();
+                        }
+                    });
+                }
+            });
+            len.getMax().ifPresent(max -> {
+                boolean same = len.getMin().map(val -> val.equals(max)).orElse(false);
+                if (!same && max < Integer.MAX_VALUE) {
+                    testApplier.accept(tsbb -> {
+                        tsbb.iff().operation(GREATER_THAN).field(lengthProperty)
+                                .of(on)
+                                .literal(max)
+                                .invoke("onProblem")
+                                .withArgument(pathVar + " + '.length'")
+                                .withStringLiteralArgument(name
+                                        + " length must be <= " + max)
+                                .inScope()
+                                .endIf();
+                    });
+                }
+            });
+        });
+        shape.getTrait(PatternTrait.class).ifPresent(pat -> {
+
+            testApplier.accept(tsbb -> {
+                String test;
+                if (true || shape.isUnionShape()) {
+                    test = "!/" + pat.getValue() + "/.test(" + on + ")";
+                } else {
+                    test = "!"
+                            + owningType
+                            + "."
+                            + patternField
+                            + ".test(" + on + ")";
+                }
+                tsbb.iff(test)
+                        .invoke("onProblem")
+                        .withArgument(pathVar)
+                        .withStringLiteralArgument(name + " must match the pattern /"
+                                + pat.getValue() + "/")
+                        .inScope()
+                        .endIf();
+            });
+        });
+        shape.getTrait(RangeTrait.class).ifPresent(len -> {
+            Consumer<TsBlockBuilderBase<?, ?>> genRangeTest = tsbb -> {
+                len.getMin().ifPresent(min -> {
+                    tsbb.iff().operation(LESS_THAN).expression(on)
+                            .expression(min.toString())
+                            .invoke("onProblem")
+                            .withArgument(pathVar)
+                            .withStringLiteralArgument(name + " value must be >= " + min)
+                            .inScope()
+                            .endIf();
+                });
+                len.getMax().ifPresent(max -> {
+                    tsbb.iff().operation(GREATER_THAN).expression(on)
+                            .expression(max.toString())
+                            .invoke("onProblem")
+                            .withArgument(pathVar)
+                            .withStringLiteralArgument(name + " value must be <= " + max)
+                            .inScope()
+                            .endIf();
+                });
+            };
+            testApplier.accept(genRangeTest);
+        });
+        if (ifExists != null) {
+            ifExists.endIf();
+        }
     }
 
 }

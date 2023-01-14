@@ -49,9 +49,6 @@ class StringEnumStrategy extends AbstractEnumStrategy {
         String type = rawVar.optional() || !generateThrowIfUnrecognized
                 ? targetType() + " | undefined"
                 : targetType();
-//        if (!generateThrowIfUnrecognized) {
-//            rawVar = rawVar.asOptional();
-//        }
         Assignment<B> assig = (declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar));
 
         if (rawVar.optional()) {

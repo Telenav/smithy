@@ -32,7 +32,7 @@ final class PrimitiveStringStrategy extends AbstractTypeStrategy<StringShape> {
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb,
-                                                                                     TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
+            TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
             assig.ofType(targetType() + " | undefined")
@@ -45,10 +45,12 @@ final class PrimitiveStringStrategy extends AbstractTypeStrategy<StringShape> {
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb,
-                                                                               TsVariable rawVar, String instantiatedVar, boolean declare) {
+            TsVariable rawVar, String instantiatedVar, boolean declare) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
-        assig.ofType(rawVar.optional() ? rawVarType().asOptional().returnTypeSignature() : rawVarType().typeName());
-        assig.assignedTo(rawVar.name() + " as string");
+        if (declare) {
+            assig.ofType(rawVar.optional() ? rawVarType().asOptional().returnTypeSignature() : rawVarType().typeName());
+        }
+        assig.assignedTo(rawVar.name());
     }
 
     @Override

@@ -3,19 +3,16 @@
     "version": "$version",
     "description": "Generated model types for the ${artifactId} in typescript",
     "private": true,
+    "type": "module",
     "scripts": {
-        "build": "rimraf ./target && tsc && cp -Ra src/*.html target/",
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "build": "rimraf ./target && tsc && ./copy-markup target",
         "clean-all": "rimraf ./src && rimraf ./target && rimraf ./dist",
         "clean": "rimraf ./target && rimraf ./dist",
-        "dist": "rimraf ./dist && webpack -o ./dist && cp -Ra src/*.html dist/ && cp src/model/*.html dist/",
+        "dist": "rimraf ./dist && webpack -o ./dist && ./copy-markup dist",
         "test": "node test/test.js"
     },
     "keywords": [
-        "${artifactId}",
-        "${groupId}",
-        "smithy",
-        "typescript"
+        "${artifactId}"
     ],
     "license": "UNLICENSED",
     "devDependencies": {

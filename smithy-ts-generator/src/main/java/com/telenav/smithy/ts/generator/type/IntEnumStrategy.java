@@ -15,12 +15,18 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.escape;
 import static com.telenav.smithy.ts.generator.IntEnumGenerator.recognitionFunctionName;
 import static com.telenav.smithy.ts.generator.IntEnumGenerator.validationFunctionName;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.NUMBER;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import software.amazon.smithy.model.shapes.IntEnumShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.DefaultTrait;
 
 /**
@@ -37,10 +43,10 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
     public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
                     String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
-        if (!generateThrowIfUnrecognized) {
-            rawVar = rawVar.asOptional();
-        }
-        Assignment<B> assig = createTargetAssignment(rawVar, declare, bb, instantiatedVar);
+        String type = rawVar.optional() || !generateThrowIfUnrecognized
+                ? targetType() + " | undefined"
+                : targetType();
+        Assignment<B> assig = (declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar));
         String mth = generateThrowIfUnrecognized
                 ? validationFunctionName(strategies.model(), shape)
                 : recognitionFunctionName(strategies.model(), shape);
@@ -71,8 +77,16 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
 
     @Override
     public <T> T applyDefault(DefaultTrait def, TypescriptSource.ExpressionBuilder<T> ex) {
+        if (def.toNode().isNumberNode()) {
+            int val = def.toNode().asNumberNode().get().getValue().intValue();
+            for (Map.Entry<String, Integer> e : shape.getEnumValues().entrySet()){
+                if (val == e.getValue().intValue()) {
+                    return ex.field(escape(e.getKey())).of(targetType());
+                }
+            }
+        }
         String dv = defaultValue(def);
-        return ex.element().expression(dv).of(targetType());
+        return ex.expression(dv);
     }
 
     @Override
@@ -85,4 +99,25 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
         return strategies.tsTypeName(shape);
     }
 
+    @Override
+    public TypeMatchingStrategy typeTest() {
+        return new IntEnumTypeMatchingStrategy();
+    }
+
+    static class IntEnumTypeMatchingStrategy implements TypeMatchingStrategy {
+
+        @Override
+        public String test(String varName, String typeName, Shape shape) {
+            StringBuilder sb = new StringBuilder("typeof " + varName + " === 'string' && (");
+            IntEnumShape es = shape.asIntEnumShape().get();
+            Set<Integer> names = new TreeSet<>(es.getEnumValues().values());
+            for (Iterator<Integer> it = names.iterator(); it.hasNext();) {
+                sb.append(varName).append(" === ").append(it.next());
+                if (it.hasNext()) {
+                    sb.append(" || ");
+                }
+            }
+            return sb.append(')').toString();
+        }
+    }
 }

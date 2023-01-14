@@ -63,7 +63,7 @@ final class DocumentGenerator extends AbstractTypescriptGenerator<DocumentShape>
             generateToJson(cb);
             generateToJsonString(cb);
             generateAddTo(cb);
-            cb.method("fromJsonObject", mth -> {
+            cb.method(FROM_JSON, mth -> {
                 mth.makePublic().withArgument("obj").ofType("any");
                 mth.body(bb -> {
                     bb.returningNew().withArgument("obj").ofType(cb.name());

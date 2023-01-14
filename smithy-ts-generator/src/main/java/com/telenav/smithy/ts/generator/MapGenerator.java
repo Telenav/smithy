@@ -19,9 +19,9 @@ import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.ts.generator.type.MemberStrategy;
 import com.telenav.smithy.ts.generator.type.TsPrimitiveTypes;
-import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ElementExpression;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import java.nio.file.Path;
@@ -44,11 +44,8 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
     private final Shape valShape;
     private final String keyType;
     private final String valType;
-    private final String rawKeyType;
-    private final String rawValueType;
-    private final String supertype;
-    private final boolean keyPrimitive;
-    private final boolean valPrimitive;
+    private final MemberStrategy<?> keyStrategy;
+    private final MemberStrategy<?> valStrategy;
 
     public MapGenerator(MapShape shape, Model model, LanguageWithVersion ver, Path dest, GenerationTarget target) {
         super(shape, model, ver, dest, target);
@@ -58,11 +55,8 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
         valShape = model.expectShape(valMember.getTarget());
         keyType = tsTypeName(keyShape);
         valType = tsTypeName(valShape);
-        rawKeyType = typeNameOf(keyShape, true);
-        rawValueType = typeNameOf(valShape, true);
-        supertype = "Map<" + keyType + ", " + valType + ">";
-        keyPrimitive = "smithy.api".equals(keyShape.getId().getNamespace());
-        valPrimitive = "smithy.api".equals(keyShape.getId().getNamespace());
+        keyStrategy = strategies.memberStrategy(keyMember, keyShape);
+        valStrategy = strategies.memberStrategy(valMember, valShape);
     }
 
     @Override
@@ -71,29 +65,21 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
 
         src.declareClass(tsTypeName(shape), cb -> {
             cb.extending("Map", pt -> pt.withTypeParameter(keyType).withTypeParameter(valType));
+            applyValidatableInterface(cb);
 
+            keyStrategy.declareValidationConstants(cb);
+            valStrategy.declareValidationConstants(cb);
+            
+            cb.getter("length", get -> {
+                get.returning().field("length").ofField("entries").ofThis();
+            });
+            
             cb.exported().constructor(con -> {
                 con.makePublic().withArgument("orig")
                         .optional()
                         .ofType("Map", pt -> pt.withTypeParameter(keyType).withTypeParameter(valType));
                 con.body(bb -> {
                     bb.invoke("super").inScope();
-
-                    bb.blankLine();
-                    bb.lineComment("Key Shape " + keyShape.getId());
-                    bb.lineComment("Val Shape " + valShape.getId());
-                    bb.lineComment("Key Type " + keyShape.getType());
-                    bb.lineComment("Val Type " + valShape.getType());
-                    bb.lineComment("Key prim " + keyPrimitive);
-                    bb.lineComment("Val prim " + valPrimitive);
-                    System.out.println("Key Type " + keyType);
-                    System.out.println("Val Type " + valType);
-                    System.out.println("Raw Key Type " + rawKeyType);
-                    System.out.println("Raw Val Type " + rawValueType);
-                    bb.lineComment("Key Type TS " + tsTypeName(keyShape));
-                    bb.lineComment("Val Type TS " + tsTypeName(valShape));
-
-                    bb.blankLine();
 
                     bb.iff("orig", iff -> {
                         iff.invoke("forEach")
@@ -105,11 +91,10 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
                                             .withArgument("k")
                                             .withArgument("v")
                                             .onThis();
-                                }).on("(orig as " + supertype + ")");
+                                }).on("orig");// "(orig as Map<" + keyType + ", " + valType + ">)");
                     });
                 });
             });
-
             generateAddTo(cb);
             generateToJsonString(cb);
             generateToJson(cb);
@@ -132,51 +117,24 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
                 .withArgument("k").ofType(keyType)
                 .body(lbb -> {
                     MemberStrategy<?> keyStrat = strategies.memberStrategy(keyMember);
-                    
+
                     ElementExpression<Assignment<TsBlockBuilder<Void>>> exp;
                     if (!keyStrat.isModelDefined() && keyStrat.shape().getType() == ShapeType.STRING) {
                         exp = lbb.assignElement().expression("k");
                     } else {
                         exp = lbb.assignElement().invoke("toString").on("k");
                     }
-                    
-                    
+
                     MemberStrategy<?> valStrat = strategies.memberStrategy(valMember);
-                    valStrat.convertToRawJsonObject(lbb, 
+                    valStrat.convertToRawJsonObject(lbb,
                             valStrat.rawVarType().variable("v"), "value", true);
-                    
+
                     exp.of("result").assignedTo("value");
-                    
-//                    Assignment<TsBlockBuilder<Void>> assig;
-//                    if (keyPrimitive) {
-//                        assig = lbb.assignRawProperty("k")
-//                                .of("result");
-//                    } else {
-//                        assig = lbb.assignRawProperty().invoke("toString").on("k").of("result");
-//                    }
-//                    if (valPrimitive) {
-//                        assig.assignedTo("v");
-//                    } else {
-//                        
-//                        
-//                        switch (valShape.getType()) {
-//                            case STRUCTURE:
-//                            case LIST:
-//                            case MAP:
-//                            case SET:
-//                                assig.assignedToInvocationOf("toJSON").on("v");
-//                                break;
-//                            default:
-//                                assig.assignedToInvocationOf("toString").on("v");
-//                        }
-//                    }
                 }).onThis();
     }
 
     private void generateFromJson(TypescriptSource.ClassBuilder<Void> cb) {
-        TypeStrategy<?> keyStrategy = strategy(keyShape);
-        TypeStrategy<?> valStrategy = strategy(valShape);
-        cb.method("fromJsonObject", mth -> {
+        cb.method(FROM_JSON, mth -> {
             mth.docComment("Create a `" + cb.name() + "` from an ad-hoc object returned by JSON.parse().");
             mth.makePublic().makeStatic().withArgument("obj").ofType("any")
                     .returning(cb.name());
@@ -199,4 +157,15 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
         });
     }
 
+    @Override
+    protected <T, R> void generateValidationMethodHeadAndBody(TsBlockBuilder<T> bb, ClassBuilder<R> cb) {
+        bb.lineComment("Can implement validating " + canImplementValidating());
+        bb.lineComment("Has validatable  " + hasValidatableValues());
+        super.generateValidationMethodHeadAndBody(bb, cb);
+    }
+
+    @Override
+    protected <T, R> void generateValidationMethodBody(TsBlockBuilder<T> bb, ClassBuilder<R> cb) {
+        strategy.validate("path", bb, "this", false);
+    }
 }

@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.FROM_JSON;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.OBJECT;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
@@ -38,11 +39,11 @@ final class MapStrategy extends AbstractMapStrategy {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
             assig.assignedToUndefinedIfUndefinedOr(rawVar.name())
-                    .invoke("fromJsonObject")
+                    .invoke(FROM_JSON)
                     .withArgument(rawVar.name())
                     .on(targetType());
         } else {
-            assig.assignedToInvocationOf("fromJsonObject")
+            assig.assignedToInvocationOf(FROM_JSON)
                     .withArgument(rawVar.name())
                     .on(targetType());
         }

@@ -44,7 +44,7 @@ public class TimestampWrapperGenerator extends AbstractTypescriptGenerator<Times
             shape.getTrait(DocumentationTrait.class)
                     .ifPresent(dox -> cb.docComment(dox.getValue()));
             cb.constructor(con -> {
-                con.withArgument("value")
+                con.makePublic().withArgument("value")
                         .optional()
                         .or()
                         .withType("number")

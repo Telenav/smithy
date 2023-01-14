@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.FROM_JSON;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.BOOLEAN;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.NUMBER;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.STRING;
@@ -22,6 +23,7 @@ import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.traits.DefaultTrait;
 
 /**
  *
@@ -44,14 +46,14 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
             if (prim) {
                 exp.as(rawVarType().typeName()).expression(rawVar.name());
             } else {
-                exp.invoke("fromJsonObject")
+                exp.invoke(FROM_JSON)
                         .withArgument(rawVar.name()).on(targetType());
             }
         } else {
             if (prim) {
                 decl.assignedTo().as(rawVarType().typeName()).expression(rawVar.name());
             } else {
-                decl.assignedToInvocationOf("fromJsonObject")
+                decl.assignedToInvocationOf(FROM_JSON)
                         .withArgument(rawVar.name()).on(targetType());
             }
         }
@@ -97,4 +99,8 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
         return strategies.tsTypeName(shape);
     }
 
+    @Override
+    public <T> T applyDefault(DefaultTrait def, ExpressionBuilder<T> ex) {
+        return super.applyDefault(def, ex);
+    }
 }

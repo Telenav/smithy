@@ -27,10 +27,13 @@ import com.telenav.smithy.ts.generator.type.TsTypeUtils;
 
 import com.telenav.smithy.ts.spi.LoginOperationFinder;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ArrayElementBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.FunctionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InterfaceBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.NewBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TSGetterBlockBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
@@ -90,7 +93,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
     }
 
     private void importComponent(String comp, TypescriptSource src) {
-        src.importing(comp).from("./domstuff");
+        src.importing(comp).from("./domstuff.js");
     }
 
     private void importComponents(TypescriptSource src, String... comps) {
@@ -103,8 +106,13 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         if ("void".equals(comp)) {
             return;
         }
-        String modelSource = "./" + escape(shape.getId().getName() + "Model");
+        String modelSource = "./" + escape(shape.getId().getName() + "Model") + ".js";
         src.importing(comp).from(modelSource);
+    }
+
+    @Override
+    protected void maybeGenerateValidationInterface(TypescriptSource ts) {
+        // do nothing - not needed for this type
     }
 
     private void generateUiModelInterface(TypescriptSource src) {
@@ -153,7 +161,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
         // the value of the url field changes
         importComponents(src, "InteractiveComponent", "Startable");
         String cli = BrowserSDKGenerator.serviceClientName(shape);
-        String cliPath = "./" + cli;
+        String cliPath = "./" + cli + ".js";
         String clientFactoryMethodName = decapitalize(cli);
         String result = "clientHolder";
         // Client interface and file name will be the same
@@ -357,14 +365,14 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
             EnumCharacteristics characteristics = characterizeEnum(s);
             switch (characteristics) {
                 case NONE:
-                    generateEnumMapping(src, name, "string");
+                    generateEnumMapping(src, name, "string", s);
                     break;
                 case STRING_VALUED:
                 case HETEROGENOUS:
-                    generateEnumMapping(src, name, "string");
+                    generateEnumMapping(src, name, "string", s);
                     break;
                 case INT_VALUED:
-                    generateEnumMapping(src, name, "number");
+                    generateEnumMapping(src, name, "number", s);
                     break;
                 case STRING_VALUED_MATCHING_NAMES:
                     String nm = enumMappingConstName(name);
@@ -858,7 +866,7 @@ public class BrowserUIDomGenerator extends AbstractTypescriptGenerator<ServiceSh
 
                 block.returning("finalResult");
 
-                modelGetter.returningInvocationOf("fromJsonObject")
+                modelGetter.returningInvocationOf(FROM_JSON)
                         .withArgument("rawModel")
                         .on(tsTypeName(input));
 
@@ -1184,8 +1192,23 @@ export function floatListField(id: string): TransformedTextField<number[]>
         }
     }
 
-    static String generateEnumMapping(TypescriptSource src, String enumName, String enumPrimitiveType) {
+    static String generateEnumMapping(TypescriptSource src, String enumName, String enumPrimitiveType, EnumShape s) {
+
+        src.lineComment("\nMapping of enum constants to enum values for the enum " + s.getId().getName())
+                .lineComment("so that combo boxen show the string value but can resolve it easily to a constant.");
         String constName = enumMappingConstName(enumName);
+        ExpressionBuilder<NewBuilder<TypescriptSource>> exp = src.declareTopConst(constName)
+                .ofType("Map", pt -> pt.withTypeParameter("string").withTypeParameter("string"))
+                .assignedToNew().withArgument();
+
+        ArrayElementBuilder<NewBuilder<TypescriptSource>> outerArray = exp.arrayLiteral();
+        for (Map.Entry<String, String> e : s.getEnumValues().entrySet()) {
+            outerArray.arrayLiteral().literal(e.getKey()).literal(e.getValue()).endArrayLiteral();
+        }
+        outerArray.endArrayLiteral().ofType("Map",
+                pt -> pt.withTypeParameter("string").withTypeParameter("string"));
+
+
         /*
 const keys = (() => {
     let m: Map<Superlatives, string> = new Map<Superlatives, string>();
@@ -1196,6 +1219,7 @@ const keys = (() => {
         });
     return m;
 })(); */
+ /*
         String mapType = "Map<" + enumName + ", " + enumPrimitiveType + ">";
         src.declareTopConst(constName)
                 .ofType(mapType)
@@ -1211,7 +1235,8 @@ const keys = (() => {
                                     bb.invoke("set")
                                             .withElement().expression("v")
                                             .of(enumName)
-                                            .withArgument("v");
+                                            .withArgument("v")
+                                            .on("m");
                                 });
                             })
                             .onInvocationOf("filter")
@@ -1223,6 +1248,7 @@ const keys = (() => {
                             .on("Object");
                     f.returning("m");
                 });
+         */
         return constName;
     }
 

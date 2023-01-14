@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.FROM_JSON;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.OBJECT;
 import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -23,6 +24,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ObjectLiteralBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.To;
+import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ArrayNode;
 import software.amazon.smithy.model.node.Node;
 import software.amazon.smithy.model.node.NumberNode;
@@ -30,6 +32,7 @@ import software.amazon.smithy.model.node.ObjectNode;
 import software.amazon.smithy.model.shapes.DocumentShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.DefaultTrait;
+import software.amazon.smithy.model.traits.Trait;
 
 /**
  *
@@ -102,7 +105,7 @@ final class DocumentStrategy implements TypeStrategy<DocumentShape> {
         if (isNotUserType(shape)) {
             return applyDefaultTo(def, ex);
         }
-        ExpressionBuilder<InvocationBuilder<T>> ex2 = ex.invoke("fromJsonObject")
+        ExpressionBuilder<InvocationBuilder<T>> ex2 = ex.invoke(FROM_JSON)
                 .withArgument();
         return applyDefaultTo(def, ex2).on(targetType());
     }
@@ -201,6 +204,26 @@ final class DocumentStrategy implements TypeStrategy<DocumentShape> {
             }
         }
         return arr;
+    }
+
+    @Override
+    public boolean canImplementValidating() {
+        return false;
+    }
+
+    @Override
+    public boolean hasValidatableValues() {
+        return false;
+    }
+
+    @Override
+    public Model model() {
+        return strategies.model();
+    }
+
+    @Override
+    public String owningTypeName(Class<? extends Trait> trait) {
+        return targetType();
     }
 
 }

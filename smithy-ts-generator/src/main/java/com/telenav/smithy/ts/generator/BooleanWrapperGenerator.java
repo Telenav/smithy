@@ -56,7 +56,7 @@ final class BooleanWrapperGenerator extends AbstractTypescriptGenerator<BooleanS
             generateAddTo(cb);
             generateToJson(cb);
             generateToJsonString(cb);
-            cb.method("fromJsonObject", mth -> {
+            cb.method(FROM_JSON, mth -> {
                 mth.withArgument("obj").ofType("any");
                 mth.makePublic().makeStatic().returning(cb.name());
                 mth.body(bb -> {

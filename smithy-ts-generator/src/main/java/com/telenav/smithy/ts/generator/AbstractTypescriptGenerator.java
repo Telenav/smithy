@@ -30,6 +30,7 @@ import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InterfaceBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.MethodBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.typescript;
 import java.io.IOException;
@@ -54,8 +55,9 @@ import software.amazon.smithy.model.shapes.ShapeId;
  *
  * @author Tim Boudreau
  */
-public abstract class AbstractTypescriptGenerator<S extends Shape> 
+public abstract class AbstractTypescriptGenerator<S extends Shape>
         implements ModelElementGenerator {
+    public static String FROM_JSON = "fromJSON";
 
     private static final String[] KEYWORDS = new String[]{
         "break", "as", "any", "switch", "case", "if", "throw",
@@ -84,6 +86,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
     protected SmithyGenerationContext ctx;
     protected SmithyGenerationLogger log;
     protected final Path dest;
+    protected TypeStrategy<?> strategy;
     final GenerationTarget target;
 
     public AbstractTypescriptGenerator(S shape, Model model, LanguageWithVersion ver,
@@ -94,17 +97,19 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
         this.dest = dest;
         this.target = target;
         strategies = TypeStrategies.strategies(model);
+        strategy = shape.isServiceShape() || shape.isResourceShape() || shape.isOperationShape() ? null
+                : strategies.strategy(shape);
     }
-    
+
     @Override
     public String toString() {
-        return shape.getId().getName() + " (" + getClass().getSimpleName()  + ")";
+        return shape.getId().getName() + " (" + getClass().getSimpleName() + ")";
     }
-    
+
     S shape() {
         return shape;
     }
-    
+
     Model model() {
         return model;
     }
@@ -131,6 +136,9 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
     TypescriptSource src() {
         return ctx.computeIfAbsent(key, () -> {
             TypescriptSource result = typescript(serviceSourceFile());
+            if (canImplementValidating()) {
+                maybeGenerateValidationInterface(result);
+            }
             if (ctx.settings().is(DEBUG)) {
                 result.generateDebugLogCode();
             }
@@ -143,7 +151,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
         this.ctx = ctx;
         this.log = log;
         Set<GeneratedCode> code = new LinkedHashSet<>();
-        System.out.println("GENERATE " + this);
+
         generate(src -> {
             code.add(new TypescriptCode(dest, src, log, shape.getId()));
             ctx.registerPath("ts", dest);
@@ -155,6 +163,74 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
             ctx.session().registerPostGenerationTask("0000-build-markup", () -> new RunNpmTask(ctx, this.dest));
         }
         return code;
+    }
+
+    protected String validatableInterfaceName() {
+        return "Validatable";
+    }
+
+    protected void maybeGenerateValidationInterface(TypescriptSource ts) {
+        if (ts.containsTypeNamed(validatableInterfaceName())) {
+            return;
+        }
+        ts.declareInterface("Validatable", iface -> {
+            iface.exported().method("validate", mth -> {
+                applyValidatableMethodSignature(mth);
+            });
+        });
+    }
+
+    protected <T> void applyValidatableInterface(InterfaceBuilder<T> ib) {
+        ib.extending(validatableInterfaceName());
+    }
+
+    protected <T> void applyValidatableInterface(ClassBuilder<T> cb) {
+        cb.implementing(validatableInterfaceName());
+        cb.method("validate", (MethodBuilder<Void> mth) -> {
+            mth.makePublic();
+            applyValidatableMethodSignature(mth);
+            mth.body(bb -> {
+                generateValidationMethodHeadAndBody(bb, cb);
+            });
+        });
+    }
+
+    protected boolean canImplementValidating() {
+        return strategy.canImplementValidating();
+    }
+
+    protected boolean hasValidatableValues() {
+        return strategy.hasValidatableValues();
+    }
+
+    protected <T, R> void generateValidationMethodHeadAndBody(TsBlockBuilder<T> bb, ClassBuilder<R> cb) {
+        bb.lineComment("Generator " + getClass().getSimpleName());
+        bb.lineComment(shape.getId().getName() + " can implement validating " + canImplementValidating());
+        bb.lineComment(" has validatable values " + hasValidatableValues());
+        if (canImplementValidating() && hasValidatableValues()) {
+            bb.assign("path").assignedTo().operation(TypescriptSource.BinaryOperations.LOGICAL_OR)
+                    .expression("path")
+                    .literal(shape.getId().getName());
+            bb.lineComment("begin generateValidationMethodBody");
+            generateValidationMethodBody(bb, cb);
+            bb.lineComment("end generateValidationMethodBody");
+        }
+    }
+
+    protected <T, R> void generateValidationMethodBody(TsBlockBuilder<T> bb, ClassBuilder<R> cb) {
+        bb.lineComment(shape.getId() + " has no validation constraints")
+                .lineComment("but implements this interface for consistent handling")
+                .lineComment("of generated types.");
+    }
+
+    private <T> void applyValidatableMethodSignature(TypescriptSource.FunctionSignatureBuilderBase<T, ?, ?> mth) {
+        mth.withArgument("path").ofType("string", pt -> pt.or("undefined").endType());
+        mth.withArgument("onProblem")
+                .ofFunctionType(fsb -> {
+                    fsb.withArgument("propertyPath").ofType("string")
+                            .withArgument("problem").ofType("string");
+                });
+        mth.returning("void");
     }
 
     /**
@@ -204,10 +280,10 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
             return;
         }
         if (sh.getId().getNamespace().equals(shape.getId().getNamespace())) {
-            src.importing(tsTypeName(sh)).from("./" + tsFileName(sh));
+            src.importing(tsTypeName(sh)).from("./" + tsFileName(sh) + ".js");
         } else {
             src.importing(tsTypeName(sh)).from("/"
-                    + sh.getId().getNamespace().replace('.', '/') + tsFileName(sh));
+                    + sh.getId().getNamespace().replace('.', '/') + tsFileName(sh)+ ".js");
         }
     }
 

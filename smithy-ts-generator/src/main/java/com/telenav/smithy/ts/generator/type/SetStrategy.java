@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.FROM_JSON;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import software.amazon.smithy.model.shapes.ListShape;
@@ -37,10 +38,10 @@ final class SetStrategy extends AbstractListOrSetStrategy {
         Assignment<B> decl = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
             decl.assignedToUndefinedIfUndefinedOr(rawVar.name())
-                    .invoke("fromJsonObject")
+                    .invoke(FROM_JSON)
                     .withArgument(rawVar.name()).on(targetType());
         } else {
-            decl.assignedToInvocationOf("fromJsonObject")
+            decl.assignedToInvocationOf(FROM_JSON)
                     .withArgument(rawVar.name()).on(targetType());
         }
     }

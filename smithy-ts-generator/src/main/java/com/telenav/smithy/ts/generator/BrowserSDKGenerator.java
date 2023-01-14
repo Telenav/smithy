@@ -77,10 +77,15 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
     }
 
     @Override
+    protected void maybeGenerateValidationInterface(TypescriptSource ts) {
+        // do nothing - not needed for this type
+    }
+
+    @Override
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource src = typescript(shape.getId().getName() + "Client");
         src.importing("ServiceClient").and("serviceClient")
-                .from("./ServiceClient");
+                .from("./ServiceClient.js");
 
         String configInterface = escape(shape.getId().getName() + "Config");
 
@@ -283,7 +288,7 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
 
     private void importModelShape(TypescriptSource src, Shape type) {
         if (!"smithy.api".equals(type.getId().getNamespace())) {
-            src.importing(tsTypeName(type)).from("./" + src().name());
+            src.importing(tsTypeName(type)).from("./" + src().name() + ".js");
         }
     }
 
@@ -421,7 +426,7 @@ class BrowserSDKGenerator extends AbstractTypescriptGenerator<ServiceShape> {
                         if ("smithy.api".equals(outputShape.get().getId().getNamespace())) {
                             lbb.returning("obj as " + out);
                         } else {
-                            lbb.returningInvocationOf("fromJsonObject")
+                            lbb.returningInvocationOf(FROM_JSON)
                                     .withArgument("obj")
                                     .on(out);
                         }

@@ -15,9 +15,13 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.FROM_JSON;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.OBJECT;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.RequiredTrait;
 
 /**
  *
@@ -30,23 +34,31 @@ class StructureStrategy extends AbstractTypeStrategy<StructureShape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
+    public <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(
+            B bb, TsVariable rawVar, String instantiatedVar, boolean declare,
+            boolean generateThrowIfUnrecognized) {
         String targetType = rawVar.optional() ? targetType() + " | undefined" : targetType();
-        TypescriptSource.Assignment<B> assig = 
-                declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
+        TypescriptSource.Assignment<B> assig
+                = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
-            assig.assignedToTernary("typeof " + rawVar.name() + " === 'undefined'").expression("undefined").invoke("fromJsonObject").withArgument(rawVar.name()).on(targetType());
+            assig.assignedToTernary("typeof " + rawVar.name() + " === 'undefined'")
+                    .expression("undefined").invoke(FROM_JSON)
+                    .withArgument(rawVar.name()).on(targetType());
         } else {
-            assig.assignedToInvocationOf("fromJsonObject").withArgument(rawVar.name()).on(targetType);
+            assig.assignedToInvocationOf(FROM_JSON).withArgument(rawVar.name()).on(targetType);
         }
     }
 
     @Override
-    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar,
+            String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? rawVarType().typeName() + " | undefined" : rawVarType().typeName();
-        TypescriptSource.Assignment<B> assig = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
+        TypescriptSource.Assignment<B> assig = declare
+                ? bb.declareConst(instantiatedVar).ofType(type)
+                : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
-            assig.assignedToTernary("typeof " + rawVar.name() + " === 'undefined'").expression("undefined").invoke("toJSON").on(rawVar.name());
+            assig.assignedToTernary("typeof " + rawVar.name() + " === 'undefined'")
+                    .expression("undefined").invoke("toJSON").on(rawVar.name());
         } else {
             assig.assignedToInvocationOf("toJSON").on(rawVar.name());
         }
@@ -62,4 +74,37 @@ class StructureStrategy extends AbstractTypeStrategy<StructureShape> {
         return strategies.tsTypeName(shape);
     }
 
+    @Override
+    public <T, B extends TsBlockBuilderBase<T, B>> void validate(String pathVar, B bb, String on, boolean canBeNull) {
+//        bb.assign(pathVar).assignedTo(BinaryOperations.LOGICAL_OR).expression(pathVar)
+//                .literal(shape.getId().getName());
+        super.validate(pathVar, bb, on, canBeNull);
+        shape().getAllMembers()
+                .forEach((name, val) -> {
+                    MemberStrategy<Shape> memStrat
+                            = strategies.createMemberStrategy(val, model().expectShape(val.getTarget()));
+                    if (!memStrat.hasValidatableValues()) {
+                        return;
+                    }
+                    String targetField = on + "." + memStrat.structureFieldName();
+                    String vn = memStrat.structureFieldName() + "Path";
+                    bb.declareConst(vn).ofType("string").assignedToStringConcatenation()
+                            .appendExpression(pathVar)
+                            .append(".")
+                            .append(name)
+                            .endConcatenation();
+                    bb.lineComment("TargetField " + targetField + " for " + memStrat.shape().getType());
+                    bb.lineComment("Member " + memStrat.memberName() + " of " + memStrat.shape().getId().getName()
+                            + " type " + memStrat.shape().getType());
+                    bb.lineComment("Strategy is " + memStrat.getClass().getName() + " " + memStrat);
+
+                    if (memStrat.trait(RequiredTrait.class).isPresent()) {
+                        TypescriptSource.ConditionalClauseBuilder<B> test = bb.ifDefined(targetField);
+                        memStrat.validate(vn, test, targetField, false);
+                        test.endIf();
+                    } else {
+                        memStrat.validate(vn, bb, targetField, !memStrat.trait(RequiredTrait.class).isPresent());
+                    }
+                });
+    }
 }

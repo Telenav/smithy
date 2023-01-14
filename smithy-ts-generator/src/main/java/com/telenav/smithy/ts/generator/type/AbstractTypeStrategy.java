@@ -1,3 +1,18 @@
+/* 
+ * Copyright 2023 Telenav.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.telenav.smithy.ts.generator.type;
 
 import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.escape;
@@ -6,12 +21,32 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
+import java.util.Map;
+import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.node.Node;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
+import static software.amazon.smithy.model.shapes.ShapeType.BLOB;
 import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
+import static software.amazon.smithy.model.shapes.ShapeType.DOCUMENT;
+import static software.amazon.smithy.model.shapes.ShapeType.ENUM;
+import static software.amazon.smithy.model.shapes.ShapeType.INT_ENUM;
+import static software.amazon.smithy.model.shapes.ShapeType.LIST;
+import static software.amazon.smithy.model.shapes.ShapeType.MAP;
+import static software.amazon.smithy.model.shapes.ShapeType.MEMBER;
+import static software.amazon.smithy.model.shapes.ShapeType.OPERATION;
+import static software.amazon.smithy.model.shapes.ShapeType.RESOURCE;
+import static software.amazon.smithy.model.shapes.ShapeType.SERVICE;
+import static software.amazon.smithy.model.shapes.ShapeType.SET;
+import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
+import static software.amazon.smithy.model.shapes.ShapeType.UNION;
 import software.amazon.smithy.model.traits.DefaultTrait;
+import software.amazon.smithy.model.traits.LengthTrait;
+import software.amazon.smithy.model.traits.PatternTrait;
+import software.amazon.smithy.model.traits.RangeTrait;
+import software.amazon.smithy.model.traits.Trait;
 
 /**
  *
@@ -151,4 +186,79 @@ abstract class AbstractTypeStrategy<S extends Shape> implements TypeStrategy<S> 
 
     }
 
+    public Model model() {
+        return strategies.model();
+    }
+
+    static boolean canImplementValidating(Shape shape, Model model) {
+        if (shape.isMemberShape()) {
+            return _canImplementValidating(shape, model)
+                    || _canImplementValidating(model.expectShape(shape.asMemberShape().get().getTarget()), model);
+        }
+        return _canImplementValidating(shape, model);
+    }
+
+    private static boolean _canImplementValidating(Shape shape, Model model) {
+        if (TsTypeUtils.isNotUserType(shape)) {
+            return false;
+        }
+        switch (shape.getType()) {
+            case ENUM:
+            case INT_ENUM:
+            case BLOB:
+            case DOCUMENT:
+
+            case OPERATION:
+            case SERVICE:
+            case RESOURCE:
+            case UNION:
+            case BOOLEAN:
+            case TIMESTAMP:
+                return false;
+            case MEMBER:
+                return canImplementValidating(model.expectShape(shape.asMemberShape().get().getTarget()), model);
+            default:
+                return true;
+        }
+    }
+
+    static boolean hasValidatableValues(Shape shape, Model model) {
+        if (!canImplementValidating(shape, model)) {
+//            return false;
+        }
+        boolean result = shape.getTrait(PatternTrait.class).isPresent()
+                || shape.getTrait(RangeTrait.class).isPresent()
+                || shape.getTrait(LengthTrait.class).isPresent();
+        if (!result) {
+            switch (shape.getType()) {
+                case MEMBER:
+                    return hasValidatableValues(model.expectShape(shape.asMemberShape().get().getTarget()), model);
+                case LIST:
+                case SET:
+                    return hasValidatableValues(shape.asListShape().get().getMember(), model);
+                case MAP:
+                    return hasValidatableValues(shape.asMapShape().get().getKey(), model)
+                            || hasValidatableValues(shape.asMapShape().get().getValue(), model);
+                case UNION:
+                case STRUCTURE:
+                    for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+                        if (hasValidatableValues(e.getValue(), model) || hasValidatableValues(e.getValue(), model)) {
+                            return true;
+                        }
+                    }
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public String owningTypeName(Class<? extends Trait> trait) {
+        Shape s = owningShape(trait);
+        return strategies.strategy(s).patternFieldName();
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(" + shape.getId().getName() + ")";
+    }
 }

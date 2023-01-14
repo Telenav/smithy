@@ -20,9 +20,11 @@ import com.telenav.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.names.NumberKind;
 import com.telenav.smithy.ts.generator.type.MemberStrategy;
 import com.telenav.smithy.ts.generator.type.TsPrimitiveTypes;
+import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.ANY;
 import com.telenav.smithy.ts.generator.type.TsTypeUtils;
 import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import java.nio.file.Path;
@@ -56,16 +58,22 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
         TypescriptSource tb = src();
 
         tb.declareClass(typeName(), cb -> {
-            Shape target = model.expectShape(shape.getMember().getTarget());
-            importShape(target, tb);
-            boolean canBePrimitive = "smithy.api".equals(target.getId().getNamespace());
-            String primitiveType = typeNameOf(target, false);
+            applyValidatableInterface(cb);
+            importShape(memberTarget, tb);
+            boolean canBePrimitive = "smithy.api".equals(memberTarget.getId().getNamespace());
+            String primitiveType = typeNameOf(memberTarget, false);
             String targetTypeName = memberStrat.targetType();
             String ext = isSet ? "Set<" + targetTypeName + ">" : "Array<" + targetTypeName + ">";
             cb.extending(ext);
             cb.exported();
-            boolean needStringGuard = TsTypeUtils.isNotUserType(target)
-                    && target.getType() == ShapeType.STRING;
+            boolean needStringGuard = TsTypeUtils.isNotUserType(memberTarget)
+                    && memberTarget.getType() == ShapeType.STRING;
+
+            if (isSet) {
+                cb.getter("length", get -> {
+                    get.returningField("length").ofField("keys").ofThis();
+                });
+            }
 
             cb.constructor(con -> {
                 con.makePublic().withArgument("items").ofType(targetTypeName + "[]");
@@ -92,28 +100,11 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                                     })
                                     .onThis()
                                     .endIf();
-
-//                            bb.invoke("super")
-//                                    .withTernary("Array.isArray(items)")
-//                                    .expression("...items")
-//                                    .expression("...[items as string]")
-//                                    .inScope();
                         } else {
                             bb.invoke("super")
                                     .withArgument("...items").inScope();
                         }
                     } else {
-                        /*
-    public constructor(items: string[]) {
-        // lambda$generate$0(ListGenerator.java:80)
-        super(items.length);
-        if (typeof items === 'string') {
-            this.push(items as string);
-        } else {
-            items.forEach(item => this.push(item));
-        }
-    };                        
-                         */
                         if (needStringGuard) {
                             bb.invoke("super")
                                     .withTernary("Array.isArray(items)")
@@ -167,12 +158,12 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                 });
             });
 
-            cb.method("fromJsonObject", mth -> {
+            cb.method(FROM_JSON, mth -> {
                 mth.makeStatic()
                         .withArgument("input").ofType("any");
                 mth.returning(typeName(), bb -> {
 
-                    bb.statement("let items : " + tsTypeName(target) + "[] = []");
+                    bb.statement("let items : " + tsTypeName(memberTarget) + "[] = []");
                     TypeStrategy<?> strat = strategies.strategy(memberTarget);
 
                     ConditionalClauseBuilder<TsBlockBuilder<Void>> ia = bb.iff("Array.isArray(input)");
@@ -199,7 +190,7 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                     els.declare("strings").ofType("string[]")
                             .assignedToInvocationOf("split")
                             .withArgument().as("string").expression("input");
-                    NumberKind nk = NumberKind.forShape(target);
+                    NumberKind nk = NumberKind.forShape(memberTarget);
                     if (nk != null) {
                         els.invoke("forEach")
                                 .withLambda()
@@ -207,7 +198,7 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                                 .withArgument("_index").ofType("number")
                                 .body(lbb -> {
                                     TsPrimitiveTypes argType = TsPrimitiveTypes.NUMBER;
-                                    lbb.lineComment("Do the thing! " + NumberKind.forShape(target));
+                                    lbb.lineComment("Do the thing! " + NumberKind.forShape(memberTarget));
                                     lbb.declareConst("parsed")
                                             .ofType("number")
                                             .assignedToInvocationOf(nk.jsParseMethod())
@@ -224,7 +215,7 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                                 .withArgument("val").ofType("string")
                                 .withArgument("_index").ofType("number")
                                 .body(lbb -> {
-                                    strat.instantiateFromRawJsonObject(lbb, TsPrimitiveTypes.ANY.variable("val"), "converted", true, true);
+                                    strat.instantiateFromRawJsonObject(lbb, ANY.variable("val"), "converted", true, true);
                                     lbb.invoke("push")
                                             .withArgument("converted")
                                             .on("values");
@@ -241,14 +232,14 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
             });
             if (canBePrimitive && !primitiveType.equals(targetTypeName)) {
                 cb.method("convert", mth -> {
-                    mth.withArgument("items").ofType(typeNameOf(target, false));
+                    mth.withArgument("items").ofType(typeNameOf(memberTarget, false));
                     mth.returning(targetTypeName + "[]", bb -> {
                         bb.declareConst("result")
                                 .ofType(targetTypeName + "[]")
                                 .assignedTo("new " + targetTypeName + "[]");
                         bb.invoke("forEach")
                                 .withLambda()
-                                .withArgument("item").ofType(typeNameOf(target, false))
+                                .withArgument("item").ofType(typeNameOf(memberTarget, false))
                                 .body(lbb -> {
                                     lbb.invoke("push")
                                             .withArgument("new " + targetTypeName + "(item)")
@@ -259,7 +250,7 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                 });
 
                 cb.constructor(con -> {
-                    con.withArgument("items").ofType(typeNameOf(target, false));
+                    con.withArgument("items").ofType(typeNameOf(memberTarget, false));
                     con.body(bb -> {
                         bb.invoke("super")
                                 .withInvocationOf("convert")
@@ -279,7 +270,7 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
     }
 
     @Override
-    protected void toJsonBody(TypescriptSource.TsBlockBuilder<Void> bb) {
+    protected void toJsonBody(TsBlockBuilder<Void> bb) {
         Shape target = model.expectShape(shape.getMember().getTarget());
 //        String primitiveType = typeNameOf(target, false);
         String primitiveType = jsTypeOf(target);
@@ -309,4 +300,8 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
         bb.returning("objs");
     }
 
+    @Override
+    protected <T, R> void generateValidationMethodBody(TsBlockBuilder<T> bb, ClassBuilder<R> cb) {
+        strategy.validate("path", bb, "this", false);
+    }
 }

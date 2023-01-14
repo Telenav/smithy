@@ -29,6 +29,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.PropertyBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TypeIntersectionBuilder;
+import com.telenav.smithy.utils.ConstraintsChecker;
 import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -47,12 +48,15 @@ import software.amazon.smithy.model.shapes.EnumShape;
 import software.amazon.smithy.model.shapes.IntEnumShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.shapes.StringShape;
+import software.amazon.smithy.model.shapes.ShapeType;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 import software.amazon.smithy.model.traits.JsonNameTrait;
+import software.amazon.smithy.model.traits.LengthTrait;
 import software.amazon.smithy.model.traits.PatternTrait;
+import software.amazon.smithy.model.traits.RangeTrait;
 import software.amazon.smithy.model.traits.RequiredTrait;
+import software.amazon.smithy.model.traits.Trait;
 
 /**
  * Generates Smithy union types as or'd types, e.g.
@@ -102,6 +106,7 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
         List<TypeIdentificationStrategy> typeIdentificationStrategies = new ArrayList<>();
 
         for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+            ConstraintsChecker.check(model, e.getValue());
             Shape target = model.expectShape(e.getValue().getTarget());
             boolean prim = "smithy.api".equals(target.getId().getNamespace());
             switch (target.getType()) {
@@ -114,11 +119,11 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                 case SHORT:
                 case BYTE:
                     typeIdentificationStrategies.add(
-                            new PrimitiveTypeIdentificationStrategy("number", target));
+                            new PrimitiveTypeIdentificationStrategy<Shape>("number", target));
                     break;
                 case BOOLEAN:
                     typeIdentificationStrategies.add(
-                            new PrimitiveTypeIdentificationStrategy("boolean", target));
+                            new PrimitiveTypeIdentificationStrategy<Shape>("boolean", target));
                     break;
                 case TIMESTAMP:
                     typeIdentificationStrategies.add(
@@ -131,14 +136,11 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                     break;
                 case MAP:
                     typeIdentificationStrategies.add(
-                            new PrimitiveTypeIdentificationStrategy("object", target));
+                            new PrimitiveTypeIdentificationStrategy<>("object", target));
                     break;
                 case STRING:
-                    e.getValue().getMemberTrait(model, PatternTrait.class)
-                            .ifPresent(pat -> typeIdentificationStrategies.add(
-                            new StringWithRegexIdentificationStrategy(pat.getValue(), target.asStringShape().get())));
                     typeIdentificationStrategies.add(
-                            new PrimitiveTypeIdentificationStrategy("string", target));
+                            new PrimitiveTypeIdentificationStrategy<>("string", target));
                     break;
                 case INT_ENUM:
                     typeIdentificationStrategies.add(
@@ -216,7 +218,8 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
         Shape shape();
 
         /**
-         * Sort order
+         * Sort order - identifiers that are more specific will return a higher
+         * value.
          */
         default int priority() {
             return 0;
@@ -257,7 +260,77 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
 
         @Override
         public String test(String varName) {
-            return "typeof " + varName + " === '" + primitiveType + "'";
+            StringBuilder result = new StringBuilder()
+                    .append("typeof ")
+                    .append(varName).append(" === '")
+                    .append(primitiveType).append("'");
+            shape.getTrait(RangeTrait.class).ifPresent(rt -> {
+                rt.getMin().ifPresent(min -> {
+                    result.append(" && ")
+                            .append(varName)
+                            .append(" >= ")
+                            .append(min.longValue());
+                });
+                rt.getMax().ifPresent(max -> {
+                    result.append(" && ")
+                            .append(varName)
+                            .append(" <= ")
+                            .append(max.longValue());
+                });
+            });
+            shape.getTrait(LengthTrait.class).ifPresent(lt -> {
+                boolean isMap = shape.getType() == ShapeType.MAP;
+                if (isMap) {
+                    lt.getMin().ifPresent(min -> {
+                        result.append(" && Object.keys(").append(varName)
+                                .append(").length")
+                                .append(" >= ")
+                                .append(min.longValue());
+                    });
+                    lt.getMax().ifPresent(max -> {
+                        result.append(" && Object.keys(").append(varName)
+                                .append(").length")
+                                .append(" <= ")
+                                .append(max.longValue());
+                    });
+
+                } else {
+                    lt.getMin().ifPresent(min -> {
+                        result.append(" && ").append(varName)
+                                .append(".length")
+                                .append(" >= ")
+                                .append(min.longValue());
+                    });
+                    lt.getMax().ifPresent(max -> {
+                        result.append(" && ").append(varName)
+                                .append(".length")
+                                .append(" <= ")
+                                .append(max.longValue());
+                    });
+                }
+            });
+            shape.getTrait(PatternTrait.class).ifPresent(pat -> {
+                String regex = pat.getValue();
+                result.append(" && ").append(" new RegExp(\"")
+                        .append(LinesBuilder.escape(regex))
+                        .append("\").test(").append(varName).append(")");
+            });
+            return result.toString();
+        }
+
+        private int countTraits(Class<? extends Trait>... c) {
+            int result = 0;
+            for (Class<? extends Trait> trait : c) {
+                if (shape.getTrait(trait).isPresent()) {
+                    result++;
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public int priority() {
+            return countTraits(PatternTrait.class, LengthTrait.class, RangeTrait.class);
         }
 
         @Override
@@ -288,16 +361,14 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                 }
                 base.append(varName).append(" === \"").append(LinesBuilder.escape(s)).append("\"");
             }
-            base.insert(0, super.test(varName) + " || (");
+            base.insert(0, super.test(varName) + " && (");
             base.append(")");
-
-//            return super.test(varName) + " && new Regexp(\"" + LinesBuilder.escape(regex) + "\").test(" + varName + ")";
             return base.toString();
         }
 
         @Override
         public int priority() {
-            return 1;
+            return shape.getEnumValues().size() + 1;
         }
     }
 
@@ -318,35 +389,14 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                 }
                 base.append(varName).append(" === ").append(s);
             }
-            base.insert(0, super.test(varName) + " || (");
+            base.insert(0, super.test(varName) + " && (");
             base.append(")");
-
-//            return super.test(varName) + " && new Regexp(\"" + LinesBuilder.escape(regex) + "\").test(" + varName + ")";
             return base.toString();
         }
 
         @Override
         public int priority() {
-            return 1;
-        }
-    }
-
-    private static final class StringWithRegexIdentificationStrategy extends PrimitiveTypeIdentificationStrategy<StringShape> {
-
-        private final String regex;
-
-        public StringWithRegexIdentificationStrategy(String regex, StringShape shape) {
-            super("string", shape);
-            this.regex = regex;
-        }
-
-        public String test(String varName) {
-            return super.test(varName) + " && new Regexp(\"" + LinesBuilder.escape(regex) + "\").test(" + varName + ")";
-        }
-
-        @Override
-        public int priority() {
-            return 1;
+            return shape.getEnumValues().size();
         }
     }
 

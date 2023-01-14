@@ -4,6 +4,11 @@
     name="smithy">
 
     <requiredProperties>
+        <requiredProperty key="typescript">
+            <validationRegex>^(?:yes|no)$</validationRegex>
+            <defaultValue>yes</defaultValue>
+        </requiredProperty>
+
         <!-- Hack to cause dotfiles not to be ignored.
         Ugly, but works. See
         https://stackoverflow.com/questions/7981060/maven-archetype-plugin-doesnt-let-resources-in-archetype-resources-through
@@ -26,7 +31,7 @@
             <defaultValue>${package.replace('.', '/')}</defaultValue>
         </requiredProperty>
         <!-- Override Maven's 1.0-SNAPSHOT default to use semantic versioning
-             which is less problematic=-->
+        which is less problematic=-->
         <requiredProperty key="version">
             <defaultValue>0.0.1</defaultValue>
         </requiredProperty>

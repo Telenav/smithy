@@ -32,6 +32,11 @@ limitations under the License.
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
+            <artifactId>range</artifactId>
+            <version>${mastfrog.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
             <artifactId>util-strings</artifactId>
             <scope>compile</scope>
         </dependency>

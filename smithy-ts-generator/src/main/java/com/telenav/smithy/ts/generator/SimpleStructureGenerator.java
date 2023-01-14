@@ -37,6 +37,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.InterfaceBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.NewBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
+import com.telenav.smithy.utils.ConstraintsChecker;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -194,6 +195,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         if (isMixin) {
             tb.declareInterface(typeName(), ib -> {
                 ib.exported();
+                applyValidatableInterface(ib);
                 eachMember((name, memberShape, targetShape, strategy) -> {
                     addMemberFor(tb, name, memberShape, targetShape, ib, strategy);
                 });
@@ -211,7 +213,10 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         } else {
             tb.declareClass(typeName(), cb -> {
                 cb.exported();
+                applyValidatableInterface(cb);
+                generateValidationConstants(cb);
                 eachMember((name, memberShape, targetShape, strategy) -> {
+                    ConstraintsChecker.check(model, memberShape);
                     addMemberFor(tb, name, memberShape, targetShape, cb, strategy);
                 });
                 shape.getTrait(DocumentationTrait.class).ifPresent(dox -> {
@@ -293,7 +298,6 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
             mth.makePublic().withArgument("obj").ofType("object");
             mth.body(bb -> {
                 for (Map.Entry<String, Map.Entry<String, MemberShape>> e : queryItems.entrySet()) {
-
                     Shape member = model.expectShape(e.getValue().getValue().getTarget());
 
                     MemberStrategy<?> strategy = memberStrategies.get(e.getValue().getKey());
@@ -336,7 +340,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
 
     public void generateConstructor(ClassBuilder<Void> cb) {
         cb.constructor((ConstructorBuilder<Void> con) -> {
-            con.body((ConstructorBodyBuilder<Void> bb) -> {
+            con.makePublic().body((ConstructorBodyBuilder<Void> bb) -> {
                 eachMemberOptionalLast((name, memberShape, targetShape, required, strategy) -> {
                     strategy.addConstructorArgument(con);
                     strategy.generateConstructorFieldAssignment(bb);
@@ -350,7 +354,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
             mth.makeStatic()
                     .withArgument("json").ofType("string");
             mth.returning(typeName(), bb -> {
-                bb.returningInvocationOf("fromJsonObject")
+                bb.returningInvocationOf(FROM_JSON)
                         .withInvocationOf("parse")
                         .withArgument("json")
                         .on("JSON")
@@ -358,7 +362,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
             });
         });
 
-        cb.method("fromJsonObject", mth -> {
+        cb.method(FROM_JSON, mth -> {
             mth.makeStatic().makePublic()
                     .withArgument("obj").ofType("any");
             mth.returning(typeName(), bb -> {
@@ -490,6 +494,17 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                 nb.ofType(cb.name());
             });
 //            p.ofType(cb.name());
+        });
+    }
+
+    @Override
+    protected <T, R> void generateValidationMethodBody(TsBlockBuilder<T> bb, ClassBuilder<R> cb) {
+        strategy.validate("path", bb, "this", false);
+    }
+
+    private void generateValidationConstants(ClassBuilder<Void> cb) {
+        memberStrategies.values().forEach(strat -> {
+            strat.declareValidationConstants(cb);
         });
     }
 }

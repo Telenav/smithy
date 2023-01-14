@@ -15,7 +15,9 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import com.mastfrog.code.generation.common.LinesBuilder;
 import com.mastfrog.util.strings.Strings;
+import static com.mastfrog.util.strings.Strings.capitalize;
 import com.telenav.smithy.extensions.FuzzyNameMatchingTrait;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.STRING;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -27,11 +29,13 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import com.telenav.smithy.utils.EnumCharacteristics;
 import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.EnumShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.DefaultTrait;
 
 /**
@@ -154,9 +158,9 @@ class DefaultEnumStrategy extends AbstractEnumStrategy {
         String type = rawVar.optional() ? rawVarType().typeName() + " | undefined" : rawVarType().typeName();
         Assignment<B> assig = (declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar));
         if (rawVar.optional()) {
-            assig.assignedToUndefinedIfUndefinedOr(rawVar.name() + ".toString()");
+            assig.assignedToUndefinedIfUndefinedOr(rawVar.name() + ".toString() as " + targetType());
         } else {
-            assig.assignedTo(rawVar.name() + ".toString()");
+            assig.assignedTo(rawVar.name() + ".toString() as " + targetType());
         }
     }
 
@@ -198,7 +202,34 @@ class DefaultEnumStrategy extends AbstractEnumStrategy {
                         + ": " + shape.getId());
         }
 //        return ex.element().literal(defaultValue(def)).of(targetType());
-
     }
 
+    @Override
+    public TypeMatchingStrategy typeTest() {
+        return new EnumTypeMatchingStrategy();
+    }
+
+    static class EnumTypeMatchingStrategy implements TypeMatchingStrategy {
+
+        @Override
+        public String test(String varName, String typeName, Shape shape) {
+            StringBuilder sb = new StringBuilder("typeof " + varName + " === 'string' && (");
+            EnumShape es = shape.asEnumShape().get();
+            Set<String> names = new TreeSet<>(es.getEnumValues().values());
+            if (es.getTrait(FuzzyNameMatchingTrait.class).isPresent()) {
+                for (String s : es.getEnumValues().values()) {
+                    names.add(s.toUpperCase());
+                    names.add(capitalize(s.toLowerCase()));
+                }
+            }
+            for (Iterator<String> it = names.iterator(); it.hasNext();) {
+                sb.append(varName).append(" === ").append("\"").append(
+                        LinesBuilder.escape(it.next())).append("\"");
+                if (it.hasNext()) {
+                    sb.append(" || ");
+                }
+            }
+            return sb.append(')').toString();
+        }
+    }
 }

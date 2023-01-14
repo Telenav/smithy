@@ -81,7 +81,7 @@ final class DefaultConstructorAssignmentGenerator implements ConstructorAssignme
                         break;
                     case STRING:
                         defaultField.initializedWithNew(nb -> {
-                            nb.withArgument(n.asStringNode().get().getValue()).ofType(member.typeName());
+                            nb.withStringLiteral(n.asStringNode().get().getValue()).ofType(member.typeName());
                         }).ofType(member.typeName());
                         break;
                     case ENUM:

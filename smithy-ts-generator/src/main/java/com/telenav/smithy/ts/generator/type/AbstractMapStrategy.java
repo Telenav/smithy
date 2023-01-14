@@ -16,8 +16,10 @@
 package com.telenav.smithy.ts.generator.type;
 
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.OBJECT;
+import com.telenav.smithy.ts.vogon.TypescriptSource;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.traits.SparseTrait;
 
 /**
  *
@@ -27,21 +29,83 @@ abstract class AbstractMapStrategy extends AbstractTypeStrategy<MapShape> {
 
     protected final Shape keyShape;
     protected final Shape valueShape;
-    protected final TypeStrategy<?> keyStrategy;
-    protected final TypeStrategy<?> valueStrategy;
+    protected final MemberStrategy<?> keyStrategy;
+    protected final MemberStrategy<?> valueStrategy;
 
     protected AbstractMapStrategy(MapShape shape, TypeStrategies strategies,
             Shape keyShape, Shape valueShape) {
         super(shape, strategies);
         this.keyShape = keyShape;
         this.valueShape = valueShape;
-        keyStrategy = strategies.strategy(keyShape);
-        valueStrategy = strategies.strategy(valueShape);
+        keyStrategy = strategies.memberStrategy(shape.getKey(), keyShape);
+        valueStrategy = strategies.memberStrategy(shape.getValue(), valueShape);
     }
 
     @Override
     public TsSimpleType rawVarType() {
         return OBJECT;
+    }
+
+    @Override
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void validate(String pathVar,
+            B bb, String on, boolean canBeNull) {
+        super.validate(pathVar, bb, on, false);
+        boolean validateKeys = keyStrategy.hasValidatableValues();
+        boolean validateValues = valueStrategy.hasValidatableValues();
+        if (validateKeys || validateValues) {
+            bb.declare("counter").ofType("number").assignedTo(0);
+            bb.declare("p").ofType("string").assignedTo("(path || '" + shape.getId().getName() + "') + '.'");
+            bb.invoke("forEach")
+                    .withLambda().withArgument("v").inferringType().withArgument("k").inferringType()
+                    .body(lbb -> {
+                        if (validateKeys) {
+                            if (keyStrategy.isModelDefined()) {
+                                lbb.invoke("validate")
+                                        .withStringConcatenation()
+                                        .appendExpression("p")
+                                        .append(".key[")
+                                        .appendExpression("counter")
+                                        .append("]")
+                                        .endConcatenation()
+                                        .withArgument("onProblem")
+                                        .on("k");
+                            } else {
+                                lbb.declare("keyPath")
+                                        .assignedToStringConcatenation()
+                                        .appendExpression("p")
+                                        .append(".key[")
+                                        .appendExpression("counter")
+                                        .append("]")
+                                        .endConcatenation();
+                                keyStrategy.validate("keyPath", lbb, "k", false);
+                            }
+                        }
+                        if (validateValues) {
+                            if (valueStrategy.isModelDefined()) {
+                                lbb.invoke("validate")
+                                        .withStringConcatenation()
+                                        .appendExpression("p")
+                                        .append(".key[")
+                                        .appendExpression("counter")
+                                        .append("]")
+                                        .endConcatenation()
+                                        .withArgument("onProblem")
+                                        .on("v");
+                            } else {
+                                lbb.declare("valPath")
+                                        .assignedToStringConcatenation()
+                                        .appendExpression("p")
+                                        .append(".key[")
+                                        .appendExpression("counter")
+                                        .append("]")
+                                        .endConcatenation();
+                                valueStrategy.validate("valPath", lbb, "k",
+                                        valueStrategy.trait(SparseTrait.class).isPresent());
+                            }
+                        }
+                        lbb.statement("counter++");
+                    }).onThis();
+        }
     }
 
 }

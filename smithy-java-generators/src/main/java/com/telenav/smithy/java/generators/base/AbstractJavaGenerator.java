@@ -239,7 +239,7 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     }
 
     protected <T, R> String generateInitialEqualsTest(ClassBuilder<R> cb, ClassBuilder.BlockBuilder<T> bb) {
-        return generateInitialEqualsTest(cb.unusedFieldName("o"), cb, bb);
+        return generateInitialEqualsTest("o", cb, bb);
     }
 
     protected <T, R> String generateInitialEqualsTest(String argName, ClassBuilder<R> cb, ClassBuilder.BlockBuilder<T> bb) {
@@ -561,6 +561,8 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     private void checkLengthsCompatible(Shape orig, LengthTrait range, MemberShape member, LengthTrait memberRange) {
         String msgHead = "Both " + orig.getId() + " and " + member.getId()
                 + " specify @length;";
+        
+        System.out.println("CHECK LENGTHS COMPATIBLE " + orig.getId() + " and " + member.getId());
         range.getMin().ifPresent(origMin -> {
             memberRange.getMin().ifPresent(memberMin -> {
                 boolean memberIsLess

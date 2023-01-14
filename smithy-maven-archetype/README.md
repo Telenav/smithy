@@ -27,6 +27,13 @@ globally, to all of the Velocity templates used in the archetype,
 and there is no way to avoid the archetype asking for confirmation
 of them.
 
+Typescript generation (both the npm project and the pom entries
+related to it) can be disabled with `-Dtypescript=no`.
+
+A `.gitignore` file is generated in the project root which ensures
+that folders containing generated sources are not inadvertently
+committed.
+
 
 What You Get
 ------------
@@ -72,7 +79,8 @@ server, etc.
 npm
 ---
 
-The generated typescript project, which contains an easy-to-use SDK
+If typescript generation is enabled (the default - see above),
+the generated typescript project, which contains an easy-to-use SDK
 for calling your service, expects `nodejs` and `npm` to be installed
 and on `$PATH`.
 

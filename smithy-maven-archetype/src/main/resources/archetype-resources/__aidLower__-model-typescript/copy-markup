@@ -1,0 +1,4 @@
+#!/bin/sh
+
+find 'src/*.html' | xargs cp -a $1/ 2>&1 /dev/null
+find 'src/*.css'  | xargs cp -a $1/ 2>&1 /dev/null
