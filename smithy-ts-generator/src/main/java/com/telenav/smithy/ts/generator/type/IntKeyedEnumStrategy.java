@@ -32,12 +32,7 @@ class IntKeyedEnumStrategy extends AbstractEnumStrategy {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>> void instantiateFromRawJsonObject(B block, TsVariable rawVar) {
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 

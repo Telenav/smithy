@@ -53,13 +53,8 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
 
     @Override
     public final <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(
-            B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
-        typeStrategy.instantiateFromRawJsonObject(block, rawVar, instantiatedVar, declare);
-    }
-
-    @Override
-    public final <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>> void instantiateFromRawJsonObject(B block, TsVariable rawVar) {
-        typeStrategy.instantiateFromRawJsonObject(block, rawVar);
+            B bb, TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
+        typeStrategy.instantiateFromRawJsonObject(bb, rawVar, instantiatedVar, declare, true);
     }
 
     @Override

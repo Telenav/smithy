@@ -31,7 +31,6 @@ import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
-import static software.amazon.smithy.model.shapes.ShapeType.STRING;
 import software.amazon.smithy.model.traits.UniqueItemsTrait;
 
 /**
@@ -189,7 +188,7 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                             .body(lbb -> {
                                 strat.instantiateFromRawJsonObject(lbb,
                                         TsPrimitiveTypes.ANY.variable("item"),
-                                        "converted", true);
+                                        "converted", true, true);
                                 lbb.invoke("push").withArgument("converted").on("items");
                             }).on("values");
 
@@ -214,7 +213,7 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                                             .assignedToInvocationOf(nk.jsParseMethod())
                                             .withArgument("val")
                                             .inScope();
-                                    strat.instantiateFromRawJsonObject(lbb, argType.variable("parsed"), "converted", true);
+                                    strat.instantiateFromRawJsonObject(lbb, argType.variable("parsed"), "converted", true, true);
                                     lbb.invoke("push")
                                             .withArgument("converted")
                                             .on("values");
@@ -225,7 +224,7 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                                 .withArgument("val").ofType("string")
                                 .withArgument("_index").ofType("number")
                                 .body(lbb -> {
-                                    strat.instantiateFromRawJsonObject(lbb, TsPrimitiveTypes.ANY.variable("val"), "converted", true);
+                                    strat.instantiateFromRawJsonObject(lbb, TsPrimitiveTypes.ANY.variable("val"), "converted", true, true);
                                     lbb.invoke("push")
                                             .withArgument("converted")
                                             .on("values");
@@ -234,7 +233,7 @@ final class ListGenerator extends AbstractTypescriptGenerator<ListShape> {
                     els = els.orElse("typeof input !== 'undefined'");
                     els.lineComment("Fail over - see if the conversion method can do anything with it.");
                     strat.instantiateFromRawJsonObject(els, TsPrimitiveTypes.ANY.variable(
-                            "input"), "converted", true);
+                            "input"), "converted", true, true);
                     els.invoke("push").withArgument("converted").on("items");
                     els.endIf();
                     bb.returningNew().withArgument("items").ofType(cb.name());

@@ -33,7 +33,7 @@ final class PrimitiveListStrategy extends AbstractListOrSetStrategy {
     @Override
     public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
-                    String instantiatedVar, boolean declare) {
+                                              String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
         TypescriptSource.Assignment<B> decl = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
@@ -47,23 +47,6 @@ final class PrimitiveListStrategy extends AbstractListOrSetStrategy {
                     .expression(rawVar.name())
                     .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
         }
-    }
-
-    @Override
-    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>>
-            void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        if (rawVar.optional()) {
-            TypescriptSource.ExpressionBuilder<B> partial = inv.withTernary("typeof " + rawVar.name() + " === undefined")
-                    .expression("undefined");
-            partial.ternary("Array.isArray(" + rawVar.name() + ")")
-                    .expression(rawVar.name())
-                    .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
-        } else {
-            inv.withTernary("Array.isArray(" + rawVar.name() + ")")
-                    .expression(rawVar.name())
-                    .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
-        }
-
     }
 
     @Override

@@ -69,6 +69,7 @@ public final class IntEnumGenerator extends AbstractTypescriptGenerator<IntEnumS
             }
         });
 
+        generateRecognitionFunction(ty);
         generateValidationFunction(ty);
         c.accept(ty);
     }
@@ -77,13 +78,43 @@ public final class IntEnumGenerator extends AbstractTypescriptGenerator<IntEnumS
         ty.function(validationFunctionName(), f -> {
             f.exported().withArgument("num").ofType("number")
                     .returning(tsTypeName(shape));
+
+            f.body(bb -> {
+                bb.declare("result")
+                        .assignedToInvocationOf(recognitionFunctionName())
+                        .withArgument("num")
+                        .inScope();
+                bb.iff("typeof result !== 'undefined'").returning("result");
+                bb.throwing(nb -> {
+                    TreeSet<Integer> possibleValues = new TreeSet<>(shape.getEnumValues().values());
+                    StringConcatenation<NewBuilder<Void>> concat = nb.withStringConcatenation()
+                            .appendExpression("num")
+                            .append(" is not one of the constants on "
+                                    + shape.getId().getName() + ", ");
+                    for (Iterator<Integer> it = possibleValues.iterator(); it.hasNext();) {
+                        Integer enumVal = it.next();
+                        concat.append(enumVal);
+                        if (it.hasNext()) {
+                            concat.append(",");
+                        }
+                    }
+                    concat.endConcatenation();
+                });
+            });
+        });
+    }
+
+    private void generateRecognitionFunction(TypescriptSource ty) {
+        ty.function(recognitionFunctionName(), f -> {
+            f.exported()
+                    .withArgument("num").ofType("number")
+                    .returning().or().withType(tsTypeName(shape)).ofType("undefined");
             f.body(bb -> {
                 CaseBuilder<SwitchBuilder<TsBlockBuilder<Void>>> lastCase = null;
                 ArrayList<Map.Entry<String, Integer>> l = new ArrayList<>(shape.getEnumValues().entrySet());
                 Collections.sort(l, (e1, e2) -> {
                     return e1.getValue().compareTo(e2.getValue());
                 });
-                TreeSet<Integer> possibleValues = new TreeSet<>(shape.getEnumValues().values());
                 for (Map.Entry<String, Integer> e : l) {
                     int enumVal = e.getValue();
                     if (lastCase != null) {
@@ -94,36 +125,28 @@ public final class IntEnumGenerator extends AbstractTypescriptGenerator<IntEnumS
                     lastCase.comment("ok - " + e.getKey());
                 }
                 if (lastCase != null) {
-                    lastCase.statement("break");
-                    lastCase.endBlock().inDefaultCase(def -> {
-                        def.comment("No valid value");
-                        def.throwing(nb -> {
-                            StringConcatenation<NewBuilder<Void>> concat = nb.withStringConcatenation()
-                                    .appendExpression("num")
-                                    .append(" is not one of the constants on "
-                                            + shape.getId().getName() + ", ");
-                            for (Iterator<Integer> it = possibleValues.iterator(); it.hasNext();) {
-                                Integer enumVal = it.next();
-                                concat.append(enumVal);
-                                if (it.hasNext()) {
-                                    concat.append(",");
-                                }
-                            }
-                            concat.endConcatenation();
-                        });
-                    }).on("num");
+                    lastCase.endBlock().on("num");
                 }
                 bb.returning("num as " + tsTypeName(shape));
             });
         });
+
     }
 
     private String validationFunctionName() {
         return validationFunctionName(model, shape);
     }
 
+    private String recognitionFunctionName() {
+        return recognitionFunctionName(model, shape);
+    }
+
     public static String validationFunctionName(Model model, IntEnumShape shape) {
         return "validate" + new TsTypeUtils(model).tsTypeName(shape);
+    }
+
+    public static String recognitionFunctionName(Model model, IntEnumShape shape) {
+        return "recognize" + new TsTypeUtils(model).tsTypeName(shape);
     }
 
 }

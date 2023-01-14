@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.IntEnumGenerator.recognitionFunctionName;
 import static com.telenav.smithy.ts.generator.IntEnumGenerator.validationFunctionName;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.NUMBER;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -35,30 +36,21 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
     @Override
     public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
-                    String instantiatedVar, boolean declare) {
+                    String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
+        if (!generateThrowIfUnrecognized) {
+            rawVar = rawVar.asOptional();
+        }
         Assignment<B> assig = createTargetAssignment(rawVar, declare, bb, instantiatedVar);
+        String mth = generateThrowIfUnrecognized
+                ? validationFunctionName(strategies.model(), shape)
+                : recognitionFunctionName(strategies.model(), shape);
         if (rawVar.optional()) {
             assig.assignedToUndefinedIfUndefinedOr(rawVar.name())
-                    .invoke(validationFunctionName(strategies.model(), shape))
+                    .invoke(mth)
                     .withArgument(rawVar.name() + " as number")
                     .inScope();
         } else {
-            assig.assignedToInvocationOf(validationFunctionName(strategies.model(), shape))
-                    .withArgument(rawVar.name() + " as number")
-                    .inScope();
-        }
-    }
-
-    @Override
-    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>>
-            void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        if (rawVar.optional()) {
-            inv.withUndefinedIfUndefinedOr(rawVar.typeName()).invoke(
-                    validationFunctionName(strategies.model(), shape))
-                    .withArgument(rawVar.name() + " as number")
-                    .inScope();
-        } else {
-            inv.withInvocationOf(validationFunctionName(strategies.model(), shape))
+            assig.assignedToInvocationOf(mth)
                     .withArgument(rawVar.name() + " as number")
                     .inScope();
         }

@@ -382,7 +382,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                                 .variable("obj['" + jsonName + "']")
                                 .optional(needOptional || !strategy.required());
 
-                        strategy.instantiateFromRawJsonObject(bb, v, fieldName, true);
+                        strategy.instantiateFromRawJsonObject(bb, v, fieldName, true, true);
 
                         String arg = required ? fieldName + " as "
                                 + strategy.targetType() : fieldName;

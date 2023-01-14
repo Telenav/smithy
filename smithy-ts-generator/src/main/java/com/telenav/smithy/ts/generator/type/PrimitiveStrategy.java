@@ -17,8 +17,6 @@ package com.telenav.smithy.ts.generator.type;
 
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.bestMatch;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
-import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
-import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.Shape;
 
@@ -34,19 +32,13 @@ final class PrimitiveStrategy<S extends Shape> extends AbstractTypeStrategy<S> {
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb,
-                                                                                     TsVariable rawVar, String instantiatedVar, boolean declare) {
+                                                                                     TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
             assig.ofType(targetType() + " | undefined").assignedTo(rawVar.name());
         } else {
             assig.ofType(targetType()).assignedTo(rawVar.name());
         }
-    }
-
-    @Override
-    public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void
-            instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        inv.withArgument(rawVar.name() + " as " + targetType());
     }
 
     @Override

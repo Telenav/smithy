@@ -20,8 +20,6 @@ import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.STRING;
 import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
-import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.NewBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
@@ -42,7 +40,7 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
-                    String instantiatedVar, boolean declare) {
+                                              String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         boolean prim = isNotUserType(shape);
         Assignment<B> decl = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         String targetType = prim ? "Date" : targetType();
@@ -89,40 +87,6 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
                     .invoke("parse").withArgument(arg).on("Date").ofType("Date");
         } else {
             nb2.withInvocationOf("parse").withArgument(arg).on("Date").ofType("Date");
-        }
-    }
-
-    @Override
-    public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        boolean prim = isNotUserType(shape);
-        if (rawVar.optional()) {
-            ExpressionBuilder<B> rightSide;
-            if (rawVar.isAnyType()) {
-                rightSide = inv.withUndefinedIfUndefinedOr(rawVar.name());
-            } else {
-                rightSide = inv.typeNot(rawVar.name(), "string").expression("undefined");
-            }
-            if (prim) {
-                rightSide.instantiate(nb -> {
-                    instantiateDateFromString(nb, rawVar);
-                });
-            } else {
-                rightSide.instantiate(nb -> {
-                    nb.withNew(nb2 -> {
-                        instantiateDateFromString(nb2, rawVar);
-                    }).ofType(targetType());
-                });
-            }
-        } else {
-            inv.withNew(nb -> {
-                if (prim) {
-                    instantiateDateFromString(nb, rawVar);
-                } else {
-                    nb.withNew(nb2 -> {
-                        instantiateDateFromString(nb2, rawVar);
-                    }).ofType(targetType());
-                }
-            });
         }
     }
 

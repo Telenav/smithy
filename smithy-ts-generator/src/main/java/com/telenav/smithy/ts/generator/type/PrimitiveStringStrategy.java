@@ -17,8 +17,6 @@ package com.telenav.smithy.ts.generator.type;
 
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.bestMatch;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
-import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
-import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.StringShape;
 
@@ -34,7 +32,7 @@ final class PrimitiveStringStrategy extends AbstractTypeStrategy<StringShape> {
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb,
-                                                                                     TsVariable rawVar, String instantiatedVar, boolean declare) {
+                                                                                     TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
             assig.ofType(targetType() + " | undefined")
@@ -42,16 +40,6 @@ final class PrimitiveStringStrategy extends AbstractTypeStrategy<StringShape> {
                     .invoke("toString").on(rawVar.name());
         } else {
             assig.ofType(targetType()).assignedToInvocationOf("toString").on(rawVar.name());
-        }
-    }
-
-    @Override
-    public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void
-            instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        if (rawVar.optional()) {
-            inv.withUndefinedIfUndefinedOr(rawVar.name()).invoke("toString").on(rawVar.name());
-        } else {
-            inv.withInvocationOf("toString").on(rawVar.name());
         }
     }
 

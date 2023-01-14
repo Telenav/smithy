@@ -72,8 +72,8 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
         src.declareClass(tsTypeName(shape), cb -> {
             cb.extending("Map", pt -> pt.withTypeParameter(keyType).withTypeParameter(valType));
 
-            cb.constructor(con -> {
-                con.withArgument("orig")
+            cb.exported().constructor(con -> {
+                con.makePublic().withArgument("orig")
                         .optional()
                         .ofType("Map", pt -> pt.withTypeParameter(keyType).withTypeParameter(valType));
                 con.body(bb -> {
@@ -185,9 +185,9 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
                         .assignedToNew().ofType(cb.name());
                 bb.forVar("k", loop -> {
                     keyStrategy.instantiateFromRawJsonObject(loop,
-                            TsPrimitiveTypes.STRING.variable("k"), "key", true);
+                            TsPrimitiveTypes.STRING.variable("k"), "key", true, true);
                     valStrategy.instantiateFromRawJsonObject(loop,
-                            valStrategy.rawVarType().variable("obj[k]"), "value", true);
+                            valStrategy.rawVarType().variable("obj[k]"), "value", true, true);
                     loop.invoke("set")
                             .withArgument("key")
                             .withArgument("value")

@@ -19,6 +19,8 @@ import com.mastfrog.code.generation.common.LinesBuilder;
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
 import com.mastfrog.util.strings.Strings;
+import static com.mastfrog.util.strings.Strings.capitalize;
+import com.telenav.smithy.extensions.FuzzyNameMatchingTrait;
 import com.telenav.smithy.ts.generator.type.MemberStrategy;
 import com.telenav.smithy.ts.generator.type.TsPrimitiveTypes;
 import com.telenav.smithy.ts.generator.type.TypeStrategy;
@@ -30,6 +32,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.TypeIntersectionBuilder;
 import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import static java.util.Collections.sort;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -40,8 +43,11 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.EnumShape;
+import software.amazon.smithy.model.shapes.IntEnumShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 import software.amazon.smithy.model.traits.JsonNameTrait;
@@ -130,13 +136,13 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                 case STRING:
                     e.getValue().getMemberTrait(model, PatternTrait.class)
                             .ifPresent(pat -> typeIdentificationStrategies.add(
-                            new StringWithRegexIdentificationStrategy(pat.getValue(), target)));
+                            new StringWithRegexIdentificationStrategy(pat.getValue(), target.asStringShape().get())));
                     typeIdentificationStrategies.add(
                             new PrimitiveTypeIdentificationStrategy("string", target));
                     break;
                 case INT_ENUM:
                     typeIdentificationStrategies.add(
-                            new PrimitiveTypeIdentificationStrategy("number", target));
+                            new IntEnumIdentificationStrategy(target.asIntEnumShape().get()));
                     break;
                 case ENUM:
                     switch (characterizeEnum(target.asEnumShape().get())) {
@@ -144,7 +150,7 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                         case NONE:
                         case STRING_VALUED:
                         case STRING_VALUED_MATCHING_NAMES:
-                            typeIdentificationStrategies.add(new PrimitiveTypeIdentificationStrategy("string", target));
+                            typeIdentificationStrategies.add(new StringEnumIdentificationStrategy(target.asEnumShape().get()));
                             break;
                         case INT_VALUED:
                             typeIdentificationStrategies.add(new StringOrNumberIdentificationStrategy(target));
@@ -193,8 +199,10 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                     test.lineComment("Recognize" + strat.shape().getId().getName() + "?");
 
                     TypeStrategy<?> ts = this.strategies.strategy(strat.shape());
-                    ts.instantiateFromRawJsonObject(test, TsPrimitiveTypes.ANY.variable("val"), "result", true);
-                    test.returning("result");
+                    ts.instantiateFromRawJsonObject(test, TsPrimitiveTypes.ANY.variable("val"),
+                            "result", true, false);
+                    test.ifDefined("result")
+                            .returning("result").endIf();
                 }
                 bb.returning("undefined");
             });
@@ -232,12 +240,12 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
      * Matches a js/ts primitive type by name and does nothing further.
      *
      */
-    private static class PrimitiveTypeIdentificationStrategy implements TypeIdentificationStrategy {
+    private static class PrimitiveTypeIdentificationStrategy<S extends Shape> implements TypeIdentificationStrategy {
 
-        private final String primitiveType;
-        private final Shape shape;
+        protected final String primitiveType;
+        protected final S shape;
 
-        PrimitiveTypeIdentificationStrategy(String primitiveType, Shape shape) {
+        PrimitiveTypeIdentificationStrategy(String primitiveType, S shape) {
             this.primitiveType = primitiveType;
             this.shape = shape;
         }
@@ -258,11 +266,76 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
         }
     }
 
-    private static final class StringWithRegexIdentificationStrategy extends PrimitiveTypeIdentificationStrategy {
+    private static final class StringEnumIdentificationStrategy extends PrimitiveTypeIdentificationStrategy<EnumShape> {
+
+        public StringEnumIdentificationStrategy(EnumShape shape) {
+            super("string", shape);
+        }
+
+        public String test(String varName) {
+            StringBuilder base = new StringBuilder();
+
+            Set<String> list = new TreeSet<>(this.shape.getEnumValues().values());
+            if (shape.getTrait(FuzzyNameMatchingTrait.class).isPresent()) {
+                for (String s : this.shape.getEnumValues().values()) {
+                    list.add(s.toUpperCase());
+                    list.add(capitalize(s.toLowerCase()));
+                }
+            }
+            for (String s : list) {
+                if (base.length() > 0) {
+                    base.append(" || ");
+                }
+                base.append(varName).append(" === \"").append(LinesBuilder.escape(s)).append("\"");
+            }
+            base.insert(0, super.test(varName) + " || (");
+            base.append(")");
+
+//            return super.test(varName) + " && new Regexp(\"" + LinesBuilder.escape(regex) + "\").test(" + varName + ")";
+            return base.toString();
+        }
+
+        @Override
+        public int priority() {
+            return 1;
+        }
+    }
+
+    private static final class IntEnumIdentificationStrategy extends PrimitiveTypeIdentificationStrategy<IntEnumShape> {
+
+        public IntEnumIdentificationStrategy(IntEnumShape shape) {
+            super("number", shape);
+        }
+
+        public String test(String varName) {
+            StringBuilder base = new StringBuilder();
+
+            List<Integer> list = new ArrayList<>(this.shape.getEnumValues().values());
+            Collections.sort(list);
+            for (Integer s : list) {
+                if (base.length() > 0) {
+                    base.append(" || ");
+                }
+                base.append(varName).append(" === ").append(s);
+            }
+            base.insert(0, super.test(varName) + " || (");
+            base.append(")");
+
+//            return super.test(varName) + " && new Regexp(\"" + LinesBuilder.escape(regex) + "\").test(" + varName + ")";
+            return base.toString();
+        }
+
+        @Override
+        public int priority() {
+            return 1;
+        }
+    }
+
+    private static final class StringWithRegexIdentificationStrategy extends PrimitiveTypeIdentificationStrategy<StringShape> {
 
         private final String regex;
 
-        public StringWithRegexIdentificationStrategy(String regex, Shape shape) {
+        public StringWithRegexIdentificationStrategy(String regex, StringShape shape) {
             super("string", shape);
             this.regex = regex;
         }
@@ -528,6 +601,7 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
             return shape;
         }
 
+        @Override
         public String toString() {
             return "union-members " + Strings.join(", ", distinctProperties()) + " for " + shape.getId().getName();
         }

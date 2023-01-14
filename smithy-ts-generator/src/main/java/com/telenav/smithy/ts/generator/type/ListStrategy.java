@@ -17,8 +17,6 @@ package com.telenav.smithy.ts.generator.type;
 
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
-import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
-import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -35,7 +33,7 @@ final class ListStrategy extends AbstractListOrSetStrategy {
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>>
-            void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+            void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
         Assignment<B> decl = declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
@@ -44,19 +42,6 @@ final class ListStrategy extends AbstractListOrSetStrategy {
                     .withArgument(rawVar.name()).on(targetType());
         } else {
             decl.assignedToInvocationOf("fromJsonObject")
-                    .withArgument(rawVar.name()).on(targetType());
-        }
-    }
-
-    @Override
-    public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void
-            instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        if (rawVar.optional()) {
-            inv.withUndefinedIfUndefinedOr(rawVar.name())
-                    .invoke("fromJsonObject")
-                    .withArgument(rawVar.name()).on(targetType());
-        } else {
-            inv.withInvocationOf("fromJsonObject")
                     .withArgument(rawVar.name()).on(targetType());
         }
     }

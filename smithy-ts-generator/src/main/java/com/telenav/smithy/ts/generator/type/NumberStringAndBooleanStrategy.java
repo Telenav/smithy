@@ -35,7 +35,7 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         String targetType = targetType() + (rawVar.optional() ? " | undefined" : "");
         boolean prim = isNotUserType(shape);
         TypescriptSource.Assignment<B> decl = (declare ? bb.declare(instantiatedVar) : bb.assign(instantiatedVar)).ofType(targetType);
@@ -53,26 +53,6 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
             } else {
                 decl.assignedToInvocationOf("fromJsonObject")
                         .withArgument(rawVar.name()).on(targetType());
-            }
-        }
-    }
-
-    @Override
-    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>> void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        boolean prim = isNotUserType(shape);
-        if (rawVar.optional()) {
-            ExpressionBuilder<B> exp = inv.withUndefinedIfUndefinedOr(rawVar.name());
-            if (prim) {
-                exp.as(rawVarType().typeName()).expression(rawVar.name());
-            } else {
-                exp.invoke("fromJsonObject")
-                        .withArgument(rawVar.name()).on(targetType());
-            }
-        } else {
-            if (prim) {
-                inv.withArgument().as(rawVarType().typeName()).expression(rawVar.name());
-            } else {
-                inv.withInvocationOf("fromJsonObject").withArgument(rawVar.name()).on(targetType());
             }
         }
     }

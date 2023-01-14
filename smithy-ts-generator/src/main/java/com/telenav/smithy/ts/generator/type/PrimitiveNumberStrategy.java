@@ -20,8 +20,6 @@ import static com.telenav.smithy.names.NumberKind.forShape;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.bestMatch;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
-import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.NumberShape;
 import software.amazon.smithy.model.shapes.ShapeType;
@@ -38,7 +36,7 @@ final class PrimitiveNumberStrategy<S extends NumberShape> extends AbstractTypeS
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb,
-            TsVariable rawVar, String instantiatedVar, boolean declare) {
+                                                                                     TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
             assig.ofType(targetType() + " | undefined");
@@ -73,18 +71,6 @@ final class PrimitiveNumberStrategy<S extends NumberShape> extends AbstractTypeS
         return exp.invoke(parseMethod)
                 .withInvocationOf("toString").on("(" + rawVar.name()
                 + " as any)").inScope();
-    }
-
-    @Override
-    public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void
-            instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        if (rawVar.optional()) {
-            applyRawVarExpression(inv.withArgument()
-                    .ternary("typeof " + rawVar.name() + " === 'undefined'")
-                    .expression("undefined"), rawVar);
-        } else {
-            applyRawVarExpression(inv.withArgument(), rawVar);
-        }
     }
 
     @Override

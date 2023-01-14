@@ -42,10 +42,8 @@ import software.amazon.smithy.model.traits.DefaultTrait;
 public interface TypeStrategy<S extends Shape> {
 
     <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(
-            B block, TsVariable rawVar, String instantiatedVar, boolean declare);
-
-    <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>>
-            void instantiateFromRawJsonObject(B block, TsVariable rawVar);
+            B bb, TsVariable rawVar, String instantiatedVar, boolean declare,
+            boolean generateThrowIfUnrecognized);
 
     <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(
             B block, TsVariable rawVar, String instantiatedVar, boolean declare);

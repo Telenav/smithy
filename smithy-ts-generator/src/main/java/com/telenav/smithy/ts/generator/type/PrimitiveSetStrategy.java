@@ -18,8 +18,6 @@ package com.telenav.smithy.ts.generator.type;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
-import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -37,7 +35,7 @@ final class PrimitiveSetStrategy extends AbstractListOrSetStrategy {
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>>
             void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
-                    String instantiatedVar, boolean declare) {
+                                              String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
         Assignment<B> decl = declare
                 ? bb.declareConst(instantiatedVar).ofType(type)
@@ -51,23 +49,6 @@ final class PrimitiveSetStrategy extends AbstractListOrSetStrategy {
                     .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
         } else {
             decl.assignedToTernary("Array.isArray(" + rawVar.name() + ")")
-                    .expression(rawVar.name())
-                    .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
-        }
-    }
-
-    @Override
-    public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>>
-            void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        if (rawVar.optional()) {
-            ExpressionBuilder<B> partial = inv.withTernary("typeof " + rawVar.name()
-                    + " === undefined")
-                    .expression("undefined");
-            partial.ternary("Array.isArray(" + rawVar.name() + ")")
-                    .expression(rawVar.name())
-                    .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
-        } else {
-            inv.withTernary("Array.isArray(" + rawVar.name() + ")")
                     .expression(rawVar.name())
                     .expression("[" + rawVar.name() + " as " + memberStrategy.targetType() + "]");
         }

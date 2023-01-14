@@ -15,10 +15,8 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
-import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.Shape;
@@ -39,7 +37,7 @@ final class PrimitiveMapStrategy extends AbstractMapStrategy {
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>>
-            void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+            void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
             assig.ofType(signature() + " | undefined");
@@ -57,18 +55,12 @@ final class PrimitiveMapStrategy extends AbstractMapStrategy {
             B bb, String instantiatedVar, TsVariable rawVar) {
         bb.forVar("k", loop -> {
             keyStrategy.instantiateFromRawJsonObject(loop, keyStrategy
-                    .rawVarType().variable("k"), "key", true);
+                    .rawVarType().variable("k"), "key", true, true);
             valueStrategy.instantiateFromRawJsonObject(loop, keyStrategy
-                    .rawVarType().variable("k"), "value", true);
+                    .rawVarType().variable("k"), "value", true, true);
             loop.invoke("set").withArgument("key").withArgument("value").on(instantiatedVar);
             loop.over(rawVar.name());
         });
-    }
-
-    @Override
-    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends Invocation<T, B, A>>
-            void instantiateFromRawJsonObject(B block, TsVariable rawVar) {
-        throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override

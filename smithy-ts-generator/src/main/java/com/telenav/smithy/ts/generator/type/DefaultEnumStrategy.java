@@ -22,7 +22,6 @@ import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.CaseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.SwitchBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
@@ -52,19 +51,14 @@ class DefaultEnumStrategy extends AbstractEnumStrategy {
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void
-            instantiateFromRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
-        Assignment<B> assig = super.createTargetAssignment(rawVar, declare, block, instantiatedVar);
-        applyInstantiate(assig.assignedTo(), rawVar);
-    }
-
-    @Override
-    public <T, A extends InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>>
-            void instantiateFromRawJsonObject(B inv, TsVariable rawVar) {
-        if (rawVar.optional()) {
-            applyInstantiate(inv.withUndefinedIfUndefinedOr(rawVar.name()), rawVar);
-        } else {
-            applyInstantiate(inv.withArgument(), rawVar);
+            instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare,
+                    boolean generateThrowIfUnrecognized) {
+        if (!generateThrowIfUnrecognized) {
+            // If we're generating for no throw, the value MUST be optional
+            rawVar = rawVar.asOptional();
         }
+        Assignment<B> assig = super.createTargetAssignment(rawVar, declare, bb, instantiatedVar);
+        applyInstantiate(assig.assignedTo(), rawVar, generateThrowIfUnrecognized);
     }
 
     private static void permutationsOf(String what, Set<String> into) {
@@ -81,7 +75,7 @@ class DefaultEnumStrategy extends AbstractEnumStrategy {
         return result;
     }
 
-    private <B> void applyInstantiate(ExpressionBuilder<B> x, TsVariable rawVar) {
+    private <B> void applyInstantiate(ExpressionBuilder<B> x, TsVariable rawVar, boolean generateThrowIfUnrecognized) {
 //            x.element().expression(rawVar.name()).of(targetType());
         x.selfExecutingFunction(bb -> {
             SwitchBuilder<TsBlockBuilder<Void>> bl = null;
@@ -112,30 +106,34 @@ class DefaultEnumStrategy extends AbstractEnumStrategy {
                     });
                 }
             } else {
-                bl.inDefaultCase(cs -> {
-                    if (rawVar.optional()) {
-                        cs.lineComment("Fall through on invalid value - this field is optional");
-                        cs.invoke("log")
-                                .withStringConcatenation("Not a valid value for "
-                                        + targetType() + ": '")
-                                .appendExpression(rawVar.name())
-                                .append("'")
-                                .append(".  Possible values: ")
-                                .append(Strings.join(", ", values))
-                                .endConcatenation()
-                                .on("console");
-
-                    } else {
-                        cs.throwing(nb -> {
-                            nb.withStringConcatenation("Not a valid value for " + targetType() + ": '")
+                if (generateThrowIfUnrecognized) {
+                    bl.inDefaultCase(cs -> {
+                        if (rawVar.optional()) {
+                            cs.lineComment("Fall through on invalid value - this field is optional");
+                            cs.invoke("log")
+                                    .withStringConcatenation("Not a valid value for "
+                                            + targetType() + ": '")
                                     .appendExpression(rawVar.name())
                                     .append("'")
                                     .append(".  Possible values: ")
                                     .append(Strings.join(", ", values))
-                                    .endConcatenation();
-                        });
-                    }
-                }).on(rawVar.name());
+                                    .endConcatenation()
+                                    .on("console");
+
+                        } else {
+                            cs.throwing(nb -> {
+                                nb.withStringConcatenation("Not a valid value for " + targetType() + ": '")
+                                        .appendExpression(rawVar.name())
+                                        .append("'")
+                                        .append(".  Possible values: ")
+                                        .append(Strings.join(", ", values))
+                                        .endConcatenation();
+                            });
+                        }
+                    }).on(rawVar.name());
+                } else {
+                    bl.inDefaultCase().endBlock().on(rawVar.name());
+                }
             }
         });
     }

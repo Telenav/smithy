@@ -133,7 +133,7 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
         bb.invoke("forEach").withLambda().withArgument("item").inferringType()
                 .body(lbb -> {
                     TsVariable itemVar = memberStrategy.shapeType().variable("item");
-                    memberStrategy.instantiateFromRawJsonObject(lbb, itemVar, "realItem", true);
+                    memberStrategy.instantiateFromRawJsonObject(lbb, itemVar, "realItem", true, true);
                     lbb.invoke("push").withArgument("realItem").on(instantiatedVar);
                 }).on(rawVar.name());
     }

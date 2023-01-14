@@ -20,8 +20,6 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.CaseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
-import com.telenav.smithy.ts.vogon.TypescriptSource.Invocation;
-import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.SwitchBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import java.util.Set;
@@ -45,8 +43,15 @@ class StringEnumStrategy extends AbstractEnumStrategy {
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>>
-            void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
-        String type = rawVar.optional() ? targetType() + " | undefined" : targetType();
+            void instantiateFromRawJsonObject(B bb, TsVariable rawVar,
+                    String instantiatedVar, boolean declare,
+                    boolean generateThrowIfUnrecognized) {
+        String type = rawVar.optional() || !generateThrowIfUnrecognized
+                ? targetType() + " | undefined"
+                : targetType();
+//        if (!generateThrowIfUnrecognized) {
+//            rawVar = rawVar.asOptional();
+//        }
         Assignment<B> assig = (declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar));
 
         if (rawVar.optional()) {
@@ -90,13 +95,8 @@ class StringEnumStrategy extends AbstractEnumStrategy {
     }
 
     @Override
-    public <T, A extends InvocationBuilder<B>, B extends Invocation<T, B, A>> void
-            instantiateFromRawJsonObject(B ib, TsVariable rawVar) {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B block, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B block,
+            TsVariable rawVar, String instantiatedVar, boolean declare) {
         String type = rawVar.optional() ? rawVarType().typeName() + " | undefined" : rawVarType().typeName();
         Assignment<B> assig = (declare ? block.declareConst(instantiatedVar).ofType(type) : block.assign(instantiatedVar));
         if (rawVar.optional()) {

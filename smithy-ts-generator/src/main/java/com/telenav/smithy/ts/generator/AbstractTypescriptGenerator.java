@@ -24,6 +24,7 @@ import com.telenav.smithy.generators.SmithyGenerationLogger;
 import com.mastfrog.util.streams.Streams;
 import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.capitalize;
+import static com.telenav.smithy.generators.GenerationSwitches.DEBUG;
 import com.telenav.smithy.ts.generator.type.TypeStrategies;
 import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -129,7 +130,11 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
 
     TypescriptSource src() {
         return ctx.computeIfAbsent(key, () -> {
-            return typescript(serviceSourceFile());
+            TypescriptSource result = typescript(serviceSourceFile());
+            if (ctx.settings().is(DEBUG)) {
+                result.generateDebugLogCode();
+            }
+            return result;
         });
     }
 

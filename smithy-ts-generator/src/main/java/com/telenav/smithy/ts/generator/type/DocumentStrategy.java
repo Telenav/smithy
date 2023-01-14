@@ -52,14 +52,9 @@ final class DocumentStrategy implements TypeStrategy<DocumentShape> {
 
     @Override
     public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(
-            B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+            B bb, TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         TypescriptSource.Assignment<B> assig = declare ? bb.declareConst(instantiatedVar) : bb.assign(instantiatedVar);
         assig.assignedTo(rawVar.name());
-    }
-
-    @Override
-    public <T, A extends TypescriptSource.InvocationBuilder<B>, B extends TypescriptSource.Invocation<T, B, A>> void instantiateFromRawJsonObject(B block, TsVariable rawVar) {
-        block.withArgument(rawVar.name());
     }
 
     @Override
