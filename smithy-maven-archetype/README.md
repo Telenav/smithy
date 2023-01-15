@@ -94,3 +94,29 @@ warning.
 If you do not want typescript support, simply delete the dependency on
 `smithy-ts-generator` from the `<plugin>` section for `smithy-maven-plugin`
 in the `pom.xml`.
+
+
+Note for Contributors
+---------------------
+
+### Backslashes in POM Templates
+
+The template pom files contain some string templates which have a leading
+backslash.  That is an escape character - the template files are copied
+*with property filtering* when this archetype is built into a JAR, so 
+that the version of the smithy libraries depended on by the generated
+projects is the same as this project's version.
+
+So, a pom template containing just `${project.version}` will wind up with
+that replaced by the dewey decimal version of the archetype project.
+
+If prefixed with a backslash, it will be a pass through (less the escape
+character) to either be part of the user's pom file as is, or be substituted
+as a velocity template property by the Maven's archetype support.
+
+### Post Run Code
+
+`META-INF/archetype-post-generate.groovy` does a small amount of post
+generation cleanup, and deletes typescript related code when run with
+`-Dtypescript=no`.  It can be used to do straightforward text substitutions
+and deletions in files.

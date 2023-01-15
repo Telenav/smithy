@@ -78,9 +78,7 @@
                             <artifactId>simple-smithy-extensions</artifactId>
                             <version>\${smithy-tools.version}</version>
                         </dependency>
-                        <!--
-                        Contains the code generators for Java model classes.
-                        -->
+                        <!-- Contains the code generators for Java model classes. -->
                         <dependency>
                             <groupId>${project.groupId}</groupId>
                             <artifactId>simple-smithy-extensions-java</artifactId>
@@ -96,12 +94,14 @@
                             <artifactId>smithy-java-http-extensions</artifactId>
                             <version>\${smithy-tools.version}</version>
                         </dependency>
+
                         <!-- Generates the Vert.x framework Java server implementation -->
                         <dependency>
                             <groupId>${project.groupId}</groupId>
                             <artifactId>smithy-vertx-server-generator</artifactId>
                             <version>\${smithy-tools.version}</version>
                         </dependency>
+
                         <!-- Generates the Acteur framework server implementation -->
                         <dependency>
                             <groupId>${project.groupId}</groupId>
@@ -121,18 +121,6 @@
                             <groupId>${project.groupId}</groupId>
                             <artifactId>smithy-openapi-wrapper</artifactId>
                             <version>\${smithy-tools.version}</version>
-                        </dependency>
-
-                        <!-- Indirect dependencies that are needed -->
-                        <dependency>
-                            <groupId>${project.groupId}</groupId>
-                            <artifactId>smithy-utils</artifactId>
-                            <version>\${smithy-tools.version}</version>
-                        </dependency>
-                        <dependency>
-                            <groupId>com.mastfrog</groupId>
-                            <artifactId>graph</artifactId>
-                            <version>\${mastfrog.version}</version>
                         </dependency>
 
                     </dependencies>
