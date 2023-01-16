@@ -22,6 +22,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import software.amazon.smithy.model.shapes.ListShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.SparseTrait;
+import software.amazon.smithy.model.traits.UniqueItemsTrait;
 
 /**
  *
@@ -119,6 +120,15 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
         }
     }
 
+    @Override
+    @SuppressWarnings("deprecation")
+    public String lengthProperty() {
+        if (shape.isSetShape() || shape.getTrait(UniqueItemsTrait.class).isPresent()) {
+            return "size";
+        }
+        return super.lengthProperty();
+    }
+
     protected void convertToRawArray(TypescriptSource.TsBlockBuilder<Void> bb, String fieldName,
             boolean headers) {
         bb.declare("arr").ofType(memberStrategy.rawVarType() + "[]")
@@ -130,10 +140,8 @@ abstract class AbstractListOrSetStrategy extends AbstractTypeStrategy<ListShape>
                             if (headers) {
                                 Assignment<TypescriptSource.TsBlockBuilder<Void>> assig
                                         = lbb.declare("rawItem").ofType("string");
-                                lbb.lineComment("Populate A from " + memberStrategy.targetType() + " " + memberStrategy.getClass().getSimpleName());
                                 memberStrategy.populateHttpHeader(assig, "unrawItem");
                             } else {
-                                lbb.lineComment("Populate B from " + memberStrategy.targetType() + " " + memberStrategy.getClass().getSimpleName());
                                 TsVariable var = memberStrategy.rawVarType().variable("unrawItem");
                                 memberStrategy.convertToRawJsonObject(lbb, var, "rawItem", true);
                             }

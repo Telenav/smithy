@@ -56,10 +56,13 @@ class StructureStrategy extends AbstractTypeStrategy<StructureShape> {
         TypescriptSource.Assignment<B> assig = declare
                 ? bb.declareConst(instantiatedVar).ofType(type)
                 : bb.assign(instantiatedVar);
+        bb.lineComment("  * " + getClass().getSimpleName() + " - " + rawVar.name() + " " + rawVar.optional() + " assign");
         if (rawVar.optional()) {
+            bb.lineComment("   use ternary");
             assig.assignedToTernary("typeof " + rawVar.name() + " === 'undefined'")
                     .expression("undefined").invoke("toJSON").on(rawVar.name());
         } else {
+            bb.lineComment("   use non-ternary");
             assig.assignedToInvocationOf("toJSON").on(rawVar.name());
         }
     }
@@ -76,8 +79,6 @@ class StructureStrategy extends AbstractTypeStrategy<StructureShape> {
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void validate(String pathVar, B bb, String on, boolean canBeNull) {
-//        bb.assign(pathVar).assignedTo(BinaryOperations.LOGICAL_OR).expression(pathVar)
-//                .literal(shape.getId().getName());
         super.validate(pathVar, bb, on, canBeNull);
         shape().getAllMembers()
                 .forEach((name, val) -> {

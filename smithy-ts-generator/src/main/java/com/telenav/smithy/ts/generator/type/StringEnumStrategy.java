@@ -22,9 +22,11 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.SwitchBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.TreeSet;
 import software.amazon.smithy.model.shapes.EnumShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.DefaultTrait;
 
 /**
@@ -113,6 +115,28 @@ class StringEnumStrategy extends AbstractEnumStrategy {
     public <T> T applyDefault(DefaultTrait def, ExpressionBuilder<T> ex) {
 //        return ex.element().literal(defaultValue(def)).of(targetType());
         return ex.expression(defaultValue(def));
+    }
+
+    @Override
+    public TypeMatchingStrategy typeTest() {
+        return new StringEnumTypeMatchingStrategy();
+    }
+
+    static class StringEnumTypeMatchingStrategy implements TypeMatchingStrategy {
+
+        @Override
+        public String test(String varName, String typeName, Shape shape) {
+            StringBuilder sb = new StringBuilder("typeof " + varName + " === 'string' && (");
+            EnumShape es = shape.asEnumShape().get();
+            Set<String> names = new TreeSet<>(es.getEnumValues().values());
+            for (Iterator<String> it = names.iterator(); it.hasNext();) {
+                sb.append(varName).append(" === '").append(it.next()).append("'");
+                if (it.hasNext()) {
+                    sb.append(" || ");
+                }
+            }
+            return sb.append(')').toString();
+        }
     }
 
 }

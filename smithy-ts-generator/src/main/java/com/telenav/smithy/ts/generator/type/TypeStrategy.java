@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.camelCaseToDelimited;
 import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.escape;
 import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
@@ -25,12 +26,24 @@ import static com.telenav.smithy.ts.vogon.TypescriptSource.BinaryOperations.NOT_
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.shapes.ShapeType;
+import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
+import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
+import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
+import static software.amazon.smithy.model.shapes.ShapeType.BYTE;
+import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
+import static software.amazon.smithy.model.shapes.ShapeType.INTEGER;
+import static software.amazon.smithy.model.shapes.ShapeType.LONG;
+import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
+import static software.amazon.smithy.model.shapes.ShapeType.STRING;
+import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.traits.DefaultTrait;
@@ -94,44 +107,6 @@ public interface TypeStrategy<S extends Shape> {
 
     <T> T applyDefault(DefaultTrait def, ExpressionBuilder<T> ex);
 
-    public interface TypeMatchingStrategy {
-
-        public String test(String varName, String typeName, Shape shape);
-    }
-
-    enum TypeMatchingStrategies implements TypeMatchingStrategy {
-        TYPE_OF,
-        INSTANCE_OF,
-        ARRAY_IS_ARRAY;
-
-        @Override
-        public String toString() {
-            switch (this) {
-                case TYPE_OF:
-                    return "typeof";
-                case INSTANCE_OF:
-                    return "instanceof";
-                case ARRAY_IS_ARRAY:
-                    return "Array.isArray";
-                default:
-                    throw new AssertionError(this);
-            }
-        }
-
-        public String test(String varName, String typeName, Shape shape) {
-            switch (this) {
-                case TYPE_OF:
-                    return "typeof " + varName + " === '" + typeName + "'";
-                case INSTANCE_OF:
-                    return varName + " instanceof " + typeName;
-                case ARRAY_IS_ARRAY:
-                    return "Array.isArray(" + varName + ")";
-                default:
-                    throw new AssertionError(this);
-            }
-        }
-    }
-
     @SuppressWarnings("unchecked")
     default Optional<? extends TypeStrategy<TimestampShape>> asTimestampStrategy() {
         if (shape().isTimestampShape()) {
@@ -185,18 +160,62 @@ public interface TypeStrategy<S extends Shape> {
         return shape();
     }
 
+    default boolean isTsObject() {
+        if (isModelDefined()) {
+            switch (shape().getType()) {
+                case STRUCTURE:
+                case BIG_DECIMAL:
+                case BIG_INTEGER:
+                case BYTE:
+                case FLOAT:
+                case DOCUMENT:
+                case INTEGER:
+                case BLOB:
+                case SHORT:
+                case STRING:
+                case TIMESTAMP:
+                case DOUBLE:
+                case BOOLEAN:
+                case LONG:
+                    return true;
+                case UNION:
+                    for (Map.Entry<String, MemberShape> e : shape().getAllMembers().entrySet()) {
+                        MemberStrategy<?> strat = origin().memberStrategy(e.getValue());
+                        if (!strat.isTsObject()) {
+                            return false;
+                        }
+                    }
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        switch (shape().getType()) {
+            case STRUCTURE:
+            case TIMESTAMP:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     String owningTypeName(Class<? extends Trait> trait);
 
     default <T, B extends TsBlockBuilderBase<T, B>> void validate(String pathVar, B bb, String on, boolean canBeNull) {
 
         bb.blankLine();
-        bb.lineComment("Validate " + on + " " + pathVar + " nullable? " + canBeNull);
+        bb.lineComment("Validate " + on + " " + pathVar + " nullable? " + canBeNull + " in " + this);
         bb.lineComment("Model defined? " + isModelDefined());
-        
+
+        String realOn = on;
+
+//        if ("k".equals(on) || "v".equals(on) && canBeNull) {
+//            bb.lineComment(Strings.toString(new Exception("Nullable key or value")));
+//        }
         Consumer<Consumer<TsBlockBuilderBase<?, ?>>> testApplier;
         ConditionalClauseBuilder<B> ifExists = null;
         if (canBeNull) {
-            ConditionalClauseBuilder<B> ie = ifExists = bb.ifDefined(on);
+            ConditionalClauseBuilder<B> ie = ifExists = bb.ifDefined(realOn);
             testApplier = cons -> {
                 cons.accept(ie);
             };
@@ -209,11 +228,14 @@ public interface TypeStrategy<S extends Shape> {
         trait(LengthTrait.class).ifPresent(len -> {
             len.getMin().ifPresent(min -> {
                 if (min != 0L) {
-                    boolean same = len.getMax().map(val -> val.equals(min)).orElse(false);
+                    boolean same = len.getMax().map(max -> {
+                        bb.lineComment("MIN " + min + " MAX " + max);
+                        return max.equals(min);
+                    }).orElse(false);
                     testApplier.accept(tsbb -> {
                         if (same) {
                             tsbb.iff().operation(NOT_EQUALLING).field(lengthProperty())
-                                    .of(on)
+                                    .of(realOn)
                                     .literal(min)
                                     .invoke("onProblem")
                                     .withArgument(pathVar + " + '.length'")
@@ -223,7 +245,7 @@ public interface TypeStrategy<S extends Shape> {
                                     .endIf();
                         } else {
                             tsbb.iff().operation(LESS_THAN).field(lengthProperty())
-                                    .of(on)
+                                    .of(realOn)
                                     .literal(min)
                                     .invoke("onProblem")
                                     .withArgument(pathVar + " + '.length'")
@@ -240,7 +262,7 @@ public interface TypeStrategy<S extends Shape> {
                 if (!same && max < Integer.MAX_VALUE) {
                     testApplier.accept(tsbb -> {
                         tsbb.iff().operation(GREATER_THAN).field(lengthProperty())
-                                .of(on)
+                                .of(realOn)
                                 .literal(max)
                                 .invoke("onProblem")
                                 .withArgument(pathVar + " + '.length'")
@@ -254,7 +276,8 @@ public interface TypeStrategy<S extends Shape> {
         });
         trait(PatternTrait.class).ifPresent(pat -> {
             testApplier.accept(tsbb -> {
-                String test = "!/" + pat.getValue() + "/.test(" + on + ")";
+                String rex = pat.getValue().replace("/", "\\/");
+                String test = "!/" + rex + "/.test(" + realOn + ")";
 //                String test = "!"
 //                        + owningType(PatternTrait.class)
 //                        + "."
@@ -272,7 +295,7 @@ public interface TypeStrategy<S extends Shape> {
         trait(RangeTrait.class).ifPresent(len -> {
             Consumer<TsBlockBuilderBase<?, ?>> genRangeTest = tsbb -> {
                 len.getMin().ifPresent(min -> {
-                    tsbb.iff().operation(LESS_THAN).expression(on)
+                    tsbb.iff().operation(LESS_THAN).expression(realOn)
                             .expression(min.toString())
                             .invoke("onProblem")
                             .withArgument(pathVar)
@@ -281,7 +304,7 @@ public interface TypeStrategy<S extends Shape> {
                             .endIf();
                 });
                 len.getMax().ifPresent(max -> {
-                    tsbb.iff().operation(GREATER_THAN).expression(on)
+                    tsbb.iff().operation(GREATER_THAN).expression(realOn)
                             .expression(max.toString())
                             .invoke("onProblem")
                             .withArgument(pathVar)

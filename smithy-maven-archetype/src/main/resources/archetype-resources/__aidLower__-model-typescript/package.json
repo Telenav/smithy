@@ -6,9 +6,10 @@
     "type": "module",
     "scripts": {
         "build": "rimraf ./target && tsc && ./copy-markup target",
-        "clean-all": "rimraf ./src && rimraf ./target && rimraf ./dist",
-        "clean": "rimraf ./target && rimraf ./dist",
+        "clean-all": "rimraf ./src && rimraf ./target && rimraf ./dist && rimraf ./test",
+        "clean": "rimraf ./target && rimraf ./dist && rimraf ./test",
         "dist": "rimraf ./dist && webpack -o ./dist && ./copy-markup dist",
+        "test-build": "rimraf ./test && mkdir test && tsc -p tsconfig-test.json --outDir ./test",
         "test": "node test/test.js"
     },
     "keywords": [

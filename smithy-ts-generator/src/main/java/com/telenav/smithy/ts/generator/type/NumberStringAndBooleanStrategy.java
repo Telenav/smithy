@@ -21,7 +21,9 @@ import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.NUMBER;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.STRING;
 import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
+import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.DefaultTrait;
 
@@ -37,10 +39,10 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
+    public <T, B extends TsBlockBuilderBase<T, B>> void instantiateFromRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare, boolean generateThrowIfUnrecognized) {
         String targetType = targetType() + (rawVar.optional() ? " | undefined" : "");
         boolean prim = isNotUserType(shape);
-        TypescriptSource.Assignment<B> decl = (declare ? bb.declare(instantiatedVar) : bb.assign(instantiatedVar)).ofType(targetType);
+        Assignment<B> decl = (declare ? bb.declare(instantiatedVar) : bb.assign(instantiatedVar)).ofType(targetType);
         if (rawVar.optional()) {
             ExpressionBuilder<B> exp = decl.assignedToUndefinedIfUndefinedOr(rawVar.name());
             if (prim) {
@@ -60,12 +62,17 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
     }
 
     @Override
-    public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
+    public <T, B extends TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         String varType = rawVar.optional() ? (rawVarType() + " | undefined") : rawVarType().typeName();
-        TypescriptSource.Assignment<B> decl = declare ? bb.declare(instantiatedVar).ofType(varType) : bb.assign(instantiatedVar);
+        bb.lineComment("  * " + getClass().getSimpleName() + " - " + rawVar.name() + " " + rawVar.optional() + " assign");
+        Assignment<B> decl = declare ? bb.declare(instantiatedVar).ofType(varType) : bb.assign(instantiatedVar);
         if (rawVar.optional()) {
-            decl.assignedToTernary("typeof " + rawVar.name() + " === 'undefined'").expression("undefined").invoke("toJSON").on(rawVar.name());
+            bb.lineComment("   use ternary");
+            decl.assignedToTernary("typeof " + rawVar.name() + " === 'undefined'")
+                    .expression("undefined")
+                    .invoke("toJSON").on(rawVar.name());
         } else {
+            bb.lineComment("   use non-ternary");
             decl.assignedToInvocationOf("toJSON").on(rawVar.name());
         }
     }
@@ -97,10 +104,5 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
             return rawVarType().typeName();
         }
         return strategies.tsTypeName(shape);
-    }
-
-    @Override
-    public <T> T applyDefault(DefaultTrait def, ExpressionBuilder<T> ex) {
-        return super.applyDefault(def, ex);
     }
 }

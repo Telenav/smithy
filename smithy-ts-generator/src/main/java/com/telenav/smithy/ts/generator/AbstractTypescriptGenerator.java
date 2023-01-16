@@ -57,6 +57,7 @@ import software.amazon.smithy.model.shapes.ShapeId;
  */
 public abstract class AbstractTypescriptGenerator<S extends Shape>
         implements ModelElementGenerator {
+
     public static String FROM_JSON = "fromJSON";
 
     private static final String[] KEYWORDS = new String[]{
@@ -70,8 +71,8 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
         "undefined"
     };
     // Needs to have the right name to work in Javascript
-    protected static final String TO_JSON_STRING = "toJsonString";
-    protected static final String TO_JSON = "toJSON";
+    public static final String TO_JSON_STRING = "toJsonString";
+    public static final String TO_JSON = "toJSON";
 
     static {
         Arrays.sort(KEYWORDS);
@@ -204,16 +205,11 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
     }
 
     protected <T, R> void generateValidationMethodHeadAndBody(TsBlockBuilder<T> bb, ClassBuilder<R> cb) {
-        bb.lineComment("Generator " + getClass().getSimpleName());
-        bb.lineComment(shape.getId().getName() + " can implement validating " + canImplementValidating());
-        bb.lineComment(" has validatable values " + hasValidatableValues());
         if (canImplementValidating() && hasValidatableValues()) {
             bb.assign("path").assignedTo().operation(TypescriptSource.BinaryOperations.LOGICAL_OR)
                     .expression("path")
                     .literal(shape.getId().getName());
-            bb.lineComment("begin generateValidationMethodBody");
             generateValidationMethodBody(bb, cb);
-            bb.lineComment("end generateValidationMethodBody");
         }
     }
 
@@ -224,8 +220,12 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
     }
 
     private <T> void applyValidatableMethodSignature(TypescriptSource.FunctionSignatureBuilderBase<T, ?, ?> mth) {
-        mth.withArgument("path").ofType("string", pt -> pt.or("undefined").endType());
-        mth.withArgument("onProblem")
+        // Some linters complain about unused parameters not prefixed with _,m
+        // so if we know there will be no implementation, then the arguments will never
+        // be used, so prefix them accordingly
+        String prefix = hasValidatableValues() ? "" : "_";
+        mth.withArgument(prefix + "path").ofType("string", pt -> pt.or("undefined").endType());
+        mth.withArgument(prefix + "onProblem")
                 .ofFunctionType(fsb -> {
                     fsb.withArgument("propertyPath").ofType("string")
                             .withArgument("problem").ofType("string");
@@ -283,7 +283,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
             src.importing(tsTypeName(sh)).from("./" + tsFileName(sh) + ".js");
         } else {
             src.importing(tsTypeName(sh)).from("/"
-                    + sh.getId().getNamespace().replace('.', '/') + tsFileName(sh)+ ".js");
+                    + sh.getId().getNamespace().replace('.', '/') + tsFileName(sh) + ".js");
         }
     }
 

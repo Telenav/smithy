@@ -55,15 +55,21 @@ abstract class AbstractMapStrategy extends AbstractTypeStrategy<MapShape> {
         if (validateKeys || validateValues) {
             bb.declare("counter").ofType("number").assignedTo(0);
             bb.declare("p").ofType("string").assignedTo("(path || '" + shape.getId().getName() + "') + '.'");
-            bb.invoke("forEach")
-                    .withLambda().withArgument("v").inferringType().withArgument("k").inferringType()
-                    .body(lbb -> {
+
+            bb.invoke("forEach", ib -> {
+                ib.withLambda(lb -> {
+                    lb.withArgument("v").inferringType();
+                    if (validateKeys) {
+                        lb.withArgument("k").inferringType();
+                    }
+                    lb.body(lbb -> {
+                        boolean sparse = shape.getTrait(SparseTrait.class).isPresent();
                         if (validateKeys) {
                             if (keyStrategy.isModelDefined()) {
                                 lbb.invoke("validate")
                                         .withStringConcatenation()
                                         .appendExpression("p")
-                                        .append(".key[")
+                                        .append("key[")
                                         .appendExpression("counter")
                                         .append("]")
                                         .endConcatenation()
@@ -73,7 +79,7 @@ abstract class AbstractMapStrategy extends AbstractTypeStrategy<MapShape> {
                                 lbb.declare("keyPath")
                                         .assignedToStringConcatenation()
                                         .appendExpression("p")
-                                        .append(".key[")
+                                        .append("key[")
                                         .appendExpression("counter")
                                         .append("]")
                                         .endConcatenation();
@@ -85,7 +91,7 @@ abstract class AbstractMapStrategy extends AbstractTypeStrategy<MapShape> {
                                 lbb.invoke("validate")
                                         .withStringConcatenation()
                                         .appendExpression("p")
-                                        .append(".key[")
+                                        .append("value[")
                                         .appendExpression("counter")
                                         .append("]")
                                         .endConcatenation()
@@ -95,17 +101,19 @@ abstract class AbstractMapStrategy extends AbstractTypeStrategy<MapShape> {
                                 lbb.declare("valPath")
                                         .assignedToStringConcatenation()
                                         .appendExpression("p")
-                                        .append(".key[")
+                                        .append("value[")
                                         .appendExpression("counter")
                                         .append("]")
                                         .endConcatenation();
-                                valueStrategy.validate("valPath", lbb, "k",
-                                        valueStrategy.trait(SparseTrait.class).isPresent());
+                                valueStrategy.validate("valPath", lbb, "v",
+                                        false);
                             }
                         }
                         lbb.statement("counter++");
-                    }).onThis();
+                    });
+                });
+                ib.onThis();
+            });
         }
     }
-
 }

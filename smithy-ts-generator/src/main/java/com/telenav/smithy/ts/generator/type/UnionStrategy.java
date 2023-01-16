@@ -15,6 +15,8 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.TO_JSON;
+import com.telenav.smithy.ts.generator.UnionTypeGenerator;
 import static com.telenav.smithy.ts.generator.UnionTypeGenerator.decodeMethodName;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.bestMatch;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
@@ -22,13 +24,10 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ParameterizedTypeBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import software.amazon.smithy.model.shapes.MemberShape;
-import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.UnionShape;
+import static com.telenav.smithy.ts.generator.UnionTypeGenerator.rawJsonConversionFunctionName;
 
 /**
  *
@@ -61,26 +60,38 @@ class UnionStrategy extends AbstractTypeStrategy<UnionShape> {
     @Override
     public <T, B extends TypescriptSource.TsBlockBuilderBase<T, B>> void convertToRawJsonObject(B bb, TsVariable rawVar, String instantiatedVar, boolean declare) {
         if (declare) {
-            ParameterizedTypeBuilder<Assignment<B>> decl = bb.declare(instantiatedVar).ofComplexType("undefined");
-            for (Iterator<String> it = rawMemberTypes().iterator(); it.hasNext();) {
-                decl = decl.or(it.next());
+            ParameterizedTypeBuilder<Assignment<B>> decl = bb.declare(instantiatedVar)
+                    .ofComplexType("undefined");
+            for (String type : rawMemberTypes()) {
+                decl = decl.or(type);
             }
+            decl = decl.or("void");
             decl.endType()
                     .unassigned();
         }
-        TypescriptSource.ConditionalClauseBuilder<B> iff = null;
-        for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
-            Shape target = strategies.model().expectShape(e.getValue().getTarget());
-            TypeStrategy<?> childStrategy = strategies.strategy(target);
-            if (iff == null) {
-                iff = bb.iff(childStrategy.typeTest().test(rawVar.name(), childStrategy.targetType(), target));
+        if (UnionTypeGenerator.allUnionMembersAreObjectTypes(shape, strategies)) {
+            if (rawVar.optional()) {
+                bb.ifDefined(rawVar.name()).assign(instantiatedVar)
+                        .assignedToInvocationOf(TO_JSON)
+                        .on(rawVar.name()).endIf();
             } else {
-                iff = iff.orElse(childStrategy.typeTest().test(rawVar.name(), childStrategy.targetType(), target));
+                bb.assign(instantiatedVar)
+                        .assignedToInvocationOf(TO_JSON)
+                        .on(rawVar.name());
             }
-            childStrategy.convertToRawJsonObject(iff, rawVar, instantiatedVar, false);
-        }
-        if (iff != null) {
-            iff.orElse().statement(instantiatedVar + " = undefined").endIf();
+        } else {
+
+            if (rawVar.optional()) {
+                bb.ifDefined(rawVar.name()).assign(instantiatedVar)
+                        .assignedToInvocationOf(rawJsonConversionFunctionName(shape, strategies.types()))
+                        .withArgument(rawVar.name())
+                        .inScope().endIf();
+            } else {
+                bb.assign(instantiatedVar)
+                        .assignedToInvocationOf(rawJsonConversionFunctionName(shape, strategies.types()))
+                        .withArgument(rawVar.name())
+                        .inScope();
+            }
         }
     }
 
@@ -109,9 +120,46 @@ class UnionStrategy extends AbstractTypeStrategy<UnionShape> {
 
                 ConditionalClauseBuilder<B> test = bb.iff(memStrat.typeTest().test(on,
                         memStrat.targetType(), memStrat.shape()));
-                
-                String cast = "(" + on + " as " + memStrat.targetType() + ")";
 
+                String cast;
+                switch (memStrat.shape().getType()) {
+                    case BOOLEAN:
+                    case LONG:
+                    case SHORT:
+                    case FLOAT:
+                    case INTEGER:
+                    case BYTE:
+                    case BIG_DECIMAL:
+                    case BIG_INTEGER:
+                    case STRING:
+                        if (memStrat.isModelDefined()) {
+                            if (memStrat.typeTest().isExhaustive()) {
+//                                cast = on + ".value";
+                                cast = on;
+                            } else {
+//                                cast = "(" + on + " as " + memStrat.targetType() + ").value";
+                                cast = "(" + on + " as " + memStrat.targetType() + ")";
+                            }
+                        } else {
+                            if (memStrat.typeTest().isExhaustive()) {
+                                cast = on;
+                            } else {
+                                cast = "(" + on + " as " + memStrat.targetType() + ")";
+                            }
+                        }
+                        break;
+                    case TIMESTAMP:
+                        cast = on;
+                        break;
+                    default:
+                        if (memStrat.typeTest().isExhaustive()) {
+                            cast = on;
+                        } else {
+                            cast = "(" + on + " as " + memStrat.targetType() + ")";
+                        }
+                }
+
+//                String cast = "(" + on + " as " + memStrat.targetType() + ")";
                 memStrat.validate(pathVar, test, cast, false);
                 test.endIf();
             } else {

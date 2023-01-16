@@ -20,9 +20,12 @@ import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
 import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.capitalize;
+import static com.mastfrog.util.strings.Strings.decapitalize;
 import com.telenav.smithy.extensions.FuzzyNameMatchingTrait;
 import com.telenav.smithy.ts.generator.type.MemberStrategy;
 import com.telenav.smithy.ts.generator.type.TsPrimitiveTypes;
+import com.telenav.smithy.ts.generator.type.TsTypeUtils;
+import com.telenav.smithy.ts.generator.type.TypeStrategies;
 import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ConditionalClauseBuilder;
@@ -49,6 +52,8 @@ import software.amazon.smithy.model.shapes.IntEnumShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeType;
+import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
+import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 import software.amazon.smithy.model.shapes.UnionShape;
 import software.amazon.smithy.model.traits.DocumentationTrait;
 import software.amazon.smithy.model.traits.JsonNameTrait;
@@ -76,7 +81,9 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
     public void generate(Consumer<TypescriptSource> c) {
         TypescriptSource src = src();
 
-        PropertyBuilder<TypeIntersectionBuilder<TypescriptSource>> type = src.declareType(tsTypeName(shape)).or();
+        PropertyBuilder<TypeIntersectionBuilder<TypescriptSource>> type = src
+                .declareType(tsTypeName(shape))
+                .or();
 
         // Pending:  We should check for repeated types that do not have
         // mutually exclusive constraints, and fail on those
@@ -87,13 +94,104 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
         }
 
         PropertyBuilder<TypeIntersectionBuilder<TypescriptSource>> ft = type;
-        TypeIntersectionBuilder<TypescriptSource> res = type.inferringType();
+        TypeIntersectionBuilder<TypescriptSource> res = type.inferringType().exported();
         shape.getTrait(DocumentationTrait.class).ifPresent(dox -> res.docComment(dox.getValue()));
         res.close();
 
         generateDecodeFunction(src);
+        generateBulkRawJsonConversion(src);
 
         c.accept(src);
+    }
+
+    private String rawJsonConversionMethodName() {
+        return rawJsonConversionFunctionName(shape, strategies.types());
+    }
+
+    public static String rawJsonConversionFunctionName(UnionShape shape, TsTypeUtils types) {
+        return escape(decapitalize(types.tsTypeName(shape)) + "toJSON");
+    }
+
+    static class ObjectTypesAndReturnTypes {
+
+        final Set<String> returnTypes = new TreeSet<>();
+        final Set<String> objectTypes = new TreeSet<>();
+        private final int memberCount;
+
+        ObjectTypesAndReturnTypes(UnionShape shape, TypeStrategies strategies) {
+            int memberCount = 0;
+            for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+                memberCount++;
+                MemberStrategy<?> strat = strategies.memberStrategy(e.getValue());
+                returnTypes.add(strat.rawVarType().typeName());
+                if (strat.isTsObject()) {
+                    objectTypes.add(strat.targetType());
+                }
+            }
+            this.memberCount = memberCount;
+        }
+
+        boolean allMembersAreObjectTypes() {
+            return memberCount == objectTypes.size();
+        }
+    }
+
+    public static boolean allUnionMembersAreObjectTypes(UnionShape shape, TypeStrategies strats) {
+        return new ObjectTypesAndReturnTypes(shape, strats).allMembersAreObjectTypes();
+    }
+
+    private void generateBulkRawJsonConversion(TypescriptSource src) {
+
+        ObjectTypesAndReturnTypes ot = new ObjectTypesAndReturnTypes(shape, strategies);
+        
+        if (ot.allMembersAreObjectTypes()) {
+            return;
+        }
+
+        ot.returnTypes.add("undefined");
+        ot.returnTypes.add("void");
+        src.function(rawJsonConversionMethodName(), f -> {
+            f.withArgument("val").ofType(tsTypeName(shape));
+            f.returning(Strings.join(" | ", ot.returnTypes));
+
+            f.body(bb -> {
+                if (!ot.objectTypes.isEmpty()) {
+                    StringBuilder sb = new StringBuilder();
+                    for (String type : ot.objectTypes) {
+                        if (sb.length() > 0) {
+                            sb.append("|| ");
+                        }
+                        sb.append("val instanceof ").append(type);
+                    }
+//                    if (shape.getAllMembers().size() == ot.objectTypes.size()) {
+//                        bb.lineComment("All types if " + tsTypeName(shape) + " map to")
+//                                .lineComment("'object' at the javascript level, so they all")
+//                                .lineComment("have a toJSON method - we can stop here");
+//                        bb.returningInvocationOf(TO_JSON)
+//                                .on("val");
+//                        return;
+//                    }
+                    bb.iff(sb.toString())
+                            .returningInvocationOf(TO_JSON)
+                            .on("val");
+                }
+                for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+                    MemberStrategy<?> strat = strategies.memberStrategy(e.getValue());
+                    if (ot.objectTypes.contains(strat.targetType())) {
+                        continue;
+                    }
+                    bb.blankLine().lineComment(strat.toString());
+                    String typeTest = strat.typeTest().test("val", strat.targetType(), strat.shape());
+                    ConditionalClauseBuilder<?> test = bb.iff(typeTest);
+                    String resultVar = escape(decapitalize(strat.targetType() + "Result"));
+                    strat.convertToRawJsonObject(test,
+                            strat.rawVarType().optional(strat.canBeAbsent()).variable("val"),
+                            resultVar,
+                            true);
+                    test.returning(resultVar);
+                }
+            });
+        });
     }
 
     private void generateDecodeFunction(TypescriptSource src) {
@@ -203,8 +301,14 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
                     TypeStrategy<?> ts = this.strategies.strategy(strat.shape());
                     ts.instantiateFromRawJsonObject(test, TsPrimitiveTypes.ANY.variable("val"),
                             "result", true, false);
-                    test.ifDefined("result")
-                            .returning("result").endIf();
+
+                    boolean exhaustive = ts.typeTest().isExhaustive();
+                    if (exhaustive) {
+                        test.returning("result");
+                    } else {
+                        test.ifDefined("result")
+                                .returning("result").endIf();
+                    }
                 }
                 bb.returning("undefined");
             });

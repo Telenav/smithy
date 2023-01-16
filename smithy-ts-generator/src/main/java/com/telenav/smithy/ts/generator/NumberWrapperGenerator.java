@@ -138,9 +138,10 @@ class NumberWrapperGenerator extends AbstractTypescriptGenerator<NumberShape> {
     }
 
     private void generateNumberImplementation(ClassBuilder<Void> cb) {
+        
         cb.method("toLocaleString", mth -> {
             mth.withArgument("locales").optional()
-                    .ofType("Intl.LocalesArgument")
+                    .ofType("string | string[]")
                     .withArgument("options").optional()
                     .ofType("Intl.NumberFormatOptions");
             TsBlockBuilder<Void> bb = mth.returning("string");

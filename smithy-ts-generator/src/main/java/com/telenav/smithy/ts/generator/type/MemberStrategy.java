@@ -71,8 +71,7 @@ public interface MemberStrategy<S extends Shape> extends TypeStrategy<S> {
     }
 
     default Optional<DefaultTrait> defaults() {
-        return member().getTrait(DefaultTrait.class).or(
-                () -> shape().getTrait(DefaultTrait.class));
+        return trait(DefaultTrait.class);
     }
 
     default boolean required() {
@@ -80,8 +79,7 @@ public interface MemberStrategy<S extends Shape> extends TypeStrategy<S> {
     }
 
     default String jsonName() {
-        Optional<JsonNameTrait> jn = member().getTrait(JsonNameTrait.class).or(
-                () -> shape().getTrait(JsonNameTrait.class));
+        Optional<JsonNameTrait> jn = trait(JsonNameTrait.class);
         return jn.map(nm -> nm.getValue()).orElse(member().getMemberName());
     }
 
@@ -101,6 +99,8 @@ public interface MemberStrategy<S extends Shape> extends TypeStrategy<S> {
             String generateConstructorFieldAssignment(B bb) {
         String fld = structureFieldName();
         Optional<DefaultTrait> defs = defaults();
+        
+        bb.blankLine().lineComment("Shape type " + shape().getType());
         defs.ifPresent(defaults -> {
             ConditionalClauseBuilder<B> test;
             // Types which HAVE a value that will pass a !varName test,
@@ -111,10 +111,12 @@ public interface MemberStrategy<S extends Shape> extends TypeStrategy<S> {
                 case INTEGER:
                 case BYTE:
                 case LONG:
+                case SHORT:
                 case FLOAT:
                 case DOUBLE:
                 case BIG_INTEGER:
                 case BIG_DECIMAL:
+                case INT_ENUM:
                     test = bb.iff("typeof " + constructorArgumentName() + " === 'undefined'");
                     break;
                 default:

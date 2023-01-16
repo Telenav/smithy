@@ -1177,13 +1177,50 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             return hold.get("Element expression not completed");
         }
 
+        private boolean useTemplateSyntax() {
+            boolean allLiterals = true;
+            for (CodeGenerator e : elements) {
+                boolean isLiteral = false;
+                if (e instanceof StringLiteral l) {
+                    isLiteral = true;
+                    if (l.text.indexOf('`') >= 0) {
+                        return false;
+                    }
+                }
+                if (!isLiteral) {
+                    allLiterals = false;
+                }
+                if (e instanceof Invocation<?, ?, ?>) {
+                    return false;
+                }
+            }
+            if (allLiterals) {
+                return false;
+            }
+            return true;
+        }
+
         @Override
         public void generateInto(LinesBuilder lines) {
             if (elements.isEmpty()) {
                 lines.appendRaw("/* empty string concat */ ");
                 lines.appendRaw("''");
             } else {
-                lines.wrappable(lb -> lb.joining(" + ", elements));
+                if (useTemplateSyntax()) {
+                    lines.appendRaw('`');
+                    for (CodeGenerator e : elements) {
+                        if (e instanceof StringLiteral l) {
+                            lines.appendRaw(l.text);
+                        } else {
+                            lines.appendRaw("${");
+                            e.generateInto(lines);
+                            lines.appendRaw("}");
+                        }
+                    }
+                    lines.appendRaw('`');
+                } else {
+                    lines.wrappable(lb -> lb.joining(" + ", elements));
+                }
             }
         }
     }
@@ -3509,6 +3546,17 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             }, new Append(what));
         }
 
+        public B invoke(String what, Consumer<? super InvocationBuilder<Void>> c) {
+            Holder<B> hold = new Holder<>();
+            InvocationBuilder<Void> result = new InvocationBuilder<>(ib -> {
+                hold.set(add(ib));
+                return null;
+            }, what);
+            c.accept(result);
+            hold.ifUnset(result::inScope);
+            return hold.get(InvocationBuilder.class);
+        }
+
         public Assignment<B> assign(String name) {
             return new Assignment<>(name, as -> {
                 return add(new Stmt(as));
@@ -4403,11 +4451,20 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
                         lb.joining(", ", typeParameters);
                     });
                 }
-                lines.space().parens(lb -> {
-                    lb.doubleHangingWrap(lb1 -> {
-                        lb1.joining(", ", arguments);
+                boolean canOmitParens = arguments.size() == 1 && arguments.get(0) instanceof PropertyBuilder<?>
+                        && ((PropertyBuilder<?>) arguments.get(0)).isImplicitType();
+
+                if (canOmitParens) {
+                    lines.space().doubleHangingWrap(lb -> {
+                        lb.joining(", ", arguments);
                     });
-                });
+                } else {
+                    lines.space().parens(lb -> {
+                        lb.doubleHangingWrap(lb1 -> {
+                            lb1.joining(", ", arguments);
+                        });
+                    });
+                }
                 if (returning != null) {
                     if (fatArrow) {
                         // Avoid "line terminator not allowed before arrow"
@@ -4417,9 +4474,6 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
                     }
                     returning.generateInto(lines);
                 }
-//                if (fatArrow) {
-//                    lines.word("=>");
-//                }
             });
         }
     }
@@ -5384,6 +5438,10 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             this.name = name;
         }
 
+        boolean isImplicitType() {
+            return types.isEmpty();
+        }
+
         String name() {
             return name;
         }
@@ -5730,7 +5788,7 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
 
     private static final class StringLiteral extends ChildlessTypescriptCodeGenerator implements Comparable<StringLiteral> {
 
-        private final String text;
+        final String text;
 
         StringLiteral(String text) {
             this.text = notNull("text", text);

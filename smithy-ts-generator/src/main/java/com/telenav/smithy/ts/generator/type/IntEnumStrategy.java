@@ -85,8 +85,7 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
                 }
             }
         }
-        String dv = defaultValue(def);
-        return ex.expression(dv);
+        return ex.expression(defaultValue(def));
     }
 
     @Override
@@ -108,7 +107,7 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
 
         @Override
         public String test(String varName, String typeName, Shape shape) {
-            StringBuilder sb = new StringBuilder("typeof " + varName + " === 'string' && (");
+            StringBuilder sb = new StringBuilder("typeof " + varName + " === 'number' && (");
             IntEnumShape es = shape.asIntEnumShape().get();
             Set<Integer> names = new TreeSet<>(es.getEnumValues().values());
             for (Iterator<Integer> it = names.iterator(); it.hasNext();) {

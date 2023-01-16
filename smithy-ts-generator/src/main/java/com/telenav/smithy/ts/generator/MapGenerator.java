@@ -131,6 +131,7 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
 
                     exp.of("result").assignedTo("value");
                 }).onThis();
+        bb.returning("result");
     }
 
     private void generateFromJson(TypescriptSource.ClassBuilder<Void> cb) {

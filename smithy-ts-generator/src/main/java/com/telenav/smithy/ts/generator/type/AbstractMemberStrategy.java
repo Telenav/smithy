@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator.type;
 
+import com.mastfrog.util.strings.Strings;
 import static com.telenav.smithy.ts.generator.AbstractTypescriptGenerator.escape;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.BinaryOperations.GREATER_THAN;
@@ -25,6 +26,16 @@ import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeType;
+import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
+import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
+import static software.amazon.smithy.model.shapes.ShapeType.BOOLEAN;
+import static software.amazon.smithy.model.shapes.ShapeType.BYTE;
+import static software.amazon.smithy.model.shapes.ShapeType.FLOAT;
+import static software.amazon.smithy.model.shapes.ShapeType.INTEGER;
+import static software.amazon.smithy.model.shapes.ShapeType.LONG;
+import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
+import static software.amazon.smithy.model.shapes.ShapeType.STRING;
 import software.amazon.smithy.model.traits.DefaultTrait;
 import software.amazon.smithy.model.traits.LengthTrait;
 import software.amazon.smithy.model.traits.PatternTrait;
@@ -150,10 +161,22 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
 
     @Override
     public <T, B extends TsBlockBuilderBase<T, B>> void validate(String pathVar, B bb, String on, boolean canBeNull) {
-        boolean wasCanBeNull = canBeNull;
-        canBeNull |= !member.getTrait(RequiredTrait.class).isPresent();
+
+        switch (model().expectShape(member.getContainer()).getType()) {
+            case MAP:
+            case LIST:
+            case SET:
+            case UNION:
+                // do nothing
+                break;
+            default:
+                canBeNull |= !member.getTrait(RequiredTrait.class).isPresent();
+        }
+
+        boolean modelDefined = isModelDefined();
         doValidate(owningType(PatternTrait.class), patternFieldName(), member, lengthProperty(),
-                pathVar, bb, on, canBeNull, member.getContainer().getName() + "." + member().getMemberName());
+                pathVar, bb, on, canBeNull, member.getContainer().getName() + "." + member().getMemberName(),
+                modelDefined, shape().getType());
 
         if (typeStrategy.isModelDefined() && typeStrategy.hasValidatableValues()) {
             if (shape().isUnionShape()) {
@@ -173,7 +196,7 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
 
     private static <T, B extends TsBlockBuilderBase<T, B>> void doValidate(String owningType,
             String patternField, MemberShape shape, String lengthProperty, String pathVar, B bb,
-            String on, boolean canBeNull, String name) {
+            String on, boolean canBeNull, String name, boolean modelDefined, ShapeType type) {
 
         if (!shape.getTrait(LengthTrait.class).isPresent()
                 && !shape.getTrait(PatternTrait.class).isPresent()
@@ -197,14 +220,44 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
             };
         }
 
+        bb.lineComment("SHAPE ID: " + shape.getId());
+        String realOn;
+        if (modelDefined) {
+            bb.lineComment("IS MODEL DEFINED.");
+            switch (type) {
+                case BOOLEAN:
+                case LONG:
+                case SHORT:
+                case FLOAT:
+                case DOUBLE:
+                case INTEGER:
+                case BYTE:
+                case BIG_DECIMAL:
+                case BIG_INTEGER:
+                case STRING:
+                    bb.lineComment("USE VALUE FIELD");
+                    realOn = on + ".value";
+                    break;
+                default:
+                    bb.lineComment("NO VALUE FIELD FOR " + shape.getType());
+                    realOn = on;
+            }
+        } else {
+            realOn = on;
+        }
+
         shape.getTrait(LengthTrait.class).ifPresent(len -> {
             len.getMin().ifPresent(min -> {
                 if (min != 0L) {
-                    boolean same = len.getMax().map(val -> val.equals(min)).orElse(false);
+                    boolean same = len.getMax().map(max -> {
+                        bb.lineComment("MIN " + min + " MAX " + max + " on " + shape.getId());
+                        return max.equals(min);
+                    }).orElse(false);
+
                     testApplier.accept(tsbb -> {
                         if (same) {
                             tsbb.iff().operation(NOT_EQUALLING).field(lengthProperty)
-                                    .of(on)
+                                    .of(realOn)
                                     .literal(min)
                                     .invoke("onProblem")
                                     .withArgument(pathVar + " + '.length'")
@@ -214,7 +267,7 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
                                     .endIf();
                         } else {
                             tsbb.iff().operation(LESS_THAN).field(lengthProperty)
-                                    .of(on)
+                                    .of(realOn)
                                     .literal(min)
                                     .invoke("onProblem")
                                     .withArgument(pathVar + " + '.length'")
@@ -231,7 +284,7 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
                 if (!same && max < Integer.MAX_VALUE) {
                     testApplier.accept(tsbb -> {
                         tsbb.iff().operation(GREATER_THAN).field(lengthProperty)
-                                .of(on)
+                                .of(realOn)
                                 .literal(max)
                                 .invoke("onProblem")
                                 .withArgument(pathVar + " + '.length'")
@@ -246,16 +299,8 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
         shape.getTrait(PatternTrait.class).ifPresent(pat -> {
 
             testApplier.accept(tsbb -> {
-                String test;
-                if (true || shape.isUnionShape()) {
-                    test = "!/" + pat.getValue() + "/.test(" + on + ")";
-                } else {
-                    test = "!"
-                            + owningType
-                            + "."
-                            + patternField
-                            + ".test(" + on + ")";
-                }
+                String rex = pat.getValue().replace("/", "\\/");
+                String test = "!/" + rex + "/.test(" + realOn + ")";
                 tsbb.iff(test)
                         .invoke("onProblem")
                         .withArgument(pathVar)
@@ -267,8 +312,12 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
         });
         shape.getTrait(RangeTrait.class).ifPresent(len -> {
             Consumer<TsBlockBuilderBase<?, ?>> genRangeTest = tsbb -> {
+                if (realOn.contains("this.u as Age")) {
+                    tsbb.lineComment(Strings.toString(new Exception()));
+                }
+
                 len.getMin().ifPresent(min -> {
-                    tsbb.iff().operation(LESS_THAN).expression(on)
+                    tsbb.iff().operation(LESS_THAN).expression(realOn)
                             .expression(min.toString())
                             .invoke("onProblem")
                             .withArgument(pathVar)
@@ -277,7 +326,7 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
                             .endIf();
                 });
                 len.getMax().ifPresent(max -> {
-                    tsbb.iff().operation(GREATER_THAN).expression(on)
+                    tsbb.iff().operation(GREATER_THAN).expression(realOn)
                             .expression(max.toString())
                             .invoke("onProblem")
                             .withArgument(pathVar)
@@ -291,6 +340,21 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
         if (ifExists != null) {
             ifExists.endIf();
         }
+    }
+
+    @Override
+    public boolean isTsObject() {
+        return typeStrategy.isTsObject();
+    }
+
+    @Override
+    public boolean isModelDefined() {
+        return typeStrategy.isModelDefined();
+    }
+
+    @Override
+    public boolean defaulted() {
+        return MemberStrategy.super.defaulted();
     }
 
 }
