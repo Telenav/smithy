@@ -41,7 +41,7 @@ let suite = createTests(new TestSuite());
 
 let testFailures = suite.run();
 // IF we are passed a file to save the json report to, save it
-let outputFile = process.argv.slice(2)[0];
+let outputFile = process.argv[2];
 if (testFailures) {
     console.log("Test Failures", util.inspect(testFailures, false, 1000, true));
     if (outputFile) {
@@ -49,7 +49,7 @@ if (testFailures) {
     }
     process.exit(1);
 } else {
-    if (fs.existsSync(outputFile)) {
+    if (outputFile && fs.existsSync(outputFile)) {
         fs.unlinkSync(outputFile);
     }
 }
