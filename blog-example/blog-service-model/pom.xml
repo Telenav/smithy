@@ -154,6 +154,7 @@ limitations under the License.
 
                             <destinations>
                                 <typescript.model>${basedir}/../blog-model-typescript/src/model</typescript.model>
+                                <typescript.modeltest>${basedir}/../blog-model-typescript/test-src</typescript.modeltest>
                                 <client>${basedir}/../blog-generated-client-sdk/src/main/java</client>
                                 <server>${basedir}/../blog-generated-acteur-server/src/main/java</server>
                                 <docs>${basedir}/../blog-generated-acteur-server/src/main/resources</docs>

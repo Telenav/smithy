@@ -103,7 +103,7 @@ final class SwaggerGenerator implements ModelElementGenerator {
     }
 
     private Path swaggerDestinationPath(SmithyGenerationContext ctx) {
-        return ctx.destinations().sourceRootFor(target, service, ver, ctx.settings())
+        return ctx.destinations().sourceRootFor(target, service, ver, ctx.settings()).path()
                 .resolve(service.getId().getNamespace().replace('.', '/'))
                 .resolve(swaggerFileRelativePath(ctx));
     }

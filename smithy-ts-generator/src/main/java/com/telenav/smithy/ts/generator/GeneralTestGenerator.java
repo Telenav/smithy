@@ -23,6 +23,7 @@ import com.telenav.smithy.generators.SettingsKey;
 import com.telenav.smithy.ts.generator.type.MemberStrategy;
 import com.telenav.smithy.ts.generator.type.TypeStrategies;
 import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
+import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
@@ -31,13 +32,16 @@ import java.time.Instant;
 import java.util.Collections;
 import static java.util.Collections.newSetFromMap;
 import static java.util.Collections.synchronizedMap;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
+import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_DECIMAL;
 import static software.amazon.smithy.model.shapes.ShapeType.BIG_INTEGER;
@@ -55,6 +59,7 @@ import static software.amazon.smithy.model.shapes.ShapeType.SHORT;
 import static software.amazon.smithy.model.shapes.ShapeType.STRING;
 import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
 import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
+import software.amazon.smithy.model.shapes.StructureShape;
 
 /**
  *
@@ -131,6 +136,7 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
                 func.exported();
                 func.docComment("Add all generated tests to the passed suite.");
                 func.withArgument("suite").ofType("TestSuite");
+                func.returning("TestSuite");
                 func.body(bb -> {
                     bb.invoke("forEach")
                             .withLambda(lb -> {
@@ -140,6 +146,7 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
                                             .inScope();
                                 });
                             }).on(TEST_FUNCTIONS_ARRAY_NAME);
+                    bb.returning("suite");
                 });
             });
         }
@@ -259,6 +266,48 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
                 bb.invoke("add").withInvocationOf("jsonConvertible")
                         .withField("fromJSON").of(strategies.strategy(shape).targetType()).inScope().on(collVar);
             }
+        }
+    }
+
+    static class MemberFieldCheckGenerator implements TestImplGenerator {
+
+        @Override
+        public <B extends TsBlockBuilderBase<T, B>, T> void generate(Shape shape, String chainVar, boolean valid, String varName, B bb, TestContext testContext, RandomInstance<?> r, TypeStrategies strategies) {
+            StructureShape struct = shape.asStructureShape().get();
+            String shapeType = strategies.strategy(shape).targetType();
+            if (struct.getAllMembers().isEmpty()) {
+                bb.lineComment("Struct has no members - omit members test");
+                return;
+            }
+            Map<MemberShape, String> varNameForMember = new HashMap<>();
+            struct.getAllMembers().forEach((name, mem) -> {
+                RandomInstance gen = r.shapeForMember(mem);
+                if (gen != null) {
+                    String vn = gen.lastVarName();
+                    if (vn != null) {
+                        varNameForMember.put(mem, vn);
+                    }
+                }
+            });
+            if (varNameForMember.size() != shape.getAllMembers().size()) {
+                bb.lineComment("Member mismatch - skip members test");
+                return;
+            }
+            varNameForMember.forEach((mem, memberVar) -> {
+                MemberStrategy<?> memStrat = strategies.memberStrategy(mem);
+                String typeName = strategies.strategy(mem).targetType();
+                bb.invoke("add", ib -> {
+                    ib.withInvocationOf("expectEqual")
+                            .withStringLiteralArgument("Value of field '" + mem.getMemberName() + " equals input")
+                            .withArgument(memberVar)
+                            .withLambda(lb -> {
+                                lb.withArgument("v").ofType(shapeType)
+                                        .body().returningField(memStrat.structureFieldName()).of("v");
+                            })
+                            .inScope();
+                    ib.on(chainVar);
+                });
+            });
         }
     }
 
@@ -444,6 +493,7 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
             c.accept(new ValidateGenerator());
             if (instance.valid && instance.shape.isStructureShape()) {
                 c.accept(new ToJsonKeysGenerator());
+                c.accept(new MemberFieldCheckGenerator());
             }
         }
         if (hasValueField() && instance instanceof Valued) {

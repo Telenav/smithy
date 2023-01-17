@@ -456,12 +456,12 @@ public class GenerateSourcesMojo extends AbstractMojo {
         }
 
         @Override
-        public Path sourceRootFor(GenerationTarget generationTarget,
+        public Destination sourceRootFor(GenerationTarget generationTarget,
                 Shape shape, LanguageWithVersion language,
                 SmithyGenerationSettings settings) {
             Path root = project.getBasedir().toPath();
             String dest = destination(generationTarget, shape, language);
-            return root.resolve(dest);
+            return SmithyDestinations.newDestination(root.resolve(dest), generationTarget, language);
         }
 
         private String destination(GenerationTarget generationTarget, Shape shape,

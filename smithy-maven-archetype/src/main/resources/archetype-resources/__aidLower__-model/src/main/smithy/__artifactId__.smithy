@@ -93,8 +93,13 @@ list Meetings {
 @samples( // Samples allow unit tests to be generated
     valid: ["3dbc1975-5911-46bb-a313-93e2c0fa566e",
             "a443e161-12e6-4e38-855c-543a45b13763",
+            "D8EDB1F6-2430-4EF9-8616-955140FDD3A5",
+            "CB486849-9867-4A73-8D07-7A535F49337B",
+            "DB6E3193-BD27-4275-85EB-E261B5C6FCAF",
             "7fa152ba-ed2e-4171-a96a-4f9f8ae1db4b"], 
-    invalid: ["x", "notlike-this-uuid-will-work0fa566e", "f00d", "", "no", ",,"]
+    invalid: ["x", "notlike-this-uuid-will-work0fa566e", "f00d", "", "no", ",,",
+            "63Q55CA8-714E-4D75-9E13-7043158F53DZ", 
+            "7fa152ba-ed2e-4171-a96a-4f9f8ae1db4b-dad0"]
 )
 string UUID
 

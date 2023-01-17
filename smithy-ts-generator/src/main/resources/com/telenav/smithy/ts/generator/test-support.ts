@@ -58,6 +58,10 @@ export class TestSuite {
         this.tests = new Array<(desc: string) => Map<string, FailureOutput[]> | void>();
     }
 
+    /**
+    * Create a chain of test methods, all of which will be passed a collection of inputs.
+    * Optionally, the chain can be set to abort further tests on the first failure.
+    */
     public chain<T>(c: (chain: TestChain<T>) => void, name: string): (...inputs: InputWithDescription<T>[]) => void {
         let tc = new TestChain<T>(name);
         c(tc);
@@ -85,6 +89,9 @@ export class TestSuite {
         }
     }
 
+    /**
+    * Add a test and a collection of inputs for it.
+    */
     public add<T>(testAdder: TestAdder<T>, ...inputs: InputWithDescription<T>[]): TestSuite {
         const tests = new Array<Test<T>>();
         testAdder(test => tests.push(test));
@@ -132,6 +139,11 @@ export class TestChain<T> {
         this.stop = false;
     }
 
+    /**
+    * If this is called on the chain before its first run, then if any test
+    * fails, subsequent ones will be skipped for this chain (but other chains
+    * in the suite will still run).
+    */
     public stopOnFirstFailure(): TestChain<T> {
         this.stop = true;
         return this;
@@ -141,12 +153,17 @@ export class TestChain<T> {
         return this.tests.length;
     }
 
+    /**
+    * Add a test.
+    */
     public add(test: Test<T>): TestChain<T> {
         this.tests.push(test);
         return this;
     }
 
-    // Implements Test:
+    /**
+    * Implementation of Test so it can be added to a suite.
+    */
     public test(desc: string, input: T, onProblem: (path: string, problem: FailureOutput) => void) {
         let results = this.run(desc, input);
         if (results) {
@@ -199,6 +216,10 @@ function runValidatable(msg: string, v: Validatable): Map<string, FailureOutput[
     }
 }
 
+/**
+* Returns a test of the validate() method on a Validatable type, which requires that
+* it find no problems.
+*/
 export function expectValid<T extends Validatable>(): Test<T> {
     return (desc: string, input: T, onProblem: (path: string, problem: FailureOutput) => void) => {
         let r = runValidatable(desc, input);
@@ -208,6 +229,10 @@ export function expectValid<T extends Validatable>(): Test<T> {
     }
 }
 
+/**
+ * Returns a test of the validate() method on a Validatable type, which requires that
+ * it at least one problem.
+ */
 export function expectInvalid<T extends Validatable>(): Test<T> {
     return (desc: string, input: T, onProblem: (path: string, problem: FailureOutput) => void) => {
         let r = runValidatable(desc, input);
@@ -217,6 +242,10 @@ export function expectInvalid<T extends Validatable>(): Test<T> {
     }
 }
 
+/**
+ * Returns a test that the value passed as the *expected* argument matches that returned
+ * by the passed retrieval function which operates on an instance of the input type T.
+ */
 export function expectEqual<T, R>(msg: string, expected: R, convert: (t: T) => R): Test<T> {
     return (desc: string, input: T, onProblem: (path: string, problem: FailureOutput) => void) => {
         let val: R = convert(input);
@@ -227,10 +256,15 @@ export function expectEqual<T, R>(msg: string, expected: R, convert: (t: T) => R
     }
 }
 
-export interface HasToJSON {
-    toJSON() : any
+interface HasToJSON {
+    toJSON(): any
 }
 
+/**
+ * Returns a test that the set of keys on the object returned by `oJSON()` on type `T` is
+ * the set of keys passed - this is used to determine if the `@jsonName` trait is being
+ * handled correctly.
+ */
 export function expectToJsonKeys<T extends HasToJSON>(msg: string, ...keys: string[]): Test<T> {
     let keySet = {};
     keys.forEach(key => keySet[key] = true);
@@ -248,6 +282,10 @@ export function expectToJsonKeys<T extends HasToJSON>(msg: string, ...keys: stri
     };
 }
 
+/**
+ * Returns a test that the object returned by converting the input argument of type `T`
+ * to JSON and back results in an object that deeply equals the original.
+ */
 export function jsonConvertible<T extends Object>(f: (a: any) => T): Test<T> {
     return (desc: string, input: T, onProblem: (path: string, problem: FailureOutput) => void) => {
 
@@ -302,6 +340,10 @@ export function jsonConvertible<T extends Object>(f: (a: any) => T): Test<T> {
 }
 
 export type MapConsumer<K, V> = (k: K, v: V) => MapConsumer<K, V>;
+/**
+  * Convenience mechanism for creating a map inline, since in typescript
+  * that is rather clunky
+  */
 export function map<K, V>(f: (mb: MapConsumer<K, V>) => void): Map<K, V> {
     let result = new Map<K, V>();
     let fact = (k: K, v: V) => {

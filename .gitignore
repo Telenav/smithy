@@ -71,3 +71,6 @@ Thumbs.db
 /blog-example/blog-model-typescript/dist/
 /blog-example/blog-model-typescript/node_modules/
 /blog-example/blog-web-ui
+# Generated typescript tests
+blog-example/blog-model-typescript/test-src/
+/maven-plugin-test/test-src/generated

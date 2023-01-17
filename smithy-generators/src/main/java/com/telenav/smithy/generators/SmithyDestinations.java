@@ -16,17 +16,41 @@
 package com.telenav.smithy.generators;
 
 import java.nio.file.Path;
+import java.util.Optional;
 import software.amazon.smithy.model.shapes.Shape;
 
 /**
+ * Maps shape + language + target to a source root folder.
  *
  * @author Tim Boudreau
  */
 public interface SmithyDestinations {
 
-    Path sourceRootFor(
+    Destination sourceRootFor(
             GenerationTarget generationTarget,
             Shape shape,
             LanguageWithVersion ver,
             SmithyGenerationSettings settings);
+
+    static Destination newDestination(Path path, GenerationTarget gt, LanguageWithVersion lv) {
+        return new DestinationImpl(path, gt, lv);
+    }
+
+    /**
+     * A source root folder for generated code for a given shape during a
+     * generation session. Includes the generation target and language as
+     * specified by whatever configuration spelled out the destination
+     * directory. Some code generators may want to behave differently if the
+     * destination is incompletely specified. If both generationTarget() and
+     * language() return Optional.empty(), then the defaults are being used.
+     */
+    public interface Destination {
+
+        public Path path();
+
+        public Optional<GenerationTarget> generationTarget();
+
+        public Optional<LanguageWithVersion> language();
+    }
+
 }

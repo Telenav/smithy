@@ -113,7 +113,7 @@ public final class SmithyGenerationSession {
                                         = targetsFor(g, generationTargets);
                                 for (GenerationTarget target : availableTargets) {
                                     Path root = destinations.sourceRootFor(target,
-                                            shape, lang, settings);
+                                            shape, lang, settings).path();
                                     dests.add(root);
 
                                     Map<ShapeId, Set<ModelElementGenerator>> items
