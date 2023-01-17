@@ -45,7 +45,7 @@ final class BooleanWrapperGenerator extends AbstractTypescriptGenerator<BooleanS
             shape.getTrait(DocumentationTrait.class).ifPresent(dox -> {
                 cb.docComment(dox.getValue());
             });
-            cb.property("value").readonly().setPublic().ofType("boolean");
+            cb.exported().property("value").readonly().setPublic().ofType("boolean");
             cb.constructor(con -> {
                 con.withArgument("value").ofType("boolean");
                 con.makePublic();

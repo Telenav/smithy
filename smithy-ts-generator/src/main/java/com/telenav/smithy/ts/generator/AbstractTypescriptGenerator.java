@@ -36,6 +36,7 @@ import static com.telenav.smithy.ts.vogon.TypescriptSource.typescript;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,6 +48,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
@@ -119,6 +121,18 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
         return strategies.strategy(shape);
     }
 
+    protected String serviceSourceFile(GenerationTarget target) {
+        String result = "SomeService";
+        for (ShapeId id : model.getShapeIds()) {
+            Shape sh = model.expectShape(id);
+            if (sh.isServiceShape()) {
+                result = sh.getId().getName();
+                break;
+            }
+        }
+        return result + capitalize(target.name());
+    }
+
     protected String serviceSourceFile() {
         String result = "SomeService";
         for (ShapeId id : model.getShapeIds()) {
@@ -158,8 +172,8 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
             ctx.registerPath("ts", dest);
         });
         generateAdditional(code::add);
-        this.ctx = null;
-        this.log = null;
+//        this.ctx = null;
+//        this.log = null;
         if (!ctx.settings().getBoolean("omit-npm").orElse(false)) {
             ctx.session().registerPostGenerationTask("0000-build-markup", () -> new RunNpmTask(ctx, this.dest));
         }
@@ -429,8 +443,21 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
         return true;
     }
 
+    protected static Function<byte[], byte[]> literalSubstitution(String old, String nue) {
+        return bytes -> {
+            String s = new String(bytes, UTF_8);
+            return Strings.literalReplaceAll(old, nue, s).getBytes(UTF_8);
+        };
+    }
+
     protected final GeneratedCode resource(String relativePath, String resourceName) {
-        ResourceCode result = new ResourceCode(relativePath, this.dest, getClass(), resourceName, log);
+        return resource(relativePath, resourceName, null);
+    }
+
+    protected final GeneratedCode resource(String relativePath, String resourceName,
+            Function<byte[], byte[]> transform) {
+        ResourceCode result = new ResourceCode(relativePath, this.dest, getClass(),
+                resourceName, log, transform);
         String registerAs;
         if (resourceName.endsWith(".html")) {
             registerAs = SmithyGenerationContext.MARKUP_PATH_CATEGORY;
@@ -448,14 +475,16 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
         private final String relativePath;
         private final String resourceName;
         private final SmithyGenerationLogger log;
+        private final Function<byte[], byte[]> transform;
 
         ResourceCode(String relativePath, Path dest, Class<?> adjacentTo,
-                String resourceName, SmithyGenerationLogger log) {
+                String resourceName, SmithyGenerationLogger log, Function<byte[], byte[]> transform) {
             path = dest.resolve(relativePath);
             this.adjacentTo = adjacentTo;
             this.relativePath = relativePath;
             this.resourceName = resourceName;
             this.log = log;
+            this.transform = transform;
         }
 
         Path path() {
@@ -484,7 +513,12 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
                     }
                     try (OutputStream out = Files.newOutputStream(path,
                             TRUNCATE_EXISTING, WRITE, CREATE)) {
-                        Streams.copy(in, out);
+                        if (transform != null) {
+                            byte[] bytes = transform.apply(in.readAllBytes());
+                            out.write(bytes);
+                        } else {
+                            Streams.copy(in, out);
+                        }
                     }
                 }
             }

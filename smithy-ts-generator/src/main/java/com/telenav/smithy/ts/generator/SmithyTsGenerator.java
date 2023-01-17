@@ -46,7 +46,8 @@ public class SmithyTsGenerator implements SmithyGenerator {
 
     @Override
     public boolean supportsGenerationTarget(GenerationTarget target) {
-        return target.equals(GenerationTarget.MODEL);
+        return target.equals(GenerationTarget.MODEL)
+                || target.equals(GenerationTarget.MODEL_TEST);
     }
 
     @Override
@@ -64,6 +65,8 @@ public class SmithyTsGenerator implements SmithyGenerator {
             Path destSourceRoot, GenerationTarget targets, LanguageWithVersion language, SmithyGenerationSettings settings, SmithyGenerationLogger logger) {
         if (GenerationTarget.MODEL.equals(targets)) {
             return modelGeneratorsFor(shape, model, destSourceRoot, targets, language, settings, logger);
+        } else if (GenerationTarget.MODEL_TEST.equals(targets)) {
+            return modelTestGeneratorsFor(shape, model, destSourceRoot, targets, language, settings, logger);
         } else if (GenerationTarget.CLIENT.equals(targets)) {
 
         }
@@ -174,45 +177,36 @@ public class SmithyTsGenerator implements SmithyGenerator {
         return result;
     }
 
-    @Override
-    public List<? extends ModelElementGenerator> subsortGenerators(Collection<? extends ModelElementGenerator> gens) {
-        if (true) {
-            // This may be taken care of now for typescript - ts-vogon topo sorts
-            // class references before generation.
-            return emptyList();
+    public Collection<? extends ModelElementGenerator> modelTestGeneratorsFor(Shape shape, Model model,
+            Path destSourceRoot, GenerationTarget target, LanguageWithVersion language,
+            SmithyGenerationSettings settings, SmithyGenerationLogger logger) {
+        List<ModelElementGenerator> result = new ArrayList<>();
+        switch (shape.getType()) {
+            case BIG_DECIMAL:
+            case BIG_INTEGER:
+            case BOOLEAN:
+            case DOUBLE:
+            case ENUM:
+            case INTEGER:
+            case FLOAT:
+            case LONG:
+            case BYTE:
+            case INT_ENUM:
+            case SHORT:
+            case STRING:
+            case STRUCTURE:
+            case TIMESTAMP:
+                result.add(new GeneralTestGenerator<>(shape, model, language,
+                        destSourceRoot, target));
+                break;
+            case BLOB:
+            case DOCUMENT:
+            case LIST:
+            case MAP:
+            case SET:
+            case UNION:
+                break;
         }
-        List<AbstractTypescriptGenerator<?>> ours = new ArrayList<>();
-        for (ModelElementGenerator g : gens) {
-            if (g instanceof AbstractTypescriptGenerator<?>) {
-                ours.add((AbstractTypescriptGenerator<?>) g);
-            }
-        }
-        ours.sort(SmithyTsGenerator::compareTypescriptGenerators);
-        System.out.println("RE-SORT SORTED " + ours.size() + " generators");
-        ours.forEach(gen -> System.out.println(" * " + gen));
-        return ours;
+        return result;
     }
-
-    private static <A extends Shape, B extends Shape> int compareTypescriptGenerators(AbstractTypescriptGenerator<A> a, AbstractTypescriptGenerator<B> b) {
-        if (a.model() != b.model()) {
-            return 0;
-        }
-        ResourceGraph graph = ResourceGraphs.graph(a.model());
-        if (graph == null) {
-            System.out.println("NO MODEL FOR " + a.shape().getId());
-            return 0;
-        }
-        if (graph.children(a.shape()).contains(b.shape())) {
-            return -1;
-        } else if (graph.children(b.shape()).contains(a.shape())) {
-            return 1;
-        }
-//        if (graph.closure(a.shape()).contains(b.shape())) {
-//            return 1;
-//        } else if (graph.closure(b.shape()).contains(a.shape())) {
-//            return -1;
-//        }
-        return 0;
-    }
-
 }

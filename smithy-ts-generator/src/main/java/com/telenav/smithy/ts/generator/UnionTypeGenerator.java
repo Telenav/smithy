@@ -143,7 +143,7 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
     private void generateBulkRawJsonConversion(TypescriptSource src) {
 
         ObjectTypesAndReturnTypes ot = new ObjectTypesAndReturnTypes(shape, strategies);
-        
+
         if (ot.allMembersAreObjectTypes()) {
             return;
         }
@@ -422,9 +422,13 @@ public final class UnionTypeGenerator extends AbstractTypescriptGenerator<UnionS
             return result.toString();
         }
 
+        @SafeVarargs
         private int countTraits(Class<? extends Trait>... c) {
             int result = 0;
             for (Class<? extends Trait> trait : c) {
+                if (!Trait.class.isAssignableFrom(trait)) {
+                    throw new IllegalArgumentException("Not a trait type: " + c);
+                }
                 if (shape.getTrait(trait).isPresent()) {
                     result++;
                 }

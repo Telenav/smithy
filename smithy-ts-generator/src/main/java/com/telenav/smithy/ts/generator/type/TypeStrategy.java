@@ -200,6 +200,24 @@ public interface TypeStrategy<S extends Shape> {
     }
 
     String owningTypeName(Class<? extends Trait> trait);
+    
+    default boolean valuesCanEvaluateToFalse() {
+        switch(shape().getType()) {
+            case BOOLEAN :
+            case INTEGER :
+            case INT_ENUM :
+            case BIG_DECIMAL :
+            case BIG_INTEGER :
+            case BYTE :
+            case FLOAT :
+            case DOUBLE :
+            case LONG :
+            case SHORT :
+                return true;
+            default :
+                return false;
+        }
+    }
 
     default <T, B extends TsBlockBuilderBase<T, B>> void validate(String pathVar, B bb, String on, boolean canBeNull) {
 

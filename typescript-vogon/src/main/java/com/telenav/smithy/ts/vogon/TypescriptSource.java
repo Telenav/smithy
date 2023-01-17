@@ -34,6 +34,7 @@ import static com.telenav.smithy.ts.vogon.TypeName.typeName;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.FunctionKind.CONSTRUCTOR;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.FunctionKind.FUNCTION;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.FunctionKind.GETTER;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ImportBuilder.ImportTarget;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.PRIVATE;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.PROTECTED;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.Modifiers.PUBLIC;
@@ -47,6 +48,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.sort;
 import static java.util.EnumSet.noneOf;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -101,10 +103,16 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
     private final List<CodeGenerator> types = new ArrayList<>();
     private final List<CodeGenerator> functions = new ArrayList<>();
     private final List<CodeGenerator> pendingComments = new LinkedList<>();
+    private final Set<String> marks = new HashSet<>();
+
     private boolean classesSorted;
 
     TypescriptSource(String name) {
         this.name = name;
+    }
+
+    public boolean mark(String s) {
+        return marks.add(s);
     }
 
     @Override
@@ -124,6 +132,38 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
     private void drainPendingComments(List<CodeGenerator> into) {
         into.addAll(pendingComments);
         pendingComments.clear();
+    }
+
+    private static boolean isNamed(String name, CodeGenerator gen) {
+        if (gen instanceof NamedTypescriptCodeGenerator n) {
+            return name.equals(n.name());
+        }
+        return false;
+    }
+
+    public boolean containsItemNamed(String name) {
+        notNull("name", name);
+        for (CodeGenerator gen : types) {
+            if (isNamed(name, gen)) {
+                return true;
+            }
+        }
+        for (CodeGenerator gen : top) {
+            if (isNamed(name, gen)) {
+                return true;
+            }
+        }
+        for (CodeGenerator gen : this.functions) {
+            if (isNamed(name, gen)) {
+                return true;
+            }
+        }
+        for (CodeGenerator gen : this.ifaces) {
+            if (isNamed(name, gen)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean containsTypeNamed(String name) {
@@ -248,20 +288,35 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
         });
     }
 
-    public ImportBuilder<TypescriptSource> importing(String what) {
-        if ("void".equals(what)) {
-            throw new IllegalStateException("Importing 'void'");
-        }
+    public ImportBuilder<TypescriptSource> importing(String what, String... more) {
         return new ImportBuilder<>(what, b -> {
-            for (ImportBuilder<?> im : imports) {
-                if (im.fromText().equals(b.fromText())) {
-                    im.toImport.addAll(b.toImport);
-                    return this;
-                }
+            for (String m : more) {
+                b.toImport.add(new ImportTarget(m));
             }
-            imports.add(b);
+            if (!addImport(b)) {
+                imports.add(b);
+            }
             return this;
         });
+    }
+
+    public ImportBuilder<TypescriptSource> importing(String what) {
+        return new ImportBuilder<>(what, b -> {
+            if (!addImport(b)) {
+                imports.add(b);
+            }
+            return this;
+        });
+    }
+
+    private boolean addImport(ImportBuilder<TypescriptSource> b) {
+        for (ImportBuilder<?> im : imports) {
+            if (im.fromText().equals(b.fromText())) {
+                im.toImport.addAll(b.toImport);
+                return true;
+            }
+        }
+        return false;
     }
 
     public ImportBuilder<TypescriptSource> importingAll() {
@@ -4109,12 +4164,10 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
                 for (CodeGenerator gen : constructors) {
                     lb.doubleNewline();
                     gen.generateInto(lb);
-                    lb.backup().appendRaw(';');
                 }
                 for (CodeGenerator gen : methods) {
                     lb.doubleNewline();
                     gen.generateInto(lb);
-                    lb.backup().appendRaw(';');
                 }
             });
 
@@ -6001,10 +6054,9 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
                 lines.generateOrPlaceholder(rightSide);
             });
         }
-
     }
 
-    public static final class Assignment<T> extends TypescriptCodeGenerator implements ExpressionAssignment<T> {
+    public static final class Assignment<T> extends NamedTypescriptCodeGenerator implements ExpressionAssignment<T> {
 
         private CodeGenerator what = new Adhoc("undefined");
         private final Function<Assignment<T>, T> conv;
@@ -6024,6 +6076,14 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             this.conv = conv;
             this.prefix = prefix;
             this.name = name;
+        }
+
+        @Override
+        String name() {
+            if (name instanceof NamedTypescriptCodeGenerator nm) {
+                return nm.name();
+            }
+            return name.toString();
         }
 
         T finish(CodeGenerator gen) {
@@ -6409,14 +6469,22 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
         if (!imports.isEmpty()) {
             lines.doubleNewline();
         }
+        boolean lastWasLc = false;
         for (CodeGenerator cg : top) {
-            lines.onNewLine();
+            if (!lastWasLc) {
+                lines.onNewLine();
+            }
             cg.generateInto(lines);
+            lastWasLc = cg instanceof LineComment;
         }
 
+        lastWasLc = false;
         for (CodeGenerator cg : topoSortedMembers()) {
-            lines.doubleNewline();
+            if (!lastWasLc) {
+                lines.doubleNewline();
+            }
             cg.generateInto(lines);
+            lastWasLc = cg instanceof LineComment;
         }
 
         if (!contents.isEmpty()) {

@@ -88,7 +88,7 @@ list Meetings {
 }
 
 /// A string shape with length and pattern.
-@pattern("^[0-9a-f]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$")
+@pattern("^[0-9A-Fa-f]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$")
 @length(min:36, max:36)
 @samples( // Samples allow unit tests to be generated
     valid: ["3dbc1975-5911-46bb-a313-93e2c0fa566e",

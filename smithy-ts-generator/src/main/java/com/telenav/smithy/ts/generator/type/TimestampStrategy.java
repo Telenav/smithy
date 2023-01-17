@@ -47,7 +47,7 @@ class TimestampStrategy extends AbstractTypeStrategy<TimestampShape> {
         TsVariable rvAny = rawVar.as(ANY);
         if (rawVar.optional()) {
             decl.ofType(targetType + " | undefined");
-            String ternaryTest = rawVar.isAnyType() ? "typeof " + rawVar.name() + " !== 'string'" : "typeof " + rawVar.name() + " !== 'undefined'";
+            String ternaryTest = rawVar.isAnyType() ? "typeof " + rawVar.name() + " !== 'string'" : "typeof " + rawVar.name() + " == 'undefined'";
             ExpressionBuilder<B> rightSide = decl.assignedToTernary(ternaryTest).expression("undefined");
             rightSide.instantiate(nb -> {
                 if (prim) {

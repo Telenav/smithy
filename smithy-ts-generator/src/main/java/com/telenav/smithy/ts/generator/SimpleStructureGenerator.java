@@ -450,8 +450,13 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         eachMemberOptionalLast((name, memberShape, target, required, strategy) -> {
             String fieldName = strategy.structureFieldName();
             if (!required) {
-                ConditionalClauseBuilder<TsBlockBuilder<Void>> test
-                        = bb.ifFieldDefined(escape(name)).ofThis();
+                ConditionalClauseBuilder<TsBlockBuilder<Void>> test;
+
+                if (strategy.valuesCanEvaluateToFalse()) {
+                    test = bb.iff("typeof this." + strategy.structureFieldName() + " !== 'undefined'");
+                } else {
+                    test = bb.ifFieldDefined(strategy.structureFieldName()).ofThis();
+                }
                 generateObjectFieldAssignment(target, memberShape, test,
                         fieldName, strategy, required);
                 test.endIf();

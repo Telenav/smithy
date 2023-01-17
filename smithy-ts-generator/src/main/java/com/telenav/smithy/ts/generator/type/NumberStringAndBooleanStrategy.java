@@ -20,12 +20,10 @@ import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.BOOLEAN;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.NUMBER;
 import static com.telenav.smithy.ts.generator.type.TsPrimitiveTypes.STRING;
 import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
-import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.Assignment;
 import com.telenav.smithy.ts.vogon.TypescriptSource.ExpressionBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import software.amazon.smithy.model.shapes.Shape;
-import software.amazon.smithy.model.traits.DefaultTrait;
 
 /**
  *
@@ -44,7 +42,12 @@ class NumberStringAndBooleanStrategy extends AbstractTypeStrategy<Shape> {
         boolean prim = isNotUserType(shape);
         Assignment<B> decl = (declare ? bb.declare(instantiatedVar) : bb.assign(instantiatedVar)).ofType(targetType);
         if (rawVar.optional()) {
-            ExpressionBuilder<B> exp = decl.assignedToUndefinedIfUndefinedOr(rawVar.name());
+            ExpressionBuilder<B> exp;
+            if (super.valuesCanEvaluateToFalse()) {
+                exp = decl.assignedToTernary("typeof " + rawVar.name() + " === 'undefined'").expression("undefined");
+            } else {
+                exp = decl.assignedToUndefinedIfUndefinedOr(rawVar.name());
+            }
             if (prim) {
                 exp.as(rawVarType().typeName()).expression(rawVar.name());
             } else {

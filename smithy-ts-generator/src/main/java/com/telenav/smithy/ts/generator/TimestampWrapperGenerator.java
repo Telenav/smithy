@@ -17,7 +17,9 @@ package com.telenav.smithy.ts.generator;
 
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.ts.generator.type.TsPrimitiveTypes;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
+import com.telenav.smithy.ts.vogon.TypescriptSource.ClassBuilder;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import software.amazon.smithy.model.Model;
@@ -40,7 +42,7 @@ public class TimestampWrapperGenerator extends AbstractTypescriptGenerator<Times
         TypescriptSource src = src();
 
         src.declareClass(tsTypeName(shape), cb -> {
-            cb.extending("Date");
+            cb.exported().extending("Date");
             shape.getTrait(DocumentationTrait.class)
                     .ifPresent(dox -> cb.docComment(dox.getValue()));
             cb.constructor(con -> {
@@ -79,9 +81,23 @@ public class TimestampWrapperGenerator extends AbstractTypescriptGenerator<Times
 
             generateToJsonString(cb);
             generateAddTo(cb);
+
+            generateFromJson(cb);
         });
 
         c.accept(src);
+    }
+
+    private void generateFromJson(ClassBuilder<Void> cb) {
+        cb.method(FROM_JSON, mth -> {
+            mth.makePublic().makeStatic().withArgument("value").ofType("any")
+                    .returning(cb.name());
+            mth.body(bb -> {
+                strategy.instantiateFromRawJsonObject(bb, TsPrimitiveTypes.ANY.variable("value"), "result", true, true);
+                bb.returning("result");
+            });
+
+        });
     }
 
 }
