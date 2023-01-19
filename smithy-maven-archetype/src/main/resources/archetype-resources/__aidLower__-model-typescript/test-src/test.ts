@@ -10,10 +10,12 @@ import {
     MapConsumer,
 } from './generated/test-support.js';
 import { createTests } from './generated/generated-tests.js';
+// NodeJS imports to emit detailed output and the test report
 import * as Process from 'process';
 import * as util from 'util';
 import * as fs from 'fs';
-
+import * as path from 'path';
+import { URL } from 'url';
 
 // Add all of the generated tests to the suite - these test basic aspects
 // of the model types, ensuring that fields match constructor arguments,
@@ -38,19 +40,31 @@ let suite = createTests(new TestSuite());
  }, goodValue);
  */
 
+let testFailures: Map<string, FailureOutput[]>[] | void = suite.run();
 
-let testFailures = suite.run();
-// IF we are passed a file to save the json report to, save it
-let outputFile = process.argv[2];
+
 if (testFailures) {
-    console.log("Test Failures", util.inspect(testFailures, false, 1000, true));
-    if (outputFile) {
-        fs.writeFileSync(outputFile, JSON.stringify(testFailures));
+    console.log(`${testFailures.length} test failures:`,
+        util.inspect(findProblems(testFailures), null, 10000));
+    // We are in an ES6 module, so __dirname, available in a CommonJS
+    // node module is not defined, so...
+    let outputFile = process.argv.slice(2)[0];
+    if (!outputFile) {
+        const __dirname = new URL('.', import.meta.url).pathname;
+        outputFile = path.resolve(__dirname, '../../test/test-report.json');
     }
+    // Due to inscrutable vagaries of typescript, JSON.stringify on Array
+    // results in {}, so copy them into something more straightforwardly
+    // a javascript array.
+    let result = [];
+    testFailures.forEach(item => {
+        let realItem = {};
+        item.forEach((v, k) => {
+            realItem[k] = v;
+        });
+        result.push(realItem);
+    });
+    fs.writeFileSync(outputFile, JSON.stringify(result, null, 2));
+    console.log(`Wrote test report to ${outputFile}`);
     process.exit(1);
-} else {
-    if (outputFile && fs.existsSync(outputFile)) {
-        fs.unlinkSync(outputFile);
-    }
 }
-

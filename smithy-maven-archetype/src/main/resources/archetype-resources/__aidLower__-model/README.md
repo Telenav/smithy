@@ -32,6 +32,17 @@ this is worth testing)
 (e.g. the field name might be an escaped keyword, or some other name from the model,
 but the JSON looks like it is supposed to)
 
+To build the tests (once the code has been generated), run `npm run test-build`.
+
+This will generate test code into `test-src/generated`, which is called by
+`test-src/test.ts`.  The built, Javascript tests, will be in `test`, which is
+gitignored.
+
+To run them, run `npm run test`. If there are any failures, a synopsis will be
+printed to the console, and a complete report containing input and output and
+problems will be written to `test/test-report.json` (this destination can be
+overridden by passing a file path as a final argument to `npm run test`).
+
 The `test-src/test.ts` file runs the tests, and can be added to if desired (instructions
 in a comment in the file).  The test framework is a trivial test runner generated
 into `test-src/generated/test-support.ts`, so as not to impose any particular
@@ -42,4 +53,4 @@ dependencies on the generated code.
 
 While the main reason generated tests were developed was as a sanity check of the
 code generation tooling itself, it can also be useful for you, as the end user of
-these types, to gain some confidence that they work as intended.
+these types, to gain confidence that they work as intended.

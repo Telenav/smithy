@@ -23,7 +23,6 @@ import com.telenav.smithy.generators.SettingsKey;
 import com.telenav.smithy.ts.generator.type.MemberStrategy;
 import com.telenav.smithy.ts.generator.type.TypeStrategies;
 import static com.telenav.smithy.ts.generator.type.TypeStrategies.isNotUserType;
-import com.telenav.smithy.ts.generator.type.TypeStrategy;
 import com.telenav.smithy.ts.vogon.TypescriptSource;
 import com.telenav.smithy.ts.vogon.TypescriptSource.InvocationBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
@@ -117,7 +116,7 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
             case LIST:
             case MAP:
             case DOCUMENT:
-            case UNION:
+//            case UNION:
             case SHORT:
             case SET:
                 return true;
@@ -159,40 +158,60 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
     @Override
     @SuppressWarnings({"rawtype", "unchecked"})
     protected void generate(TypescriptSource src, TestContext testContext) {
+        if (shape.isUnionShape()) {
+            // We do not need direct tests of union shapes - they will be covered
+            // by the tests of their members.
+            return;
+        }
         testContext.generatorFor(shape).ifPresent(gen -> {
+            if (gen instanceof UnionGenerator) {
+                return;
+            }
             String typeName = tsTypeName(shape);
             Optional<RandomInstance<?>> v = (Optional) gen.valid(testContext);
 
             src.importing("TestSuite", "expectValid", "expectInvalid", "expectToJsonKeys",
                     "expectEqual", "jsonConvertible", "map", "TestAdder", "TestChain",
-                    "InputWithDescription", "TestCollection", "Test").from(TEST_SUPPORT_IMPORT_FILENAME);
+                    "InputWithDescription", "TestCollection", "Test")
+                    .from(TEST_SUPPORT_IMPORT_FILENAME);
 
-            v.ifPresent(instance -> {
-                String populateFunction = "addValid" + typeName + "Tests";
-                src.function(populateFunction, f -> {
-                    f.withArgument("suite").ofType("TestSuite");
-                    f.docComment("Tests the shape " + shape.getId().getName()
-                            + " - fields, JSON seriialization, etc.");
-                    f.body(bb -> {
-                        generateValidInstanceTest(instance, bb, testContext);
+            if (gen.canGenerateValidValues()) {
+                boolean multiplePermutations = !gen.validPermutationsExhausted();
+                Int counter = Int.of(1);
+                Consumer<RandomInstance<?>> validPermutationGenerator = instance -> {
+                    String suffix = multiplePermutations ? "_" + counter.increment() : "";
+                    String populateFunction = escape("addValid" + typeName + "Tests" + suffix);
+                    src.function(populateFunction, f -> {
+                        f.withArgument("suite").ofType("TestSuite");
+                        f.docComment("Tests the shape " + shape.getId().getName()
+                                + " - fields, JSON seriialization, etc.");
+                        f.body(bb -> {
+                            bb.lineComment(gen.getClass().getSimpleName());
+                            generateValidInstanceTest(instance, bb, testContext);
+                        });
                     });
-                });
-                maybeDefineFunctionList(src);
-                addTestFunction(populateFunction, src);
-            });
+                    maybeDefineFunctionList(src);
+                    addTestFunction(populateFunction, src);
+                };
+                do {
+                    Optional<RandomInstance<?>> i = (Optional) gen.valid(testContext);
+                    i.ifPresent(validPermutationGenerator);
+                } while (!gen.validPermutationsExhausted());
+            }
 
             if (gen.canGenerateInvalidValues()) {
-                boolean multiplePermutations = !gen.permutationsExhausted();
-                Int counter = Int.of(1);
+                boolean multiplePermutations = !gen.invalidPermutationsExhausted();
+                Int invalidCounter = Int.of(1);
                 Consumer<RandomInstance<?>> invalidPermutationGenerator = instance -> {
                     String suffix = instance.invalidityDescription().map(desc -> {
-                        return "_invalid_" + desc + "_" + counter.increment();
-                    }).orElse(multiplePermutations ? "_" + counter.increment() : "");
+                        return "_invalid_" + desc + "_" + invalidCounter.increment();
+                    }).orElse(multiplePermutations ? "_" + invalidCounter.increment() : "");
 //                    String suffix = multiplePermutations ? "_" + counter.increment() : "";
-                    String populateFunction = "addInvalid" + typeName + "Tests" + suffix;
+                    String populateFunction = escape("addInvalid" + typeName + "Tests" + suffix);
                     src.function(populateFunction, f -> {
                         f.withArgument("suite").ofType("TestSuite");
                         f.body(bb -> {
+                            bb.lineComment(gen.getClass().getSimpleName());
                             generateInvalidInstanceTest(instance, bb, testContext);
                         });
                     });
@@ -202,7 +221,7 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
                 do {
                     Optional<RandomInstance<?>> i = (Optional) gen.invalid(testContext);
                     i.ifPresent(invalidPermutationGenerator);
-                } while (!gen.permutationsExhausted());
+                } while (!gen.invalidPermutationsExhausted());
             }
         });
     }

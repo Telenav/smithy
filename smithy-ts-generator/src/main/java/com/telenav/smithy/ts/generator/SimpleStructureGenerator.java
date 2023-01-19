@@ -80,13 +80,12 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         });
     }
 
-    protected void eachMember(QuadConsumer<String, MemberShape, Shape, MemberStrategy<?>> c) {
-        for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
-            Shape tgt = model.expectShape(e.getValue().getTarget());
-            c.accept(e.getKey(), e.getValue(), tgt, memberStrategies.get(e.getKey()));
-        }
-    }
-
+//    protected void eachMember(QuadConsumer<String, MemberShape, Shape, MemberStrategy<?>> c) {
+//        for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+//            Shape tgt = model.expectShape(e.getValue().getTarget());
+//            c.accept(e.getKey(), e.getValue(), tgt, memberStrategies.get(e.getKey()));
+//        }
+//    }
     private Map<String, DefaultTrait> defaultTraits() {
         Map<String, DefaultTrait> result = new HashMap<>();
         shape.getAllMembers().forEach((name, member) -> {
@@ -99,22 +98,29 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
         return shape.getAllMembers().size() == defaultTraits().size();
     }
 
+    private List<Map.Entry<String, MemberShape>> membersOptionalLast() {
+        return membersOptionalLast(shape);
+    }
+
+    public static List<Map.Entry<String, MemberShape>> membersOptionalLast(StructureShape shape) {
+        // It is important that we preserve the model's order for properties to the
+        // degree possible, so that newly added optional properties don't break compatibility
+        List<Map.Entry<String, MemberShape>> required = new ArrayList<>();
+        List<Map.Entry<String, MemberShape>> optional = new ArrayList<>();
+        for (Map.Entry<String, MemberShape> e : shape.getAllMembers().entrySet()) {
+            if (e.getValue().getTrait(RequiredTrait.class).isPresent()) {
+                required.add(e);
+            } else {
+                optional.add(e);
+            }
+        }
+        required.addAll(optional);
+        return required;
+    }
+
     protected void eachMemberOptionalLast(PetaConsumer<String, MemberShape, Shape, Boolean, MemberStrategy<?>> c) {
         // Typescript needs optional arguments last, like varargs
-        List<Map.Entry<String, MemberShape>> sorted
-                = new ArrayList<>(shape.getAllMembers().entrySet());
-        sorted.sort((a, b) -> {
-            int va  = a.getValue().getTrait(RequiredTrait.class)
-                    .isPresent() ? 0 : 1;
-            int vb = b.getValue().getTrait(RequiredTrait.class)
-                    .isPresent() ? 0 : 1;
-            int result = Integer.compare(va, vb);
-            if (result == 0) {
-                result = a.getKey().compareTo(b.getKey());
-            }
-            return result;
-        });
-        for (Map.Entry<String, MemberShape> e : sorted) {
+        for (Map.Entry<String, MemberShape> e : membersOptionalLast()) {
             Shape target = model.expectShape(e.getValue().getTarget());
             c.accept(e.getKey(), e.getValue(), target,
                     e.getValue().getTrait(RequiredTrait.class).isPresent(),
@@ -196,7 +202,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
             tb.declareInterface(typeName(), ib -> {
                 ib.exported();
                 applyValidatableInterface(ib);
-                eachMember((name, memberShape, targetShape, strategy) -> {
+                eachMemberOptionalLast((name, memberShape, targetShape, required, strategy) -> {
                     addMemberFor(tb, name, memberShape, targetShape, ib, strategy);
                 });
 
@@ -215,7 +221,7 @@ public class SimpleStructureGenerator extends AbstractTypescriptGenerator<Struct
                 cb.exported();
                 applyValidatableInterface(cb);
                 generateValidationConstants(cb);
-                eachMember((name, memberShape, targetShape, strategy) -> {
+                eachMemberOptionalLast((name, memberShape, targetShape, required, strategy) -> {
                     ConstraintsChecker.check(model, memberShape);
                     addMemberFor(tb, name, memberShape, targetShape, cb, strategy);
                 });

@@ -213,6 +213,7 @@ public interface TypeStrategy<S extends Shape> {
             case DOUBLE :
             case LONG :
             case SHORT :
+            case STRING :
                 return true;
             default :
                 return false;

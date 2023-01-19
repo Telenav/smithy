@@ -23,6 +23,10 @@ import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.generators.SettingsKey;
 import com.telenav.smithy.names.NumberKind;
+import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.AbstractInstanceGenerator;
+import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.RandomInstance;
+import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.TestContext;
+import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.TraitFinder;
 import com.telenav.smithy.ts.generator.type.TsTypeUtils;
 import com.telenav.smithy.ts.generator.type.TypeStrategies;
 import com.telenav.smithy.ts.generator.type.TypeStrategy;
@@ -39,6 +43,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import static java.util.Arrays.asList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -272,6 +277,17 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                         }
                         generators.remove(shape.getId());
                     }
+                    break;
+                case UNION:
+                    List<RandomInstanceGenerator<?>> unionMembers = new ArrayList<>();
+                    realShape.getAllMembers().forEach((nm, mem)
+                            -> generatorFor(mem).ifPresent(unionMembers::add));
+                    if (!unionMembers.isEmpty()) {
+                        result = new UnionGenerator(this, realShape, traits, unionMembers);
+                    }
+                    break;
+                case MAP:
+
             }
             if (result != null) {
                 importer.accept(realShape);
@@ -345,7 +361,11 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
         boolean canGenerateValidValues();
 
-        default boolean permutationsExhausted() {
+        default boolean invalidPermutationsExhausted() {
+            return true;
+        }
+
+        default boolean validPermutationsExhausted() {
             return true;
         }
     }
@@ -838,7 +858,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         }
 
         @Override
-        public boolean permutationsExhausted() {
+        public boolean invalidPermutationsExhausted() {
             return invalidCursor >= invalids.size();
         }
 
@@ -1298,7 +1318,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         }
 
         @Override
-        public boolean permutationsExhausted() {
+        public boolean invalidPermutationsExhausted() {
             return invalidValueCursor >= invalidValueCapable().size();
         }
 
@@ -1365,22 +1385,8 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         }
 
         List<MemberShape> eachMemberOptionalLast() {
-            // Produces the same order as SimpleStructureGenerator
-            List<Map.Entry<String, MemberShape>> sorted
-                    = new ArrayList<>(shape.getAllMembers().entrySet());
-            sorted.sort((a, b) -> {
-                int va  = a.getValue().getTrait(RequiredTrait.class)
-                        .isPresent() ? 0 : 1;
-                int vb = b.getValue().getTrait(RequiredTrait.class)
-                        .isPresent() ? 0 : 1;
-                int result = Integer.compare(va, vb);
-                if (result == 0) {
-                    result = a.getKey().compareTo(b.getKey());
-                }
-                return result;
-            });
             List<MemberShape> result = new ArrayList<>();
-            for (Map.Entry<String, MemberShape> e : sorted) {
+            for (Map.Entry<String, MemberShape> e : SimpleStructureGenerator.membersOptionalLast(shape)) {
                 result.add(e.getValue());
             }
             return result;
@@ -1530,6 +1536,9 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             List<RandomInstance<?>> result = new ArrayList<>();
             int min = min();
             int max = max();
+            if (max == min) {
+                return asList(memberGenerator.invalid(ctx).get());
+            }
             int range = Math.min(24, max - min);
             int count = Math.max(0, min) + ctx.rnd().nextInt(range);
             int invalidOne = ctx.rnd().nextInt(range);
@@ -1579,7 +1588,13 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             List<RandomInstance<?>> result = new ArrayList<>();
             int min = min();
             int max = max();
-            int range = Math.min(24, max - min);
+            if (max == min) {
+                return asList(memberGenerator.valid(ctx).get());
+            }
+            int range = Math.max(0, Math.min(24, max - min));
+            if (range == 0) {
+                throw new Error("Max: " + max + " / Min: " + min + " got range of 0");
+            }
             int count = min + ctx.rnd().nextInt(range);
             for (int i = 0; i < count; i++) {
                 result.add(memberGenerator.valid(ctx).get());
@@ -1588,7 +1603,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         }
 
         @Override
-        public boolean permutationsExhausted() {
+        public boolean invalidPermutationsExhausted() {
             return fetcherCursor >= fetchers.size();
         }
 
@@ -1689,5 +1704,64 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
     @Override
     protected void maybeGenerateValidationInterface(TypescriptSource ts) {
         // do nothing
+    }
+
+    static class UnionGenerator extends AbstractInstanceGenerator<Shape> {
+
+        private final List<RandomInstanceGenerator<?>> validCapable = new ArrayList<>();
+        private int validCursor;
+        private final List<RandomInstanceGenerator<?>> invalidCapable = new ArrayList<>();
+        private int invalidCursor;
+
+        UnionGenerator(TestContext ctx, Shape shape, TraitFinder traits,
+                List<RandomInstanceGenerator<?>> members) {
+            super(ctx, shape, traits);
+            for (RandomInstanceGenerator<?> g : members) {
+                if (g.canGenerateValidValues()) {
+                    validCapable.add(g);
+                }
+                if (g.canGenerateInvalidValues()) {
+                    invalidCapable.add(g);
+                }
+            }
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected RandomInstance<Shape> newValidValue(TestContext ctx) {
+            RandomInstanceGenerator<?> gen = validCapable.get(
+                    (validCursor++) % validCapable.size());
+            RandomInstance<?> result = gen.valid(ctx).get();
+            return (RandomInstance<Shape>) result;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected RandomInstance<Shape> newInvalidValue(TestContext ctx) {
+            RandomInstanceGenerator<?> gen = invalidCapable.get(
+                    (invalidCursor++) % invalidCapable.size());
+            RandomInstance<?> result = gen.invalid(ctx).get();
+            return (RandomInstance<Shape>) result;
+        }
+
+        @Override
+        public boolean canGenerateInvalidValues() {
+            return !invalidCapable.isEmpty();
+        }
+
+        @Override
+        public boolean canGenerateValidValues() {
+            return !validCapable.isEmpty();
+        }
+
+        @Override
+        public boolean invalidPermutationsExhausted() {
+            return invalidCursor >= invalidCapable.size();
+        }
+
+        @Override
+        public boolean validPermutationsExhausted() {
+            return validCursor >= validCapable.size();
+        }
     }
 }

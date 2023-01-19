@@ -204,7 +204,7 @@ public class SmithyTsGenerator implements SmithyGenerator {
             case LIST:
             case MAP:
             case SET:
-            case UNION:
+//            case UNION:
                 break;
         }
         return result;

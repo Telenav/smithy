@@ -76,8 +76,8 @@ export class TestSuite {
     * Run all of the tests in the suite, returning non-void in the case that there
     * are failures.
     */
-    public run(): Array<Map<string, FailureOutput[]>> | void {
-        let results = new Array<Map<string, FailureOutput[]>>();
+    public run(): Map<string, FailureOutput[]>[] | void {
+        let results: Map<string, FailureOutput[]>[] = [];
         this.tests.forEach(test => {
             let res = test(this.name);
             if (res) {
@@ -289,14 +289,7 @@ export function expectToJsonKeys<T extends HasToJSON>(msg: string, ...keys: stri
 export function jsonConvertible<T extends Object>(f: (a: any) => T): Test<T> {
     return (desc: string, input: T, onProblem: (path: string, problem: FailureOutput) => void) => {
 
-        let out = {
-            input: input,
-        };
-        if (typeof input['toJSON'] === 'function') {
-            let f = (input['toJSON']) as (() => any);
-            f.bind(input)();
-        }
-
+        let out = {};
         let json = JSON.stringify(input);
 
         if (typeof json === 'undefined') {
@@ -331,9 +324,13 @@ export function jsonConvertible<T extends Object>(f: (a: any) => T): Test<T> {
             try {
                 Assert.deepEqual(deserialized, input);
             } catch (err) {
-                out['json'] = json;
                 out['problem'] = "Deserialized not equal";
-                onProblem(desc, out);
+                onProblem(desc,
+                    {
+                        problem: 'Deserialized not equal',
+                        deltas: diffObjects(desc, input, deserialized),
+                        deserialized: deserialized,
+                    });
             }
         }
     };
@@ -352,4 +349,225 @@ export function map<K, V>(f: (mb: MapConsumer<K, V>) => void): Map<K, V> {
     };
     f(fact);
     return result;
+}
+
+function diffObjects(testDescription: string, a: any, b: any): object {
+    let ao = {};
+    decompose(['_'], a, new Array<any>(), ao);
+    let bo = {};
+    decompose(['_'], b, new Array<any>(), bo);
+
+    let deltas = {};
+    Object.keys(ao).forEach(key => {
+        let target: any = ao[key];
+        let other: any = bo[key];
+        if (target != other) {
+            // If one of the values is undefined, we don't wnat to just elide it,
+            // which adding someObject['foo'] = undefined will do.
+            deltas[key] = { a: makeVisibleInJSON(target), b: makeVisibleInJSON(other) };
+        }
+    });
+    Object.keys(bo).forEach(key => {
+        if (typeof ao[key] === 'undefined') {
+            deltas[key] = { expected: '<absent>', got: bo[key] };
+        }
+    });
+    console.log(testDescription + ": Objects differ on: ", deltas);
+    return deltas;
+}
+
+function makeVisibleInJSON<T>(t: T): any {
+    if (t == null) {
+        return '<null>';
+    }
+    let tType = typeof t;
+    switch (tType) {
+        case 'undefined':
+            return '<undefined>';
+        default:
+            return t;
+    }
+}
+/**
+ * Filters a problems array into just the problem description portion, so
+ * we don't overwhelm the user with a giant blob of JSON on stdout.  We
+ * still provide complete output to the report file.
+ */
+export function findProblems(obj: any): object {
+    let head = [];
+    let result = {};
+    traverse(head, obj, [], (path, val) => {
+        if (path.length > 0 && path[path.length - 1] == 'problem') {
+            let o: any = { aa00: 'hey' };
+            let kc = 0;
+            Object.keys(val).forEach(k => {
+                if (k == 'deserialized') {
+                    return;
+                }
+                o[k] = val[k];
+                kc++;
+            });
+            if (typeof path[0] === 'number') {
+                path = path.slice(1);
+            }
+            result[path.join('.')] = o;
+            return false;
+        }
+        return true;
+    });
+    return result;
+}
+
+/**
+ * Traverse all properties in an object, dealing with vagaries of how typescript
+ * converts things to Javascript, which has some quirks.
+ */
+function traverse(head: (string | symbol | number)[], input: any, seen: any[], output: (path: (string | symbol | number)[], item: any) => boolean) {
+    let t = typeof input;
+    switch (t) {
+        case 'function':
+        case 'undefined':
+        case 'symbol':
+            return;
+        case 'bigint':
+        case 'string':
+        case 'boolean':
+        case 'number':
+            output[head.join('.')] = input;
+            break;
+        case 'object':
+            if (Array.isArray(input)) {
+                let arr = input as any[];
+                for (let i = 0; i < arr.length; i++) {
+                    let nue = [...head, i];
+                    if (typeof arr[i] === 'object' && seen.indexOf(nue) >= 0) {
+                        return;
+                    } else if (typeof arr[i] === 'object') {
+                        seen.push(arr[i]);
+                    }
+                    traverse(nue, arr[i], seen, output);
+                }
+            } else if (typeof input.forEach === 'function') {
+                // Just to dispel any illusion that typescript is anything more
+                // than libstick on a very ugly pig...
+                //
+                // SUBCLASSES of Array and Map return NOTHING for their keys.
+                // Nothing with Object.keys().  Nothing with Reflect.ownKeys()
+                // Nothing with for (let key in ...).
+                //
+                // Sigh...
+                let counter = 0;
+                input.forEach((v, k) => {
+                    let nm = (k == v) ? counter++ : k;
+                    if (seen.indexOf(v) >= 0) {
+                        return;
+                    }
+                    seen.push(v);
+                    let nue = [...head, "" + nm];
+                    if (output(nue, v)) {
+                        traverse(nue, v, seen, output);
+                    }
+                });
+            } else {
+                for (let k in input) {
+                    let nue = [...head, k];
+                    let v = Reflect.get(input, k);
+                    if (typeof v === 'object' && seen.indexOf(nue) >= 0) {
+                        console.log("  already seen");
+                        return;
+                    } else if (typeof v === 'object') {
+                        seen.push(v);
+                    }
+                    if (output(nue, v)) {
+                        traverse(nue, v, seen, output);
+                    }
+                }
+            }
+            break;
+    }
+}
+
+/**
+ * Take an object and recursively flatten it - so if you had something like
+ * ```{
+ *   foo : {
+ *     bar : {
+ *        baz : {
+ *          a : 1,
+ *          b : 2,
+ *          c : 3,
+ *        }
+ *     }
+ * }```
+ *
+ * then you get back an `object` like
+ * ```{
+ *  'foo.bar.baz.a': 1,
+ *  'foo.bar.baz.b': 2,
+ *  'foo.bar.baz.c': 3,
+ * ```
+ *
+ * At that point, diffing two objects is trivial.
+ */
+function decompose(head: (string | symbol | number)[], input: any, seen: Array<any>, output: object) {
+    let t = typeof input;
+    switch (t) {
+        case 'function':
+        case 'undefined':
+        case 'symbol':
+            return;
+        case 'bigint':
+        case 'string':
+        case 'boolean':
+        case 'number':
+            output[head.join('.')] = input;
+            break;
+        case 'object':
+            if (Array.isArray(input)) {
+                let arr = input as any[];
+                for (let i = 0; i < arr.length; i++) {
+                    let nue = [...head, i.toString()];
+                    if (typeof arr[i] === 'object' && seen.indexOf(nue) >= 0) {
+                        return;
+                    } else if (typeof arr[i] === 'object') {
+                        seen.push(arr[i]);
+                    }
+                    decompose(nue, arr[i], seen, output);
+                }
+            } else if (typeof input.forEach === 'function') {
+                // Just to dispel any illusion that typescript is anything more
+                // than libstick on a very ugly pig...
+                //
+                // SUBCLASSES of Array return NOTHING for their keys.
+                // Nothing with Object.keys().  Nothing with Reflect.ownKeys()
+                // Nothing with for (let key in ...).
+                //
+                // Sigh...
+                let counter = 0;
+                input.forEach((v, k) => {
+                    let nm = (k === v) ? counter++ : k;
+                    if (seen.indexOf(v) >= 0) {
+                        return;
+                    }
+                    seen.push(v);
+                    let nue = [...head, "" + nm];
+                    decompose(nue, v, seen, output);
+                });
+            } else {
+                for (let k in input) {
+                    let nue = [...head, k];
+                    let data = Reflect.get(input, k);
+                    if (typeof data === 'object' && seen.indexOf(nue) >= 0) {
+                        console.log("  already seen");
+                        return;
+                    } else if (typeof data === 'object') {
+                        seen.push(data);
+                    }
+                    decompose(nue, data, seen, output);
+                }
+            }
+            break;
+        default:
+            console.log("???? type: " + t);
+    }
 }
