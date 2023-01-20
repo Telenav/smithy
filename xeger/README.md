@@ -30,6 +30,18 @@ uuids.forEach(System.out::println);
 // 8bae32b1-aba0-2adc-ece5-214e6a2e84a0
 // b256dcda-80e6-54a7-74e7-33aa5eeae3db
 
+// Now generate some strings that definitely DON'T match:
+        xeger.confound().ifPresent(confounded -> {
+            for (int i = 0; i < 5; i++) {
+                System.out.println(confounded.emit(rnd));
+            }
+//          Output like
+//            d.e.b.8.e66b4
+//            0ba0...2b.cdc64
+//           16.e...ac8807d6
+//           dbb0.e6.11..4d7c46a
+        });
+
 ```
 
 But Why???
