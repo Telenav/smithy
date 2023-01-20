@@ -59,6 +59,7 @@ import static software.amazon.smithy.model.shapes.ShapeType.STRING;
 import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
 import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 import software.amazon.smithy.model.shapes.StructureShape;
+import software.amazon.smithy.model.traits.MixinTrait;
 
 /**
  *
@@ -111,15 +112,16 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
             case BYTE:
             case STRING:
             case TIMESTAMP:
-            case STRUCTURE:
             case BOOLEAN:
             case LIST:
             case MAP:
             case DOCUMENT:
-//            case UNION:
             case SHORT:
             case SET:
                 return true;
+            case STRUCTURE:
+                // We don't test interfaces, just implementations
+                return !shape.getTrait(MixinTrait.class).isPresent();
             default:
                 return false;
         }
@@ -127,8 +129,7 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
 
     private void maybeDefineFunctionList(TypescriptSource src) {
         if (src.mark(TEST_FUNCTIONS_ARRAY_NAME)) {
-            src.declareType("TestFunction").ofFunctionType()
-                    .withArgument("suite").ofType("TestSuite").returningVoid().close();
+            src.statement("type TestFunction = (suite: TestSuite) => void;");
             src.declareConst(TEST_FUNCTIONS_ARRAY_NAME).ofComplexType("Array").withTypeParameter("TestFunction").endType()
                     .assignedTo("[]");
             src.function("createTests", func -> {
@@ -160,7 +161,7 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
     protected void generate(TypescriptSource src, TestContext testContext) {
         if (shape.isUnionShape()) {
             // We do not need direct tests of union shapes - they will be covered
-            // by the tests of their members.
+            // by the tests of their members - they don't really exist in typescript code
             return;
         }
         testContext.generatorFor(shape).ifPresent(gen -> {
@@ -175,55 +176,65 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
                     "InputWithDescription", "TestCollection", "Test")
                     .from(TEST_SUPPORT_IMPORT_FILENAME);
 
-            if (gen.canGenerateValidValues()) {
-                boolean multiplePermutations = !gen.validPermutationsExhausted();
-                Int counter = Int.of(1);
-                Consumer<RandomInstance<?>> validPermutationGenerator = instance -> {
-                    String suffix = multiplePermutations ? "_" + counter.increment() : "";
-                    String populateFunction = escape("addValid" + typeName + "Tests" + suffix);
-                    src.function(populateFunction, f -> {
-                        f.withArgument("suite").ofType("TestSuite");
-                        f.docComment("Tests the shape " + shape.getId().getName()
-                                + " - fields, JSON seriialization, etc.");
-                        f.body(bb -> {
-                            bb.lineComment(gen.getClass().getSimpleName());
-                            generateValidInstanceTest(instance, bb, testContext);
-                        });
-                    });
-                    maybeDefineFunctionList(src);
-                    addTestFunction(populateFunction, src);
-                };
-                do {
-                    Optional<RandomInstance<?>> i = (Optional) gen.valid(testContext);
-                    i.ifPresent(validPermutationGenerator);
-                } while (!gen.validPermutationsExhausted());
-            }
-
-            if (gen.canGenerateInvalidValues()) {
-                boolean multiplePermutations = !gen.invalidPermutationsExhausted();
-                Int invalidCounter = Int.of(1);
-                Consumer<RandomInstance<?>> invalidPermutationGenerator = instance -> {
-                    String suffix = instance.invalidityDescription().map(desc -> {
-                        return "_invalid_" + desc + "_" + invalidCounter.increment();
-                    }).orElse(multiplePermutations ? "_" + invalidCounter.increment() : "");
-//                    String suffix = multiplePermutations ? "_" + counter.increment() : "";
-                    String populateFunction = escape("addInvalid" + typeName + "Tests" + suffix);
-                    src.function(populateFunction, f -> {
-                        f.withArgument("suite").ofType("TestSuite");
-                        f.body(bb -> {
-                            bb.lineComment(gen.getClass().getSimpleName());
-                            generateInvalidInstanceTest(instance, bb, testContext);
-                        });
-                    });
-                    maybeDefineFunctionList(src);
-                    addTestFunction(populateFunction, src);
-                };
-                do {
-                    Optional<RandomInstance<?>> i = (Optional) gen.invalid(testContext);
-                    i.ifPresent(invalidPermutationGenerator);
-                } while (!gen.invalidPermutationsExhausted());
-            }
+            generateValidInstanceTestFunctions(gen, typeName, src, testContext);
+            generateInvalidInstanceTestFunctions(gen, typeName, src, testContext);
         });
+    }
+
+    private void generateInvalidInstanceTestFunctions(RandomInstanceGenerator<?> gen, String typeName, TypescriptSource src, TestContext testContext) {
+        if (gen.canGenerateInvalidValues()) {
+            boolean multiplePermutations = !gen.invalidPermutationsExhausted();
+            Int invalidCounter = Int.of(1);
+            Consumer<RandomInstance<?>> invalidPermutationGenerator = instance -> {
+                String suffix = instance.invalidityDescription().map(desc -> {
+                    return "_invalid_" + desc + "_" + invalidCounter.increment();
+                }).orElse(multiplePermutations ? "_" + invalidCounter.increment() : "");
+
+                String populateFunction = escape("addInvalid" + typeName + "Tests" + suffix);
+                src.function(populateFunction, f -> {
+                    f.withArgument("suite").ofType("TestSuite");
+                    f.body(bb -> {
+                        instance.invalidityDescription().ifPresent(desc -> {
+                            bb.lineComment("Invalid via " + desc);
+                        });
+                        bb.lineComment(gen.getClass().getSimpleName());
+                        generateInvalidInstanceTest(instance, bb, testContext);
+                    });
+                });
+                maybeDefineFunctionList(src);
+                addTestFunction(populateFunction, src);
+            };
+            do {
+                Optional<RandomInstance<?>> i = (Optional) gen.invalid(testContext);
+                i.ifPresent(invalidPermutationGenerator);
+            } while (!gen.invalidPermutationsExhausted());
+        }
+    }
+
+    private void generateValidInstanceTestFunctions(RandomInstanceGenerator<?> gen, String typeName, TypescriptSource src, TestContext testContext) {
+        if (gen.canGenerateValidValues()) {
+            boolean multiplePermutations = !gen.validPermutationsExhausted();
+            Int counter = Int.of(1);
+            Consumer<RandomInstance<?>> validPermutationGenerator = instance -> {
+                String suffix = multiplePermutations ? "_" + counter.increment() : "";
+                String populateFunction = escape("addValid" + typeName + "Tests" + suffix);
+                src.function(populateFunction, f -> {
+                    f.withArgument("suite").ofType("TestSuite");
+                    f.docComment("Tests the shape " + shape.getId().getName()
+                            + " - fields, JSON seriialization, etc.");
+                    f.body(bb -> {
+                        bb.lineComment(gen.getClass().getSimpleName());
+                        generateValidInstanceTest(instance, bb, testContext);
+                    });
+                });
+                maybeDefineFunctionList(src);
+                addTestFunction(populateFunction, src);
+            };
+            do {
+                Optional<RandomInstance<?>> i = (Optional) gen.valid(testContext);
+                i.ifPresent(validPermutationGenerator);
+            } while (!gen.validPermutationsExhausted());
+        }
     }
 
     private <B extends TsBlockBuilderBase<T, B>, T> void generateValidInstanceTest(RandomInstance<?> instance,
@@ -248,7 +259,13 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
 
     private <B extends TsBlockBuilderBase<T, B>, T> void generateInvalidInstanceTest(RandomInstance<?> instance,
             B bb, TestContext testContext) {
+        if (instance.valid) {
+            throw new IllegalArgumentException("Should be generating an invalid instance, "
+                    + "but was passed a VALID instance of " + instance.getClass().getSimpleName(),
+                    instance.created);
+        }
         String varName = instance.instantiate(bb, testContext);
+        String info = instance.invalidityDescription().map(desc -> "-" + desc).orElse("");
         bb.declare("processor")
                 .assignedToInvocationOf("chain")
                 .withLambda(lb -> {
@@ -259,9 +276,9 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
                             gen.generate(shape, "chain", false, varName, lbb, testContext, instance, strategies);
                         });
                     });
-                }).withStringLiteralArgument(tsTypeName(shape)).on("suite");
+                }).withStringLiteralArgument(tsTypeName(shape) + info).on("suite");
         bb.invoke("processor").withArrayLiteral(al -> {
-            String info = instance.invalidityDescription().map(desc -> "-" + desc).orElse("");
+
             al.literal(shape.getId().getName() + "-invalid" + info);
             al.expression(varName);
         }).inScope();

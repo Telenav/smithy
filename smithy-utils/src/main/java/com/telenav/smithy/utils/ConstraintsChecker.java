@@ -21,9 +21,11 @@ import java.util.Optional;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.MemberShape;
+import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.traits.LengthTrait;
 import software.amazon.smithy.model.traits.RangeTrait;
 import software.amazon.smithy.model.traits.Trait;
+import software.amazon.smithy.model.traits.UniqueItemsTrait;
 import software.amazon.smithy.utils.Pair;
 
 /**
@@ -60,9 +62,41 @@ public final class ConstraintsChecker {
     public void check() {
         pair(LengthTrait.class).ifPresent(lengths -> {
             check(lengths.left, lengths.right);
+            Shape target = model.expectShape(member.getTarget());
+            if (target.isListShape() && target.hasTrait(UniqueItemsTrait.class)) {
+                MemberShape mem = target.asListShape().get().getMember();
+                sanityCheckTypeIsConstructible(mem, lengths.left);
+                sanityCheckTypeIsConstructible(mem, lengths.right);
+            } else if (target.isMapShape()) {
+                MemberShape mem = target.asMapShape().get().getKey();
+                sanityCheckTypeIsConstructible(mem, lengths.left);
+                sanityCheckTypeIsConstructible(mem, lengths.right);
+            }
         });
         pair(RangeTrait.class).ifPresent(lengths -> {
             check(lengths.left, lengths.right);
+        });
+    }
+
+    private void sanityCheckTypeIsConstructible(MemberShape mem, LengthTrait len) {
+        Shape memberTarget = model.expectShape(mem.getTarget());
+        if (memberTarget.isEnumShape()) {
+            int count = memberTarget.asEnumShape().get().getEnumValues().size();
+            checkMaxConstantsCanFit(count, len, mem);
+        } else if (memberTarget.isIntEnumShape()) {
+            int count = memberTarget.asEnumShape().get().getEnumValues().size();
+            checkMaxConstantsCanFit(count, len, mem);
+        }
+    }
+
+    private void checkMaxConstantsCanFit(int count, LengthTrait trait, Shape memberTarget) {
+        trait.getMin().ifPresent(min -> {
+            if (min > count) {
+                throw new ExpectationNotMetException("This shape is a set or map of "
+                        + "the enumerated type " + memberTarget.getId()
+                        + ", but the minimum size is greater than the number of "
+                        + "enum constants.  A valid instance cannot be created.", member);
+            }
         });
     }
 

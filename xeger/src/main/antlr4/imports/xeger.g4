@@ -13,24 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.telenav.smithy.openapi.wrapper;
-
-import com.mastfrog.util.service.ServiceProvider;
-import java.util.List;
-import software.amazon.smithy.model.traits.Trait;
-import software.amazon.smithy.openapi.fromsmithy.OpenApiProtocol;
-import software.amazon.smithy.openapi.fromsmithy.Smithy2OpenApiExtension;
+lexer grammar rex;
 
 /**
- *
- * @author Tim Boudreau
+ * This is a slightly tweaked version of
+ * https://github.com/bkiers/pcre-parser
  */
-@ServiceProvider(Smithy2OpenApiExtension.class)
-public class GenericRestOpenApiExtension implements Smithy2OpenApiExtension {
 
-    @Override
-    public List<OpenApiProtocol<? extends Trait>> getProtocols() {
-        return List.of(new GenericRestProtocol());
-    }
-
-}
+// fragments
+fragment UnderscoreAlphaNumerics : ('_' | AlphaNumeric)+;
+fragment AlphaNumerics           : AlphaNumeric+;
+fragment AlphaNumeric            : [a-zA-Z0-9];
+fragment NonAlphaNumeric         : ~[a-zA-Z0-9];
+fragment HexDigit                : [0-9a-fA-F];
+fragment ASCII                   : [\u0000-\u007F];

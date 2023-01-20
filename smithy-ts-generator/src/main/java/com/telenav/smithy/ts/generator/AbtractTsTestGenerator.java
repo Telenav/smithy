@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.ts.generator;
 
+import com.mastfrog.function.state.Obj;
 import com.mastfrog.util.strings.Escaper;
 import static com.mastfrog.util.strings.Strings.decapitalize;
 import com.telenav.smithy.extensions.SamplesTrait;
@@ -45,6 +46,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import static java.util.Arrays.asList;
 import java.util.Collections;
+import static java.util.Collections.emptyList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -56,22 +58,25 @@ import java.util.Random;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.BooleanShape;
 import software.amazon.smithy.model.shapes.EnumShape;
 import software.amazon.smithy.model.shapes.IntEnumShape;
 import software.amazon.smithy.model.shapes.ListShape;
+import software.amazon.smithy.model.shapes.MapShape;
 import software.amazon.smithy.model.shapes.MemberShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
+import static software.amazon.smithy.model.shapes.ShapeType.STRUCTURE;
 import software.amazon.smithy.model.shapes.StringShape;
 import software.amazon.smithy.model.shapes.StructureShape;
 import software.amazon.smithy.model.shapes.TimestampShape;
 import software.amazon.smithy.model.traits.LengthTrait;
+import software.amazon.smithy.model.traits.MixinTrait;
 import software.amazon.smithy.model.traits.PatternTrait;
 import software.amazon.smithy.model.traits.RangeTrait;
-import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.model.traits.UniqueItemsTrait;
 
@@ -170,14 +175,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             if (generators.containsKey(shape.getId())) {
                 return Optional.of(generators.get(shape.getId()));
             }
-
-            Shape realShape;
-            Optional<MemberShape> memberShape = shape.asMemberShape();
-            if (memberShape.isPresent()) {
-                realShape = model.expectShape(memberShape.get().getTarget());
-            } else {
-                realShape = shape;
-            }
+            Shape realShape = locateRealShape(shape.asMemberShape(), shape);
             TraitFinder traits = traits(shape, model);
             RandomInstanceGenerator<?> result = null;
             switch (realShape.getType()) {
@@ -273,7 +271,8 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                         gens.removeAll(memberGenerators.keySet());
                         for (MemberShape mem : gens) {
                             Shape sh = model.expectShape(mem.getTarget());
-                            src.lineComment(" * " + sh.getType() + " " + sh.getId().getName() + " " + mem.getMemberName());
+                            src.lineComment(" * " + sh.getType() + " " + sh.getId().getName()
+                                    + " " + mem.getMemberName());
                         }
                         generators.remove(shape.getId());
                     }
@@ -287,13 +286,61 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                     }
                     break;
                 case MAP:
-
+                    MapShape mapShape = realShape.asMapShape().get();
+                    Optional<RandomInstanceGenerator<?>> keyGen = generatorFor(mapShape.getKey());
+                    Optional<RandomInstanceGenerator<?>> valGen = generatorFor(mapShape.getValue());
+                    if (keyGen.isPresent() && valGen.isPresent()) {
+                        result = new RandomMapGenerator(this, mapShape, traits, keyGen.get(),
+                                valGen.get());
+                    } else {
+                        if (!keyGen.isPresent()) {
+                            src.lineComment("No key generator for " + realShape.getId().getName());
+                        }
+                        if (!valGen.isPresent()) {
+                            src.lineComment("No value generator for " + realShape.getId().getName());
+                        }
+                    }
+                    break;
             }
             if (result != null) {
                 importer.accept(realShape);
                 generators.put(shape.getId(), result);
+            } else {
+                src.lineComment("NO GENERATOR FOR " + realShape.getType()
+                        + " " + realShape.getId().getName() + " for " + shape.getId());
             }
             return Optional.ofNullable(result);
+        }
+
+        private Shape locateRealShape(Optional<MemberShape> memberShape, Shape originalShape) {
+            Shape realShape;
+            if (memberShape.isPresent()) {
+                realShape = model.expectShape(memberShape.get().getTarget());
+            } else {
+                realShape = originalShape;
+            }
+            // If we have a Mixin type, we need to reify that into some concrete implementation
+            // of it.  While we don't generate tests for interfaces (since there's nothing to
+            // test), they may appear as members of other types
+            if (realShape.getTrait(MixinTrait.class).isPresent()) {
+                List<Shape> candidates = new ArrayList<>();
+                model.getShapeIds().forEach(sid -> {
+                    Shape s = model.expectShape(sid);
+                    if (s.getType() == STRUCTURE) {
+                        if (s.getMixins().contains(originalShape.getId())
+                                && !s.getTrait(MixinTrait.class).isPresent()) {
+                            candidates.add(s);
+                        }
+                    }
+                });
+                if (!candidates.isEmpty()) {
+                    return candidates.get(random.nextInt(candidates.size() + 1));
+                } else {
+                    throw new ExpectationNotMetException("Test needs an implementation of "
+                            + realShape.getId() + " but none can be found in the model.", realShape);
+                }
+            }
+            return realShape;
         }
 
         Random rnd() {
@@ -376,6 +423,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         final S shape;
         final boolean valid;
         String lastVarName;
+        Exception created = new Exception();
 
         RandomInstance(S shape, boolean valid) {
             this.shape = shape;
@@ -447,7 +495,11 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             String type = ctx.strategy(shape).targetType();
             decl.ofType(type);
             if (!TsTypeUtils.isNotUserType(shape)) {
-                decl.assignedToNew().withStringLiteralArgument(value).ofType(type);
+                if (shape.isEnumShape()) {
+                    decl.assignedToStringLiteral(value);
+                } else {
+                    decl.assignedToNew().withStringLiteralArgument(value).ofType(type);
+                }
             } else {
                 decl.assignedToStringLiteral(value);
             }
@@ -482,10 +534,12 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
     static class RandomNumberInstance extends RandomInstance<Shape> implements Valued {
 
         private final Number value;
+        private final String invalidity;
 
-        RandomNumberInstance(Number number, Shape shape, boolean valid) {
-            super(shape, valid);
+        RandomNumberInstance(Number number, Shape shape, String invalidity) {
+            super(shape, invalidity == null);
             this.value = number;
+            this.invalidity = invalidity;
         }
 
         @Override
@@ -493,7 +547,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             if (valid) {
                 return Optional.empty();
             }
-            return Optional.of(Escaper.JAVA_IDENTIFIER_DELIMITED.escape(value.toString()));
+            return Optional.of(Escaper.JAVA_IDENTIFIER_DELIMITED.escape(value.toString() + "_" + invalidity));
         }
 
         @Override
@@ -595,6 +649,13 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
     interface TraitFinder {
 
         <T extends Trait> Optional<T> find(Class<T> trait);
+    }
+
+    interface NamedInstanceFetcher {
+
+        List<RandomInstance<?>> get(TestContext ctx);
+
+        String name();
     }
 
     static class SimpleTraitFinder implements TraitFinder {
@@ -732,7 +793,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                 double range = maximum - minimum;
                 double target = minimum + (ctx.rnd().nextDouble() * range);
 
-                return new RandomNumberInstance(target, shape, true);
+                return new RandomNumberInstance(target, shape, null);
 
             } else {
                 Long minimum = traits.find(RangeTrait.class).flatMap(rng -> {
@@ -753,7 +814,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
                 long range = maximum - minimum;
                 long target = minimum + (ctx.rnd().nextLong(range));
-                return new RandomNumberInstance(target, shape, true);
+                return new RandomNumberInstance(target, shape, null);
             }
         }
 
@@ -785,7 +846,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                     target = maximum - (1 + ctx.rnd().nextDouble() * 256D);
                 }
 
-                return new RandomNumberInstance(target, shape, true);
+                return new RandomNumberInstance(target, shape, "outside_range");
 
             } else {
                 Long minimum = traits.find(RangeTrait.class).flatMap(rng -> {
@@ -810,7 +871,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                 } else {
                     target = maximum + 1 + ctx.rnd().nextInt(256);
                 }
-                return new RandomNumberInstance(target, shape, true);
+                return new RandomNumberInstance(target, shape, "outside_range");
             }
         }
 
@@ -894,7 +955,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
         @Override
         protected RandomInstance<StringShape> newInvalidValue(TestContext ctx) {
-            return new RandomStringInstance<>(randomString(), shape, false);
+            return new RandomStringInstance<>(randomInvalidString(), shape, false);
         }
 
         @Override
@@ -905,16 +966,15 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         String randomInvalidString() {
             int min = minLength();
             int max = maxLength();
-            if (min == 0 && max > 256) {
+            if (min == 1 && max > 256) {
                 return "";
             }
             int target;
             if (min > 1) {
-                target = ctx.rnd().nextInt(min - 1) + 1;
-
+                target = ctx.rnd().nextInt(min);
             } else {
                 int base = max + 1;
-                target = base + ctx.rnd().nextInt(32);
+                target = base + ctx.rnd().nextInt(12);
             }
             return randomString(target);
         }
@@ -1264,6 +1324,36 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             return true;
         }
     }
+    
+    static class ValueBoundsInfo {
+        private final int maxValues;
+        private final boolean isSufficient;
+
+        ValueBoundsInfo(int maxValues, boolean isSufficient) {
+            this.maxValues = maxValues;
+            this.isSufficient = isSufficient;
+        }
+        
+        int constrain(int targetAmount) {
+            return Math.min(maxValues, targetAmount);
+        }
+    }
+    
+    interface FiniteInvalidInstanceGenerator {
+        int totalValidValues();
+        int totalInvalidValues();
+        default ValueBoundsInfo canCreateSufficientValidValues(LengthTrait t) {
+            int tot = totalValidValues();
+            if (tot == Integer.MAX_VALUE) {
+                return new ValueBoundsInfo(tot, true);
+            }
+            return t.getMin().map(m -> new ValueBoundsInfo(m.intValue(), m.intValue() > tot))
+                    .orElse(new ValueBoundsInfo(-1, false));
+        }
+        default ValueBoundsInfo canCreateSufficientInvalidValues(LengthTrait t) {
+            return null; // FIXME
+        }
+    }
 
     static class RandomStructureInstanceGenerator extends AbstractInstanceGenerator<StructureShape> {
 
@@ -1444,7 +1534,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
     static class ListAndSetGenerator extends AbstractInstanceGenerator<ListShape> {
 
         private final RandomInstanceGenerator<?> memberGenerator;
-        private final List<NamedListFetcher> fetchers = new ArrayList<>();
+        private final List<NamedInstanceFetcher> fetchers = new ArrayList<>();
         private int fetcherCursor;
 
         ListAndSetGenerator(TestContext ctx, ListShape shape, TraitFinder traits,
@@ -1483,15 +1573,8 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             return (int) res;
         }
 
-        interface NamedListFetcher {
-
-            List<RandomInstance<?>> get(TestContext ctx);
-
-            String name();
-        }
-
-        NamedListFetcher invalidListMember() {
-            return new NamedListFetcher() {
+        NamedInstanceFetcher invalidListMember() {
+            return new NamedInstanceFetcher() {
                 @Override
                 public List<RandomInstance<?>> get(TestContext ctx) {
                     return ListAndSetGenerator.this.invalidListMember(ctx);
@@ -1504,8 +1587,8 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             };
         }
 
-        NamedListFetcher invalidTooSmall() {
-            return new NamedListFetcher() {
+        NamedInstanceFetcher invalidTooSmall() {
+            return new NamedInstanceFetcher() {
                 @Override
                 public List<RandomInstance<?>> get(TestContext ctx) {
                     return ListAndSetGenerator.this.invalidItemsTooSmall(ctx);
@@ -1513,21 +1596,21 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
                 @Override
                 public String name() {
-                    return "too-small";
+                    return "too_small";
                 }
             };
         }
 
-        NamedListFetcher invalidTooLarge() {
-            return new NamedListFetcher() {
+        NamedInstanceFetcher invalidTooLarge() {
+            return new NamedInstanceFetcher() {
                 @Override
                 public List<RandomInstance<?>> get(TestContext ctx) {
-                    return ListAndSetGenerator.this.invalidItemsTooSmall(ctx);
+                    return ListAndSetGenerator.this.invalidItemsTooLarge(ctx);
                 }
 
                 @Override
                 public String name() {
-                    return "too-small";
+                    return "too_small";
                 }
             };
         }
@@ -1556,9 +1639,9 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             List<RandomInstance<?>> result = new ArrayList<>();
             int min = min();
             if (min == 1) {
-                return result;
+                return emptyList();
             }
-            int count = Math.min(16, ctx.rnd().nextInt(min - 1));
+            int count = Math.min(Math.min(min, 16), ctx.rnd().nextInt(min));
             for (int i = 0; i < count; i++) {
                 result.add(memberGenerator.valid(ctx).get());
             }
@@ -1580,22 +1663,35 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             return fetchers.get((fetcherCursor++) % fetchers.size()).get(ctx);
         }
 
-        NamedListFetcher currentFetcher() {
+        NamedInstanceFetcher currentFetcher() {
             return fetchers.get(fetcherCursor % fetchers.size());
         }
 
-        List<RandomInstance<?>> validItems(TestContext ctx) {
+        List<RandomInstance<?>> validItems(TestContext ctx, Obj<String> comment) {
             List<RandomInstance<?>> result = new ArrayList<>();
             int min = min();
             int max = max();
             if (max == min) {
-                return asList(memberGenerator.valid(ctx).get());
+                comment.set("Max exactly equals min of " + min);
+                List<RandomInstance<?>> l = new ArrayList<>();
+                for (int i = 0; i < max; i++) {
+                    l.add(memberGenerator.valid(ctx).get());
+                }
+                return l;
             }
-            int range = Math.max(0, Math.min(24, max - min));
-            if (range == 0) {
-                throw new Error("Max: " + max + " / Min: " + min + " got range of 0");
+            int count;
+            if (max == Integer.MAX_VALUE && min == 0) {
+                // (max - min) + 1 will equal zero
+                count = ctx.rnd().nextInt(8);
+            } else {
+                int range = Math.max(0, Math.min(8, (max - min) + 1));
+                if (range == 0) {
+                    throw new Error("Max: " + max + " / Min: " + min + " got range of 0");
+                }
+                count = min + ctx.rnd().nextInt(range);
             }
-            int count = min + ctx.rnd().nextInt(range);
+            // deleteme - debug
+            comment.set("Valid items: max = " + max + " min = " + min + " targetting " + count);
             for (int i = 0; i < count; i++) {
                 result.add(memberGenerator.valid(ctx).get());
             }
@@ -1614,10 +1710,15 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                 result = traits.find(LengthTrait.class).map(tr -> {
                     long min = tr.getMin().orElse(0L);
                     long max = tr.getMax().orElse((long) Integer.MAX_VALUE);
-                    return (min > 0 && min < 256) || max < Integer.MAX_VALUE;
+                    boolean res = (min > 0 && min < 256) || max < 256;
+                    return res;
                 }).orElse(false);
             }
             return result;
+        }
+        
+        private boolean checkCanGenerateEnoughValues(LengthTrait len) {
+            return true;
         }
 
         @Override
@@ -1627,13 +1728,18 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
         @Override
         protected RandomInstance<ListShape> newValidValue(TestContext ctx) {
-            return new RandomListInstance(shape, validItems(ctx), null);
+            Obj<String> cmt = Obj.create();
+            List<RandomInstance<?>> items = validItems(ctx, cmt);
+            return new RandomListInstance(shape, items, null, cmt.get());
         }
 
         @Override
         protected RandomInstance<ListShape> newInvalidValue(TestContext ctx) {
             String invalidity = currentFetcher().name();
-            return new RandomListInstance(shape, invalidItems(ctx), invalidity);
+            if (invalidity == null) {
+                throw new Error("Invalidity should not be null.");
+            }
+            return new RandomListInstance(shape, invalidItems(ctx), invalidity, invalidity);
         }
     }
 
@@ -1642,12 +1748,16 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         private final String invalidity;
         private final List<RandomInstance<?>> members;
         private final boolean isSet;
+        private final String comment;
 
-        public RandomListInstance(ListShape shape, List<RandomInstance<?>> members, String invalidity) {
-            super(shape, invalidity != null);
+        @SuppressWarnings("deprecation")
+        public RandomListInstance(ListShape shape, List<RandomInstance<?>> members,
+                String invalidity, String comment) {
+            super(shape, invalidity == null);
             this.members = members;
             this.invalidity = invalidity;
             isSet = shape.isSetShape() || shape.getTrait(UniqueItemsTrait.class).isPresent();
+            this.comment = comment;
         }
 
         @Override
@@ -1660,8 +1770,10 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             List<String> vars = new ArrayList<>();
             members.forEach(mem -> vars.add(mem.instantiate(bb, ctx)));
             TypeStrategy<?> strat = ctx.strategy(shape);
-            boolean isModelDefined = strat.isModelDefined();
             String varName = ctx.varFor(shape);
+            if (comment != null) {
+                bb.blankLine().lineComment(comment);
+            }
             bb.declare(varName).ofType(strat.targetType()).assignedToNew(nb -> {
                 nb.withArrayLiteral(ab -> {
                     vars.forEach(v -> ab.expression(v));
@@ -1689,21 +1801,6 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
     @Override
     protected boolean canImplementValidating() {
         return false;
-    }
-
-    @Override
-    protected <T> void applyValidatableInterface(ClassBuilder<T> cb) {
-        // do nothing
-    }
-
-    @Override
-    protected <T> void applyValidatableInterface(InterfaceBuilder<T> ib) {
-        // do nothing
-    }
-
-    @Override
-    protected void maybeGenerateValidationInterface(TypescriptSource ts) {
-        // do nothing
     }
 
     static class UnionGenerator extends AbstractInstanceGenerator<Shape> {
@@ -1763,5 +1860,282 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         public boolean validPermutationsExhausted() {
             return validCursor >= validCapable.size();
         }
+    }
+
+    static class MapPair {
+
+        final RandomInstance<?> key;
+        final RandomInstance<?> value;
+
+        MapPair(RandomInstance<?> key, RandomInstance<?> value) {
+            this.key = key;
+            this.value = value;
+        }
+    }
+
+    static final class RandomMapInstance extends RandomInstance<MapShape> {
+
+        private final List<MapPair> pairs;
+        private final String invalidity;
+
+        RandomMapInstance(MapShape shape,
+                List<MapPair> pairs, String invalidity) {
+            super(shape, invalidity == null);
+            this.pairs = pairs;
+            this.invalidity = invalidity;
+        }
+
+        @Override
+        Optional<String> invalidityDescription() {
+            return Optional.ofNullable(invalidity);
+        }
+
+        @Override
+        <B extends TsBlockBuilderBase<T, B>, T> String instantiate(B bb, TestContext ctx) {
+            String vn = ctx.varFor(shape);
+            TypeStrategy<?> strat = ctx.strategy(shape);
+            if (invalidity != null) {
+                bb.blankLine().lineComment("Invalid via " + invalidity + " with " + pairs.size());
+            } else {
+                bb.lineComment("Valid map with " + pairs.size());
+            }
+            bb.declare(vn).ofType(strat.targetType())
+                    .assignedToNew().ofType(strat.targetType());
+
+            pairs.forEach(pair -> {
+                String k = pair.key.instantiate(bb, ctx);
+                String v = pair.value.instantiate(bb, ctx);
+                bb.invoke("set").withArgument(k).withArgument(v).on(vn);
+            });
+
+            return vn;
+        }
+    }
+
+    interface NamedFunction<T, R> extends Function<T, R> {
+
+        String name();
+    }
+
+    static <T, R> NamedFunction<T, R> namedFunction(String name, Function<? super T, ? extends R> f) {
+        return new NamedWrapper<>(name, f);
+    }
+
+    private static final class NamedWrapper<T, R> implements NamedFunction<T, R> {
+
+        private final String name;
+        private final Function<? super T, ? extends R> func;
+
+        public NamedWrapper(String name, Function<? super T, ? extends R> func) {
+            this.name = name;
+            this.func = func;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public R apply(T t) {
+            return func.apply(t);
+        }
+
+    }
+
+    static final class RandomMapGenerator extends AbstractInstanceGenerator<MapShape> {
+
+        private final RandomInstanceGenerator<?> keys;
+        private final RandomInstanceGenerator<?> values;
+        private final List<NamedFunction<TestContext, RandomInstance<MapShape>>> invalidGenerators
+                = new ArrayList<>();
+        private int invalidGeneratorsCursor;
+
+        public RandomMapGenerator(TestContext ctx, MapShape shape, TraitFinder traits,
+                RandomInstanceGenerator<?> keys, RandomInstanceGenerator<?> values) {
+            super(ctx, shape, traits);
+            this.keys = keys;
+            this.values = values;
+            if (keys.canGenerateInvalidValues()) {
+                invalidGenerators.add(namedFunction("with_invalid_value", this::invalidKeyMap));
+            }
+            if (keys.canGenerateInvalidValues()) {
+                invalidGenerators.add(namedFunction("with_invalid_key", this::invalidValueMap));
+            }
+            if (canCreateInvalidLengthLow()) {
+                invalidGenerators.add(namedFunction("too_small", this::invalidValueLengthLow));
+            }
+            if (canCreateInvalidLengthHigh()) {
+                invalidGenerators.add(namedFunction("too_large", this::invalidValueLengthHigh));
+            }
+        }
+
+        @Override
+        public boolean invalidPermutationsExhausted() {
+            return invalidGeneratorsCursor >= invalidGenerators.size();
+        }
+
+        NamedFunction<TestContext, RandomInstance<MapShape>> nextInvalidGenerator() {
+            return invalidGenerators.get((invalidGeneratorsCursor++) % invalidGenerators.size());
+        }
+
+        int minSize() {
+            return traits.find(LengthTrait.class).flatMap(len -> len.getMin().map(l -> l.intValue())).orElse(0);
+        }
+
+        int maxSize() {
+            return traits.find(LengthTrait.class).flatMap(len -> len.getMin().map(l -> l.intValue())).orElse(Integer.MAX_VALUE);
+        }
+
+        private int validTargetSize() {
+            int min = minSize();
+            int max = maxSize();
+            if (max == 0) {
+                return 0;
+            }
+            int target;
+            if (min == max) {
+                target = min;
+            } else {
+                int range = (max - min) + 1;
+                if (range > 8) {
+                    range = 8;
+                }
+                target = min + Math.max(1, ctx.rnd().nextInt(range));
+            }
+            return target;
+        }
+
+        @Override
+        protected RandomInstance<MapShape> newValidValue(TestContext ctx) {
+            int sz = validTargetSize();
+            return createFromValidPairs(sz, ctx, null);
+        }
+
+        private RandomInstance<MapShape> createFromValidPairs(int sz, TestContext ctx1, String inv) {
+            List<MapPair> pairs = new ArrayList<>(sz);
+            for (int i = 0; i < sz; i++) {
+                pairs.add(validPair(ctx1));
+            }
+            return new RandomMapInstance(shape, pairs, inv);
+        }
+
+        @Override
+        protected RandomInstance<MapShape> newInvalidValue(TestContext ctx) {
+            return nextInvalidGenerator().apply(ctx);
+        }
+
+        private RandomInstance<MapShape> invalidKeyMap(TestContext ctx) {
+            int sz = validTargetSize();
+            int culprit = sz == 1 ? 0 : ctx.rnd().nextInt(sz);
+            List<MapPair> pairs = new ArrayList<>(sz);
+            for (int i = 0; i < sz; i++) {
+                if (i == culprit) {
+                    pairs.add(invalidKeyPair(ctx));
+                } else {
+                    pairs.add(validPair(ctx));
+                }
+            }
+            return new RandomMapInstance(shape, pairs, "invalid_key");
+        }
+
+        private RandomInstance<MapShape> invalidValueMap(TestContext ctx) {
+            int sz = validTargetSize();
+            int culprit = sz == 1 ? 0 : ctx.rnd().nextInt(sz);
+            List<MapPair> pairs = new ArrayList<>(sz);
+            for (int i = 0; i < sz; i++) {
+                if (i == culprit) {
+                    pairs.add(invalidValuePair(ctx));
+                } else {
+                    pairs.add(validPair(ctx));
+                }
+            }
+            return new RandomMapInstance(shape, pairs, "invalid_value");
+        }
+
+        private RandomInstance<MapShape> invalidValueLengthLow(TestContext ctx) {
+            int min = minSize();
+            assert min > 0;
+            int target;
+            if (min > 1) {
+                target = ctx.rnd().nextInt(min - 1);
+            } else {
+                target = 0;
+            }
+            return createFromValidPairs(target, ctx, "below_minimum_length");
+        }
+
+        private RandomInstance<MapShape> invalidValueLengthHigh(TestContext ctx) {
+            int max = maxSize();
+            assert max < Integer.MAX_VALUE;
+            int start = max + 1;
+            int target = ctx.rnd().nextInt(8) + start;
+            return createFromValidPairs(target, ctx, "above_maximum_length");
+        }
+
+        boolean canCreateInvalidLengthHigh() {
+            traits.find(LengthTrait.class).flatMap(len -> {
+                return len.getMin().map(min -> {
+                    int max = len.getMax().map(mx -> mx.intValue()).orElse(Integer.MAX_VALUE);
+                    if (min >= 256 || max > 256) {
+                        return false;
+                    }
+                    return true;
+                });
+            }).orElse(false);
+            return false;
+        }
+
+        boolean canCreateInvalidLengthLow() {
+            return traits.find(LengthTrait.class).flatMap(len -> {
+                return len.getMin().map(min -> {
+                    return min > 0;
+                });
+            }).orElse(false);
+        }
+
+        private MapPair validPair(TestContext ctx) {
+            return new MapPair(keys.valid(ctx).get(), values.valid(ctx).get());
+        }
+
+        private MapPair invalidKeyPair(TestContext ctx) {
+            return new MapPair(keys.invalid(ctx).get(), values.valid(ctx).get());
+        }
+
+        private MapPair invalidValuePair(TestContext ctx) {
+            return new MapPair(keys.valid(ctx).get(), values.invalid(ctx).get());
+        }
+
+        @Override
+        public boolean canGenerateInvalidValues() {
+            if (!canGenerateValidValues()) {
+                return false;
+            }
+            if (keys.canGenerateInvalidValues() || values.canGenerateInvalidValues()) {
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean canGenerateValidValues() {
+            return !invalidGenerators.isEmpty();
+        }
+
+    }
+
+    @Override
+    protected <T> void applyValidatableInterface(ClassBuilder<T> cb) {
+        // do nothing
+    }
+
+    @Override
+    protected <T> void applyValidatableInterface(InterfaceBuilder<T> ib) {
+        // do nothing
+    }
+
+    @Override
+    protected void maybeGenerateValidationInterface(TypescriptSource ts) {
+        // do nothing
     }
 }

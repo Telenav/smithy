@@ -130,7 +130,7 @@ public interface TypeStrategy<S extends Shape> {
             case SET:
                 return "length";
             case MAP:
-                return "entries.length";
+                return "size";
             default:
                 return null;
         }

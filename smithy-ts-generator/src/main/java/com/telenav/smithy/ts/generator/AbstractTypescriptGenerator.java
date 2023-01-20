@@ -211,10 +211,16 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
     }
 
     protected boolean canImplementValidating() {
+        if (strategy == null) {
+            return true; // FIXME
+        }
         return strategy.canImplementValidating();
     }
 
     protected boolean hasValidatableValues() {
+        if (strategy == null) {
+            return true; // FIXME
+        }
         return strategy.hasValidatableValues();
     }
 

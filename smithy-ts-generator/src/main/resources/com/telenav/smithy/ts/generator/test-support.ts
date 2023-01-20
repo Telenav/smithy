@@ -327,6 +327,7 @@ export function jsonConvertible<T extends Object>(f: (a: any) => T): Test<T> {
                 out['problem'] = "Deserialized not equal";
                 onProblem(desc,
                     {
+                        desc: desc,
                         problem: 'Deserialized not equal',
                         deltas: diffObjects(desc, input, deserialized),
                         deserialized: deserialized,
@@ -394,28 +395,32 @@ function makeVisibleInJSON<T>(t: T): any {
  * still provide complete output to the report file.
  */
 export function findProblems(obj: any): object {
-    let head = [];
-    let result = {};
+    let head = []
+    let result = {}
     traverse(head, obj, [], (path, val) => {
         if (path.length > 0 && path[path.length - 1] == 'problem') {
-            let o: any = { aa00: 'hey' };
-            let kc = 0;
-            Object.keys(val).forEach(k => {
-                if (k == 'deserialized') {
-                    return;
-                }
-                o[k] = val[k];
-                kc++;
-            });
-            if (typeof path[0] === 'number') {
-                path = path.slice(1);
+            let o: any = {}
+            if (typeof val === 'string') {
+                o = val
+            } else {
+                let kc = 0
+                Object.keys(val).forEach(k => {
+                    if (k == 'deserialized') {
+                        return
+                    }
+                    o[k] = val[k]
+                    kc++
+                });
             }
-            result[path.join('.')] = o;
-            return false;
+            if (typeof path[0] === 'number') {
+                path = path.slice(1)
+            }
+            result[path.join('.')] = o
+            return false
         }
-        return true;
+        return true
     });
-    return result;
+    return result
 }
 
 /**

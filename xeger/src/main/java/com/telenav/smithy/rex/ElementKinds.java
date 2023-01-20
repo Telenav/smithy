@@ -13,24 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.telenav.smithy.openapi.wrapper;
-
-import com.mastfrog.util.service.ServiceProvider;
-import java.util.List;
-import software.amazon.smithy.model.traits.Trait;
-import software.amazon.smithy.openapi.fromsmithy.OpenApiProtocol;
-import software.amazon.smithy.openapi.fromsmithy.Smithy2OpenApiExtension;
+package com.telenav.smithy.rex;
 
 /**
+ * Flavors of RegexElement.
  *
  * @author Tim Boudreau
  */
-@ServiceProvider(Smithy2OpenApiExtension.class)
-public class GenericRestOpenApiExtension implements Smithy2OpenApiExtension {
-
-    @Override
-    public List<OpenApiProtocol<? extends Trait>> getProtocols() {
-        return List.of(new GenericRestProtocol());
-    }
-
+ enum ElementKinds {
+    REGEX, 
+    ALTERNATION, 
+    CHAR_CLASS, 
+    CHAR_RANGE, 
+    CHAR_LITERAL, 
+    STRING_LITERAL, 
+    CAPTURE_GROUP, 
+    BACKREFERENCE
 }

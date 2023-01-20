@@ -27,8 +27,6 @@ import com.telenav.smithy.generators.SmithyGenerationSettings;
 import com.telenav.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
 import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
-import com.telenav.smithy.utils.ResourceGraph;
-import com.telenav.smithy.utils.ResourceGraphs;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,6 +34,9 @@ import static java.util.Collections.emptyList;
 import java.util.List;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
+import static software.amazon.smithy.model.shapes.ShapeType.LIST;
+import static software.amazon.smithy.model.shapes.ShapeType.MAP;
+import static software.amazon.smithy.model.shapes.ShapeType.SET;
 
 /**
  *
@@ -195,16 +196,16 @@ public class SmithyTsGenerator implements SmithyGenerator {
             case SHORT:
             case STRING:
             case STRUCTURE:
+            case LIST:
+            case MAP:
+            case SET:
             case TIMESTAMP:
                 result.add(new GeneralTestGenerator<>(shape, model, language,
                         destSourceRoot, target));
                 break;
             case BLOB:
             case DOCUMENT:
-            case LIST:
-            case MAP:
-            case SET:
-//            case UNION:
+            case UNION:
                 break;
         }
         return result;

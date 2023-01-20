@@ -71,7 +71,7 @@ final class MapGenerator extends AbstractTypescriptGenerator<MapShape> {
             valStrategy.declareValidationConstants(cb);
             
             cb.getter("length", get -> {
-                get.returning().field("length").ofField("entries").ofThis();
+                get.returning().field("size").ofThis();
             });
             
             cb.exported().constructor(con -> {

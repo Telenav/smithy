@@ -67,6 +67,7 @@ limitations under the License.
         <module>typescript-vogon</module>
         <module>blog-example</module>
         <module>smithy-maven-archetype</module>
+        <module>xeger</module>
     </modules>
 
     <properties>
@@ -86,6 +87,7 @@ limitations under the License.
         <verx.guice.version>1.0.0</verx.guice.version>
         <netbeans.hint.license>apache20</netbeans.hint.license>
         <mastfrog.graph.version>${mastfrog.version}.1</mastfrog.graph.version>
+        <antlr.version>4.11.1</antlr.version>
     </properties>
 
     <build>
@@ -144,6 +146,12 @@ limitations under the License.
                         <additionalOptions>-html5</additionalOptions>
                         <source>11</source>
                     </configuration>
+                </plugin>
+                
+                <plugin>
+                    <groupId>org.antlr</groupId>
+                    <artifactId>antlr4-maven-plugin</artifactId>
+                    <version>${antlr.version}</version>
                 </plugin>
 
             </plugins>
@@ -508,7 +516,7 @@ limitations under the License.
             <dependency>
                 <groupId>org.antlr</groupId>
                 <artifactId>antlr4-runtime</artifactId>
-                <version>4.10.1</version>
+                <version>${antlr.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.netbeans.api</groupId>
