@@ -64,8 +64,6 @@ public class Xeger {
         this.pattern = null;
         root.traverse(el
                 -> el.as(CaptureGroup.class).ifPresent(groups::add));
-
-        System.out.println("FOUND CAP GROUPS " + groups);
     }
 
     Optional<Xeger> confound() {
