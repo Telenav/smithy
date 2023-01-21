@@ -50,6 +50,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.RuleNode;
@@ -111,9 +114,22 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
             currElement = what;
             T result = f.apply(what::add);
             // Use currElement here - we may have replaced it with a bounded instance
-            old.add(currElement);
+
             return result;
         } finally {
+            if (old.kind() == ElementKinds.ALTERNATION) {
+                if (!currElement.isEmpty()) {
+                    old.add(currElement);
+                } else {
+                    // We have a structure like (\W|^) which results in an empty
+                    // added element; convert it to \W? which amounts to the same
+                    // thing for our purposes
+                    old = new Bounds(old, 0, 1);
+                }
+            } else {
+
+                old.add(currElement);
+            }
             currElement = old;
         }
     }
@@ -172,7 +188,7 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
                 // Omit or's with 
                 if ("^".equals(exp.getText()) || "$".equals(exp.getText())) {
                     // Substitute nothing - ^ and $ are not interesting for us
-                    add(EMPTY);
+//                    add(EMPTY);
                     return null;
                 }
                 return visitExpr(ctx.expr());
@@ -180,12 +196,13 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
             ctx.alternative().forEach(al -> {
                 if ("^".equals(al.getText()) || "$".equals(al.getText())) {
                     // Substitute nothing - ^ and $ are not interesting for us
-                    add(EMPTY);
+//                    add(EMPTY);
                     return;
                 }
                 GeneralBag nextExpression = new GeneralBag(REGEX, ALL);
                 nest(nextExpression, c -> {
-                    return visitAlternative(al);
+                    visitAlternative(al);
+                    return null;
                 });
             });
             return null;
@@ -201,11 +218,32 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
         return super.visitAtom(ctx);
     }
 
+    private boolean negated;
+
+    <T> T negated(Supplier<T> supp) {
+        boolean old = negated;
+        boolean val = !negated;
+        negated = val;
+        try {
+            return supp.get();
+        } finally {
+            negated = old;
+        }
+    }
+
     @Override
     public Void visitCharacter_class(Character_classContext ctx) {
-        return nest(new GeneralBag(CHAR_CLASS, ONE), c -> {
-            return super.visitCharacter_class(ctx);
-        });
+        Supplier<Void> supp = () -> {
+            return nest(new GeneralBag(CHAR_CLASS, ONE).negated(ctx.Caret() != null), c -> {
+                return super.visitCharacter_class(ctx);
+            });
+        };
+        if (ctx.Caret() != null) {
+//            return negated(supp);
+            return supp.get();
+        } else {
+            return supp.get();
+        }
     }
 
     static boolean isDigits(Token tok) {
@@ -213,6 +251,10 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
             return false;
         }
         String txt = tok.getText().trim();
+        return isDigits(txt);
+    }
+
+    private static boolean isDigits(String txt) {
         for (int i = 0; i < txt.length(); i++) {
             if (!isDigit(txt.charAt(i))) {
                 return false;
@@ -224,6 +266,9 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
     @Override
     public Void visitShared_atom(Shared_atomContext ctx) {
         ShorthandCharacterClassKinds kinds = of(ctx);
+        if (negated) {
+            kinds = kinds.opposite();
+        }
         if (kinds != null) {
             if (ctx.stop != null && ctx.stop != ctx.start) {
                 boolean isBackref = ctx.start.getType() == Backslash && isDigits(ctx.stop);
@@ -242,24 +287,154 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
         }
     }
 
+    private static final Pattern HEX_PATTERN = Pattern.compile("[0-9A-Fa-f]+");
+
+    private static final Pattern ESC_HEX_PATTERN = Pattern.compile("\\[ux][0-9a-fA-F]{1,4}");
+//    private static final Pattern HEX_PATTERN = Pattern.compile("[0-9A-Fa-f]+");
+
+    private Optional<Character> interpretEscape(String what) {
+        if (what.charAt(0) == '\\') {
+            switch (what.charAt(1)) {
+                case '0':
+                    // octal - because EVERYONE uses octal...
+                    if (what.length() > 2 && isDigits(what.substring(2))) {
+                        char c = (char) Integer.parseInt(what.substring(2), 8);
+                        return Optional.of(c);
+                    }
+                    break;
+                case 'x':
+                    // hex or hex range
+                    Matcher m1 = HEX_PATTERN.matcher(what.substring(2));
+                    if (m1.find()) {
+                        char c = (char) Integer.parseInt(what.substring(2), 16);
+                        return Optional.of(c);
+                    }
+                    break;
+                case 'u': // hex via unicode escape
+                    Matcher m2 = HEX_PATTERN.matcher(what.substring(2));
+                    if (m2.find()) {
+                        char c = (char) Integer.parseInt(what.substring(2), 16);
+                        return Optional.of(c);
+                    }
+                    break;
+                case 'c':
+                    // The java spec says:
+                    // \cx - The control character corresponding to x
+                    // But what is x?
+                    throw new IllegalArgumentException("Control char escapes not supported");
+//                    break;
+                case '\\':
+                    return Optional.of('\\');
+                case 'f':
+                    return Optional.of('\f');
+                case 'n':
+                    return Optional.of('\n');
+                case 'r':
+                    return Optional.of('\r');
+                case 't':
+                    return Optional.of('\t');
+                case 'a':
+                    return Optional.of('\u0007');
+                case 'e':
+                    return Optional.of('\u001B');
+                default:
+                    if (what.length() == 2) {
+                        return Optional.of(what.charAt(1));
+                    }
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public Void visitShared_literal(XegerParser.Shared_literalContext ctx) {
+        String txt = ctx.getText();
+        if (".".equals(txt)) {
+            add(new AnyChar());
+            return null;
+        }
+
+        Optional<Character> esc = interpretEscape(ctx.getText());
+        if (esc.isPresent()) {
+            add(new OneChar(esc.get(), negated));
+            return null;
+        }
+
+        if (txt.length() == 1) {
+            add(new OneChar(txt.charAt(0), negated));
+        } else if ("\\\\".equals(txt)) {
+            add(new OneChar('\\', negated));
+        } else {
+            add(new OneString(txt, negated));
+        }
+        return null;
+    }
+
     @Override
     public Void visitCc_atom(Cc_atomContext ctx) {
         if (ctx.Hyphen() != null) {
-            return nest(new CharRange(), c -> super.visitCc_atom(ctx));
+            return nest(new CharRange(negated), c -> super.visitCc_atom(ctx));
         }
         return super.visitCc_atom(ctx);
     }
 
     @Override
+    public Void visitCc_literal(XegerParser.Cc_literalContext ctx) {
+        String txt = ctx.getText();
+        if ("\\.".equals(ctx.toString())) {
+            add(new OneChar('\\', negated));
+            add(new OneChar('.', negated));
+            return null;
+        }
+        if (txt.length() == 2 && txt.charAt(0) == '\\') {
+            switch (txt.charAt(1)) {
+                case ']':
+                    add(new OneChar(']', negated));
+                    return null;
+                case '[':
+                    add(new OneChar('^', negated));
+                    return null;
+                case '-':
+                    add(new OneChar('-', negated));
+                    break;
+                case '\\':
+                    add(new OneChar('\\', negated));
+                    return null;
+                default:
+                    add(new OneChar(txt.charAt(1), negated));
+//                    throw new IllegalStateException("Cannot interpret escaped '" + txt + "'");
+            }
+        } else {
+            Optional<Character> esc = interpretEscape(txt);
+            if (esc.isPresent()) {
+                add(new OneChar(esc.get(), negated));
+            } else {
+                add(new OneChar(txt.charAt(0), negated));
+            }
+        }
+        return null;
+    }
+
+    @Override
     public Void visitLiteral(LiteralContext ctx) {
         String txt = ctx.getText();
+        if (".".equals(txt)) {
+            add(new AnyChar());
+            return null;
+        } else {
+            Optional<Character> esc = interpretEscape(txt);
+            if (esc.isPresent()) {
+                add(new OneChar(esc.get(), negated));
+                return null;
+            }
+        }
         if (txt.length() == 1) {
-            add(new OneChar(txt.charAt(0)));
+            add(new OneChar(txt.charAt(0), negated));
         } else {
             if (txt.length() == 2 && txt.charAt(0) == '\\') {
-                add(new OneChar(txt.charAt(1)));
+                add(new OneChar(txt.charAt(1), negated));
             } else {
-                add(new OneString(txt));
+                add(new OneString(txt, negated));
             }
         }
         //            return super.visitLiteral(ctx);
@@ -268,7 +443,7 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
 
     @Override
     public Void visitDigit(DigitContext ctx) {
-        add(new OneChar(ctx.getText().charAt(0)));
+        add(new OneChar(ctx.getText().charAt(0), negated));
         return super.visitDigit(ctx);
     }
 
@@ -312,7 +487,7 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
 
     @Override
     public Void visitLetter(LetterContext ctx) {
-        add(new OneChar(ctx.getText().charAt(0)));
+        add(new OneChar(ctx.getText().charAt(0), negated));
         return null;
     }
 

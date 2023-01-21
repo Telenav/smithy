@@ -20,6 +20,7 @@ import static java.lang.Character.MAX_VALUE;
 import static java.lang.Math.min;
 import java.util.Optional;
 import java.util.Random;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -45,14 +46,25 @@ final class Bounds implements ContainerRegexElement, Confoundable<Bounds> {
     }
 
     @Override
+    public boolean isEmpty() {
+        return delegate == null || delegate.isEmpty();
+    }
+
+    @Override
+    public ContainerRegexElement prune() {
+        delegate.prune();
+        return this;
+    }
+
+    @Override
     public Bounds duplicate() {
         Bounds nue = new Bounds((ContainerRegexElement) delegate.duplicate(), min, max);
         return nue;
     }
-    
-    public void traverse(Consumer<RegexElement> c) {
-        c.accept(this);
-        delegate.traverse(c);
+
+    public void traverse(int depth, BiConsumer<Integer, RegexElement> c) {
+        c.accept(depth, this);
+        delegate.traverse(depth + 1, c);
     }
 
     @Override
@@ -93,9 +105,19 @@ final class Bounds implements ContainerRegexElement, Confoundable<Bounds> {
     public void emit(StringBuilder into, Random rnd,
             IntFunction<CaptureGroup> backreferenceResolver) {
         int count = max - min;
+        if (count == Integer.MAX_VALUE) {
+            // avoid overflow
+            count /= 2;
+        }
         int target = min;
         if (count > 1) {
-            target += rnd.nextInt(min(MAX_LENGTH, count));
+            int inp = min(MAX_LENGTH, count + 1);
+            if (inp > 0) {
+                target += rnd.nextInt(inp);
+            } else {
+                throw new IllegalStateException("Bounds insane: min: " + min + " max " + max
+                        + " max-min=" + count + " inp " + inp);
+            }
         }
         for (int i = 0; i < target; i++) {
             delegate.emit(into, rnd, backreferenceResolver);
@@ -109,15 +131,35 @@ final class Bounds implements ContainerRegexElement, Confoundable<Bounds> {
 
     @Override
     public boolean canConfound() {
-        return min > 1 || max < 256;
+        boolean result = min > 1 || max < 256;
+        if (!result && delegate instanceof Confoundable<?> con) {
+            result = con.canConfound();
+        }
+        return result;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Optional<Bounds> confound() {
-        if (min > 1) {
-            return Optional.of(new Bounds(delegate, 0, max - 1));
+        ContainerRegexElement del
+                = (ContainerRegexElement) delegate.as(Confoundable.class).flatMap(con -> {
+                    return con.confound();
+                }).orElse(delegate);
+        if (del == delegate) {
+            System.out.println("NOT CONFOUNDABLE: " + delegate.getClass().getSimpleName() + " " + del);
         }
-        return Optional.empty();
+        int newMin, newMax;
+        if (min > 1 || (max < 256 && max > 1)) {
+            newMin = max + 1;
+            newMax = max + 5;
+        } else {
+            newMin = min;
+            newMax = max;
+        }
+        if (del == delegate && newMin == min && newMax == max) {
+            return Optional.empty();
+        }
+        return Optional.of(new Bounds(del, newMin, newMax));
     }
 
 }

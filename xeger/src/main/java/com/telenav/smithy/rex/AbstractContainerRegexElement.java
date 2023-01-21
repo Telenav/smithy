@@ -21,7 +21,9 @@ import static com.telenav.smithy.rex.EmittingElementSelectionStrategy.EmittingEl
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -42,6 +44,25 @@ abstract class AbstractContainerRegexElement<C extends AbstractContainerRegexEle
     AbstractContainerRegexElement(ElementKinds kind, List<RegexElement> contents) {
         this.kind = kind;
         this.contents = contents;
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return contents.isEmpty();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public C prune() {
+        for (Iterator<RegexElement> it = contents.iterator(); it.hasNext();) {
+            RegexElement re = it.next();
+            boolean empty = re.as(AbstractContainerRegexElement.class)
+                    .map(ce -> ce.prune().isEmpty()).orElse(false);
+            if (empty) {
+                it.remove();
+            }
+        }
+        return (C) this;
     }
 
     abstract C newCopy(List<RegexElement> elements);
@@ -84,6 +105,9 @@ abstract class AbstractContainerRegexElement<C extends AbstractContainerRegexEle
 
     @Override
     public ElementKinds kind() {
+        if (contents.isEmpty()) {
+            return ElementKinds.EMPTY;
+        }
         return kind;
     }
 
@@ -101,14 +125,18 @@ abstract class AbstractContainerRegexElement<C extends AbstractContainerRegexEle
 
     @Override
     public boolean canConfound() {
+        int confoundableCount = 0;
         for (RegexElement el : contents) {
             if (el instanceof Confoundable con) {
                 if (con.canConfound()) {
-                    return true;
+                    confoundableCount++;
                 }
             }
         }
-        return false;
+        if (kind == ElementKinds.ALTERNATION) {
+            return confoundableCount >= contents.size() - 1;
+        }
+        return confoundableCount > 0;
     }
 
     @Override
@@ -116,12 +144,10 @@ abstract class AbstractContainerRegexElement<C extends AbstractContainerRegexEle
         boolean[] anyTransformed = new boolean[1];
         List<RegexElement> xformed = duplicateElementsWithTransform(el -> {
             if (el instanceof Confoundable<?> con) {
-                if (con.canConfound()) {
-                    Optional<? extends RegexElement> opt = con.confound();
-                    if (opt.isPresent()) {
-                        anyTransformed[0] = true;
-                        return opt.get();
-                    }
+                Optional<? extends RegexElement> opt = con.confound();
+                if (opt.isPresent()) {
+                    anyTransformed[0] = true;
+                    return opt.get();
                 }
             }
             return el;
@@ -131,10 +157,33 @@ abstract class AbstractContainerRegexElement<C extends AbstractContainerRegexEle
         }
         return Optional.empty();
     }
-    
-    public void traverse(Consumer<RegexElement> c) {
-        c.accept(this);
-        contents.forEach(el -> el.traverse(c));
+
+    @Override
+    public void traverse(int depth, BiConsumer<Integer, RegexElement> c) {
+        c.accept(depth, this);
+        contents.forEach(el -> el.traverse(depth + 1, c));
     }
 
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 53 * hash + Objects.hashCode(this.contents);
+        hash = 53 * hash + Objects.hashCode(this.kind);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final AbstractContainerRegexElement<?> other = (AbstractContainerRegexElement<?>) obj;
+        return true;
+    }
 }

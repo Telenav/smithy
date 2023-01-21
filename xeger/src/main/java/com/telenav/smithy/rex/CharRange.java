@@ -16,7 +16,12 @@
 package com.telenav.smithy.rex;
 
 import static com.telenav.smithy.rex.ElementKinds.CHAR_RANGE;
+import static com.telenav.smithy.rex.RegexElement.escapeForDisplay;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.Random;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -24,40 +29,81 @@ import java.util.function.IntFunction;
 /**
  * Represents a character range such as `0-9`.
  */
-final class CharRange implements ContainerRegexElement {
+final class CharRange implements ContainerRegexElement, Confoundable<CharRange> {
 
     int min = -1;
     int max = -1;
     OneChar start;
     OneChar end;
+    private final boolean negated;
 
-    CharRange() {
+    CharRange(boolean negated) {
+        this.negated = negated;
+    }
+
+    public CharRange(OneChar start, OneChar end, boolean negated) {
+        this.start = start;
+        this.end = end;
+        this.negated = negated;
+    }
+
+    @Override
+    public ContainerRegexElement prune() {
+        return this;
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return start == null && end == null;
     }
 
     @Override
     public ContainerRegexElement duplicate() {
         return this;
     }
-    
-    public void traverse(Consumer<RegexElement> c) {
-        c.accept(this);
-        if (start != null) {
-            start.traverse(c);
+
+    public void traverse(int depth, BiConsumer<Integer, RegexElement> c) {
+        c.accept(depth + 1, this);
+    }
+
+    private List<Character> characters() {
+        List<Character> chars = new ArrayList<>();
+        int start = this.start == null ? 32 : this.start.cc;
+        int end = this.end == null ? 128 : this.end.cc;
+        if (negated) {
+            for (int i = 0; i < start; i++) {
+                chars.add((char) i);
+            }
+            for (int i = end; i < 128; i++) {
+                chars.add((char) i);
+            }
+        } else {
+            for (int i = start; i < end; i++) {
+                chars.add((char) i);
+            }
         }
-        if (end != null) {
-            end.traverse(c);
-        }
+        return chars;
     }
 
     private void subemit(StringBuilder into, Random rnd) {
+        if (negated) {
+            List<Character> chs = characters();
+            into.append(chs.get(rnd.nextInt(chs.size())));
+            return;
+        }
         if (this.start == null && this.end == null) {
-            into.append("!");
+            into.append(">>>uh-oh<<<");
             return;
         }
         char limitChar = end == null ? (char) 127 : end.cc;
         char startChar = start.cc;
         int range = limitChar - startChar;
-        int dest = rnd.nextInt(range);
+        int dest;
+        if (range > 0) {
+            dest = rnd.nextInt(range);
+        } else {
+            dest = 0;
+        }
         char c = (char) (startChar + dest);
         into.append(c);
     }
@@ -84,7 +130,14 @@ final class CharRange implements ContainerRegexElement {
 
     @Override
     public String toString() {
-        return (start == null ? "??" : start.cc) + "-" + (end == null ? "??" : end.cc);
+        return (negated ? "Negated(" : "")
+                + (start == null
+                        ? "??"
+                        : escapeForDisplay(start.cc)) + "-"
+                + (end == null
+                        ? "??"
+                        : escapeForDisplay(end.cc))
+                + (negated ? ")" : "");
     }
 
     @Override
@@ -115,6 +168,22 @@ final class CharRange implements ContainerRegexElement {
     public void boundLast(int min, int max) {
         this.min = min;
         this.max = max;
+    }
+
+    @Override
+    public boolean canConfound() {
+        return min > 0 || max < 127;
+    }
+
+    @Override
+    public Optional<CharRange> confound() {
+        if (!canConfound()) {
+            return Optional.empty();
+        }
+        if (start != null && start.cc > 33) {
+            return Optional.of(new CharRange(new OneChar((char) 32, false), new OneChar((char) (start.cc - 1), false), negated));
+        }
+        return Optional.of(new CharRange(start, end, !negated));
     }
 
 }

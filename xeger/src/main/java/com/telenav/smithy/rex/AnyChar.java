@@ -33,7 +33,7 @@ final class AnyChar implements RegexElement {
 
     @Override
     public ElementKinds kind() {
-        return CHAR_LITERAL;
+        return ElementKinds.ANY;
     }
 
     @Override
@@ -42,6 +42,10 @@ final class AnyChar implements RegexElement {
         // that don't require escaping for readability.
         int range = 127 - 32;
         into.append((char) (32 + rnd.nextInt(range)));
+    }
+
+    public String toString() {
+        return "$ANY$";
     }
 
 }

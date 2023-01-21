@@ -16,7 +16,9 @@
 package com.telenav.smithy.rex;
 
 import static com.telenav.smithy.rex.ElementKinds.CHAR_CLASS;
+import static com.telenav.smithy.rex.RegexElement.escapeForDisplay;
 import java.util.ArrayList;
+import java.util.Arrays;
 import static java.util.Arrays.sort;
 import java.util.List;
 import java.util.Optional;
@@ -38,13 +40,13 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
     private static final char[] WHITESPACE = " \t\n\r".toCharArray();
     private static final char[] SPACE_TAB = " \t".toCharArray();
     private static final char[] DIGITS = "0123456789".toCharArray();
-    private static final char[] WORD_CHARS
+    static final char[] WORD_CHARS
             = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".toCharArray();
     private static final char[] HORIZ_WHITESPACE = " \t\r".toCharArray();
     private static final char[] VERT_WHITESPACE = "\n\f".toCharArray();
     private static final char[] UPPER_CASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
     private static final char[] LOWER_CASE = "abcdefghijklmnopqrstuvwxyz".toCharArray();
-    private static final char[] PUNCTUATON = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~".toCharArray();
+    private static final char[] PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~".toCharArray();
     private static final char[] HEX = "0123456789abcdefABCDEF".toCharArray();
 
     static {
@@ -57,7 +59,7 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
         sort(VERT_WHITESPACE);
         sort(UPPER_CASE);
         sort(LOWER_CASE);
-        sort(PUNCTUATON);
+        sort(PUNCTUATION);
         sort(HEX);
         sort(SPACE_TAB);
     }
@@ -72,9 +74,108 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
         this.tokenKind = kinds;
     }
 
+    boolean matches(char c) {
+        switch (tokenKind) {
+            case WhiteSpace:
+                return Character.isWhitespace(c);
+            case NotWhiteSpace:
+                return !Character.isWhitespace(c);
+            case Backslash:
+                return c == '\\';
+            case CharWithProperty:
+                switch (tokenText) {
+                    case "Upper":
+                        return Character.isUpperCase(c);
+                    case "Lower":
+                        return Character.isLowerCase(c);
+                    case "Alpha":
+                        return Character.isAlphabetic(c);
+                    case "Digit":
+                        return Character.isDigit(c);
+                    case "Punct":
+                        return Arrays.binarySearch(PUNCTUATION, c) >= 0;
+                    case "XDigit":
+                        return Arrays.binarySearch(HEX, c) >= 0;
+                }
+                break;
+            case CharWithoutProperty:
+                switch (tokenText) {
+                    case "Upper":
+                        return !Character.isUpperCase(c);
+                    case "Lower":
+                        return !Character.isLowerCase(c);
+                    case "Alpha":
+                        return !Character.isAlphabetic(c);
+                    case "Digit":
+                        return !Character.isDigit(c);
+                    case "Punct":
+                        return Arrays.binarySearch(PUNCTUATION, c) < 0;
+                    case "XDigit":
+                        return Arrays.binarySearch(HEX, c) < 0;
+                }
+            case DecimalDigit:
+                return Character.isDigit(c);
+            case NotDecimalDigit:
+                return !Character.isDigit(c);
+            case NewLineSequence:
+                return c == '\r' || c == '\n';
+            case NotNewLine:
+                return c != '\n';
+            case ControlChar:
+                return c < 32;
+            case WordChar:
+                return Character.isAlphabetic(c);
+            case NotWordChar:
+                return !Character.isAlphabetic(c);
+            case VerticalWhiteSpace:
+                return c == '\n' || c == '\f';
+            case HorizontalWhiteSpace:
+                return c == ' ' || c == '\t';
+            case NotHorizontalWhiteSpace:
+                return c != ' ' && c != '\t';
+            case NotVerticalWhiteSpace:
+                return c != '\n' && c != '\f';
+            case POSIXNamedSet:
+                Matcher matcher2 = NAMED_SET.matcher(tokenText);
+                matcher2.find();
+                switch (matcher2.group(1)) {
+                    case "digits":
+                        return Character.isDigit(c);
+                    case "blank":
+                        return Character.isWhitespace(c);
+                    case "xdigit":
+                        return Arrays.binarySearch(HEX, c) >= 0;
+                    case "ascii":
+                        return c <= 127;
+                    case "punct":
+                        return Arrays.binarySearch(PUNCTUATION, c) >= 0;
+                    default:
+                        throw new IllegalArgumentException("Unsupported named posix cahracter class: " + matcher2.group(1));
+                }
+            case POSIXNegatedNamedSet:
+                Matcher matcher3 = NAMED_SET.matcher(tokenText);
+                matcher3.find();
+                switch (matcher3.group(1)) {
+                    case "digits":
+                        return !Character.isDigit(c);
+                    case "blank":
+                        return !Character.isWhitespace(c);
+                    case "xdigit":
+                        return Arrays.binarySearch(HEX, c) < 0;
+                    case "ascii":
+                        return c > 127;
+                    case "punct":
+                        return Arrays.binarySearch(PUNCTUATION, c) < 0;
+                    default:
+                        throw new IllegalArgumentException("Unsupported named posix cahracter class: " + matcher3.group(1));
+                }
+        }
+        return false;
+    }
+
     @Override
     public String toString() {
-        return tokenKind + "(" + tokenText + ")";
+        return tokenKind + "(" + escapeForDisplay(tokenText) + ")";
     }
 
     @Override
@@ -168,6 +269,8 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
                         into.append((char) (rnd.nextInt(0x7F)));
                         break;
                     case "punct":
+                        into.append(PUNCTUATION[rnd.nextInt(PUNCTUATION.length)]);
+                        break;
                     default:
                         throw new IllegalArgumentException("Unsupported named posix character class: " + matcher.group(1));
                 }
@@ -179,8 +282,20 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
                     case "digits":
                         into.append(charExcluding(DIGITS, rnd));
                         break;
+                    case "blank":
+                        into.append(charExcluding(SPACE_TAB, rnd));
+                        break;
+                    case "xdigit":
+                        into.append(charExcluding(HEX, rnd));
+                        break;
+                    case "ascii":
+                        into.append((char) (rnd.nextInt(127) + 127));
+                        break;
+                    case "punct":
+                        into.append(charExcluding(PUNCTUATION, rnd));
+                        break;
                     default:
-                        throw new Error("");
+                        throw new IllegalArgumentException("Unsupported named posix cahracter class: " + matcher2.group(1));
                 }
             case CharWithProperty:
                 Matcher matcher3 = SHAR_PROP.matcher(tokenText);
@@ -199,8 +314,8 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
                     case "Digit":
                         into.append(DIGITS[rnd.nextInt(DIGITS.length)]);
                         break;
-                    case "Print":
-                        into.append(PUNCTUATON[rnd.nextInt(PUNCTUATON.length)]);
+                    case "Punct":
+                        into.append(PUNCTUATION[rnd.nextInt(PUNCTUATION.length)]);
                         break;
                     case "XDigit":
                         into.append(HEX[rnd.nextInt(HEX.length)]);
@@ -208,6 +323,37 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
                     default:
                         throw new IllegalArgumentException("Unsupported character class "
                                 + g3);
+                }
+            case CharWithoutProperty:
+                Matcher matcher4 = SHAR_PROP.matcher(tokenText);
+                matcher4.find();
+                String g4 = matcher4.group(1);
+                switch (g4) {
+                    case "Upper":
+                        into.append(LOWER_CASE[rnd.nextInt(LOWER_CASE.length)]);
+                        break;
+                    case "Lower":
+                        into.append(UPPER_CASE[rnd.nextInt(UPPER_CASE.length)]);
+                        break;
+                    case "Alpha":
+//                        into.append(NON_WORD_CHARS[rnd.nextInt(WORD_CHARS.length)]);
+                        into.append(charExcluding(WORD_CHARS, rnd));
+                        break;
+                    case "Digit":
+//                        into.append(DIGITS[rnd.nextInt(DIGITS.length)]);
+                        into.append(charExcluding(DIGITS, rnd));
+                        break;
+                    case "Print":
+//                        into.append(PUNCTUATON[rnd.nextInt(PUNCTUATON.length)]);
+                        into.append(charExcluding(PUNCTUATION, rnd));
+                        break;
+                    case "XDigit":
+//                        into.append(HEX[rnd.nextInt(HEX.length)]);
+                        into.append(charExcluding(HEX, rnd));
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported character class "
+                                + g4);
                 }
         }
     }

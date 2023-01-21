@@ -37,6 +37,7 @@ public class Xeger {
 
     private final List<CaptureGroup> groups = new ArrayList<>();
     private final Pattern pattern;
+    private final boolean confounded;
     final GeneralBag root;
 
     /**
@@ -45,29 +46,34 @@ public class Xeger {
      * @param regex A regular expression (must be valid)
      */
     public Xeger(String regex) {
-        this(regex, str -> {
-        });
+        this(regex, null);
     }
 
     Xeger(String regex, Consumer<String> parseTreeLogger) {
         regex = trim(regex);
+        confounded = false;
         pattern = Pattern.compile(regex);
         XegerLexer lex = new XegerLexer(fromString(regex));
         XegerParser parser = new XegerParser(new CommonTokenStream(lex));
         RegexDissectingVisitor v = new RegexDissectingVisitor(groups, parseTreeLogger);
-        root = v.root;
+        root = v.root.prune();
         parser.parse().accept(v);
     }
 
-    Xeger(GeneralBag root) {
+    Xeger(GeneralBag root, Pattern pattern) {
         this.root = root;
-        this.pattern = null;
-        root.traverse(el
+        confounded = true;
+        this.pattern = pattern;
+        root.traverse(0, (d, el)
                 -> el.as(CaptureGroup.class).ifPresent(groups::add));
     }
 
-    Optional<Xeger> confound() {
-        return root.confound().map(Xeger::new);
+    public Optional<Xeger> confound() {
+        return root.confound().map(rt -> new Xeger(rt, pattern));
+    }
+
+    public boolean isConfounded() {
+        return confounded;
     }
 
     /**
@@ -76,18 +82,12 @@ public class Xeger {
      * @return A string
      */
     public String pattern() {
-        if (pattern == null) {
-            return null;
-        }
         return pattern.pattern();
     }
 
     @Override
     public String toString() {
-        if (pattern == null) {
-            return "--confounded-- -> " + root;
-        }
-        return "/" + pattern.pattern() + "/ -> " + root;
+        return (confounded ? "!" : "") + "/" + pattern.pattern() + "/ -> " + root;
     }
 
     /**
@@ -97,10 +97,7 @@ public class Xeger {
      * @return true if it is a match
      */
     public boolean matches(String text) {
-        if (pattern == null) {
-            return false;
-        }
-        return pattern.matcher(text).matches();
+        return pattern.matcher(text).matches() != confounded;
     }
 
     /**

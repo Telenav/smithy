@@ -16,6 +16,7 @@
 package com.telenav.smithy.rex;
 
 import static com.telenav.smithy.rex.ElementKinds.CHAR_LITERAL;
+import static com.telenav.smithy.rex.RegexElement.escapeForDisplay;
 import java.util.Optional;
 import java.util.Random;
 import java.util.function.IntFunction;
@@ -26,9 +27,11 @@ import java.util.function.IntFunction;
 final class OneChar implements RegexElement, Confoundable<OneChar> {
 
     final char cc;
+    private final boolean negated;
 
-    OneChar(char cc) {
+    OneChar(char cc, boolean negated) {
         this.cc = cc;
+        this.negated = negated;
     }
 
     @Override
@@ -39,12 +42,25 @@ final class OneChar implements RegexElement, Confoundable<OneChar> {
     @Override
     public void emit(StringBuilder into, Random rnd,
             IntFunction<CaptureGroup> backreferenceResolver) {
-        into.append(cc);
+        if (negated) {
+            int base = 32;
+            int range = 127 - base;
+            int target = rnd.nextInt(range) + 32;
+            if (target == cc) {
+                target -= 1;
+            }
+            if (target < 32) {
+                target = cc + 1;
+            }
+            into.append((char) target);
+        } else {
+            into.append(cc);
+        }
     }
 
     @Override
     public String toString() {
-        return "'" + Character.toString(cc) + "'";
+        return escapeForDisplay(cc);
     }
 
     @Override
@@ -54,11 +70,24 @@ final class OneChar implements RegexElement, Confoundable<OneChar> {
 
     @Override
     public Optional<OneChar> confound() {
+        if (negated) {
+            return Optional.of(new OneChar(cc, !negated));
+        }
         int c2 = cc + 1;
         if (c2 > 126) {
             c2 = '.';
         }
-        return Optional.of(new OneChar((char) c2));
+        return Optional.of(new OneChar((char) c2, negated));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof OneChar && ((OneChar) o).cc == cc;
+    }
+
+    @Override
+    public int hashCode() {
+        return cc * 631;
     }
 
 }

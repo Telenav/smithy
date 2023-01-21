@@ -28,5 +28,7 @@ package com.telenav.smithy.rex;
     CHAR_LITERAL, 
     STRING_LITERAL, 
     CAPTURE_GROUP, 
-    BACKREFERENCE
+    BACKREFERENCE,
+    ANY,
+    EMPTY
 }

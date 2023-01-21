@@ -24,6 +24,10 @@ import java.util.function.Function;
  * @author Tim Boudreau
  */
 interface ContainerRegexElement extends RegexElement {
+    
+    boolean isEmpty();
+    
+    ContainerRegexElement prune();
 
     /**
      * During parsing, enter this container making it the one add calls delegate

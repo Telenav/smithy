@@ -40,46 +40,46 @@ enum ShorthandCharacterClassKinds {
     WordChar,
     NotWordChar,
     Backslash;
-    
+
     ShorthandCharacterClassKinds opposite() {
-        switch(this) {
-            case VerticalWhiteSpace :
+        switch (this) {
+            case VerticalWhiteSpace:
                 return NotVerticalWhiteSpace;
-            case NotVerticalWhiteSpace :
+            case NotVerticalWhiteSpace:
                 return VerticalWhiteSpace;
-            case DecimalDigit :
+            case DecimalDigit:
                 return NotDecimalDigit;
-            case NotDecimalDigit :
+            case NotDecimalDigit:
                 return DecimalDigit;
-            case NotNewLine :
+            case NotNewLine:
                 return NewLineSequence;
-            case NewLineSequence :
+            case NewLineSequence:
                 return NotNewLine;
-            case POSIXNegatedNamedSet :
+            case POSIXNegatedNamedSet:
                 return POSIXNamedSet;
-            case POSIXNamedSet :
+            case POSIXNamedSet:
                 return POSIXNegatedNamedSet;
-            case ControlChar :
+            case ControlChar:
                 return WordChar;
-            case CharWithProperty :
+            case CharWithProperty:
                 return CharWithoutProperty;
-            case CharWithoutProperty :
+            case CharWithoutProperty:
                 return CharWithProperty;
-            case WhiteSpace :
+            case WhiteSpace:
                 return NotWhiteSpace;
-            case NotWhiteSpace :
+            case NotWhiteSpace:
                 return WhiteSpace;
-            case WordChar :
+            case WordChar:
                 return NotWordChar;
-            case Backslash :
+            case Backslash:
                 return WordChar;
-            case HorizontalWhiteSpace :
+            case HorizontalWhiteSpace:
                 return NotHorizontalWhiteSpace;
-            case NotHorizontalWhiteSpace :
+            case NotHorizontalWhiteSpace:
                 return HorizontalWhiteSpace;
-            case NotWordChar :
+            case NotWordChar:
                 return WordChar;
-            default :
+            default:
                 throw new AssertionError(this);
         }
     }
@@ -123,6 +123,8 @@ enum ShorthandCharacterClassKinds {
             case XegerLexer.Backslash:
                 return Backslash;
             default:
+                System.out.println("WHAT IS THIS? '" + ctx.getText() + "' "
+                        + XegerLexer.VOCABULARY.getSymbolicName(ctx.start.getType()));
                 return null;
         }
     }

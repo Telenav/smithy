@@ -15,10 +15,13 @@
  */
 package com.telenav.smithy.rex;
 
+import static com.telenav.smithy.rex.RegexElement.escapeForDisplay;
 import java.util.ArrayList;
+import static java.util.Arrays.fill;
 import static java.util.Collections.sort;
 import java.util.List;
 import java.util.Random;
+import java.util.TreeSet;
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,10 +36,12 @@ public class XegerTest {
 
     private static final long SEED = 812831047810431L;
     private static final int COUNT_PER = 100;
+    private static final boolean DEBUG = false;
     private Random rnd;
 
-    @ParameterizedTest(name = "RegexenValid")
+    @ParameterizedTest(name = "{index} {0}")
     @ValueSource(strings = {
+//        "[\\x01-\\x09\\x0b\\x0c\\x0e-\\x7f]+",
         "x.y(?:moo|meow|woof)G*",
         "^(?:yes|no)[0-9,]{1,5}\\.([a-f]+)",
         "^(?:yes|no):[0-9,]{1,7}\\.[a-f]{3}$",
@@ -49,20 +54,27 @@ public class XegerTest {
         "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)",
         "^(0?[1-9]|1[0-2]):[0-5]\\d\\s?(am|pm)?",
         "192\\.168\\.1\\.\\d{1,3}",
-        "(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?", //        "(?:(?:31(\\/|-|\\.)(?:0?[13578]|1[02]))\\1|(?:(?:29|30)(\\/|-|\\.)(?:0?[13-9]|1[0-2])\\2))(?:(?:1[6-9]|[2-9]\\d)?\\d{2})$|^(?:29(\\/|-|\\.)0?2\\3(?:(?:(?:1[6-9]|[2-9]\\d)?(?:0[48]|[2468][048]|[13579][26])|(?:(?:16|[2468][048]|[3579][26])00))))$|^(?:0?[1-9]|1\\d|2[0-8])(\\/|-|\\.)(?:(?:0?[1-9])|(?:1[0-2]))\\4(?:(?:1[6-9]|[2-9]\\d)?\\d{2})"
+        "(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?",
+        "(?:(?:31(\\/|-|\\.)(?:0?[13578]|1[02]))\\1|(?:(?:29|30)(\\/|-|\\.)(?:0?[13-9]|1[0-2])\\2))(?:(?:1[6-9]|[2-9]\\d)?\\d{2})$|^(?:29(\\/|-|\\.)0?2\\3(?:(?:(?:1[6-9]|[2-9]\\d)?(?:0[48]|[2468][048]|[13579][26])|(?:(?:16|[2468][048]|[3579][26])00))))$|^(?:0?[1-9]|1\\d|2[0-8])(\\/|-|\\.)(?:(?:0?[1-9])|(?:1[0-2]))\\4(?:(?:1[6-9]|[2-9]\\d)?\\d{2})",
+        "^\\(*\\d{3}\\)*( |-)*\\d{3}( |-)*\\d{4}$",
+        "\"[^\\\\]+\\\\*\"$",
+        "[^\\\\]{1,3}$",
+        "(\\W|^)[\\w.\\-]{0,25}"
     })
     @SuppressWarnings("ResultOfObjectAllocationIgnored")
     public void testOne(String rex) {
-        Xeger xeger = new Xeger(rex);
+        Xeger xeger = new Xeger(rex, DEBUG ? System.out::println : null);
         List<String> nonMatching = new ArrayList<>();
         for (int i = 0; i < COUNT_PER; i++) {
             String value = xeger.emit(rnd);
             if (!xeger.matches(value)) {
                 nonMatching.add(value);
+            } else if (DEBUG) {
+                System.out.println(escapeForDisplay(value));
             }
         }
-//        boolean test = nonMatching.isEmpty();
-        boolean test = nonMatching.size() < COUNT_PER / 2;
+        boolean test = nonMatching.isEmpty();
+//        boolean test = nonMatching.size() < COUNT_PER / 2;
         assertTrue(test, () -> {
             sort(nonMatching);
             StringBuilder sb = new StringBuilder();
@@ -71,22 +83,33 @@ public class XegerTest {
                     .append(COUNT_PER)
                     .append(" generated strings did not match the regular expression /")
                     .append(rex).append("/ they were generated from:");
-            nonMatching.forEach(nm -> sb.append('\n').append(nm));
+            new TreeSet<>(nonMatching).forEach(nm -> sb.append('\n').append(nm));
 
             // Log the parse tree
             sb.append("\n\nParse tree:\n");
             new Xeger(rex, ln -> sb.append(ln).append('\n'));
             // Log the resulting emitter structure
-            sb.append("\n\nParsed to:\n").append(xeger.root);
+            sb.append("\n\nRegex :\n").append(xeger.pattern());
+            sb.append("\n\nParsed to:\n").append(tree(xeger.root));
             return sb.toString();
         });
 
         xeger.confound().ifPresent(con -> {
-//            System.out.println("---- confound " + xeger.pattern() + " ----------");
+            if (DEBUG) {
+                System.out.println("--- orig ---");
+                System.out.println(tree(xeger.root));
+                System.out.println("--- confounded ---");
+                System.out.println(tree(con.root));
+            }
             for (int i = 0; i < COUNT_PER; i++) {
                 String confounded = con.emit(rnd);
-                assertFalse(xeger.matches(confounded));
-//                System.out.println(confounded);
+                assertFalse(xeger.matches(confounded), ()
+                        -> escapeForDisplay(confounded) + " should be designed NOT to match /"
+                        + xeger.pattern() + "/, but it does.\nOriginal:\n"
+                        + xeger
+                        + "\nConfoundex:\n"
+                        + con
+                );
             }
         });
     }
@@ -95,12 +118,22 @@ public class XegerTest {
     public void testCaptureGroupsAreFoundByTraverse() {
         Xeger xe = new Xeger("(?:(?:31(\\/|-|\\.)(?:0?[13578]|1[02]))\\1|(?:(?:29|30)(\\/|-|\\.)(?:0?[13-9]|1[0-2])\\2))(?:(?:1[6-9]|[2-9]\\d)?\\d{2})$|^(?:29(\\/|-|\\.)0?2\\3(?:(?:(?:1[6-9]|[2-9]\\d)?(?:0[48]|[2468][048]|[13579][26])|(?:(?:16|[2468][048]|[3579][26])00))))$|^(?:0?[1-9]|1\\d|2[0-8])(\\/|-|\\.)(?:(?:0?[1-9])|(?:1[0-2]))\\4(?:(?:1[6-9]|[2-9]\\d)?\\d{2})");
         List<CaptureGroup> groups = new ArrayList<>();
-        xe.root.traverse(re -> re.as(CaptureGroup.class).ifPresent(groups::add));
+        xe.root.traverse(0, (d, re) -> re.as(CaptureGroup.class).ifPresent(groups::add));
         assertFalse(groups.isEmpty());
     }
 
     @BeforeEach
     public void setup() {
         rnd = new Random(SEED);
+    }
+
+    static String tree(RegexElement e) {
+        StringBuilder sb = new StringBuilder();
+        e.traverse(0, (depth, el) -> {
+            char[] c = new char[depth * 2];
+            fill(c, ' ');
+            sb.append('\n').append(c).append(el);
+        });
+        return sb.toString();
     }
 }

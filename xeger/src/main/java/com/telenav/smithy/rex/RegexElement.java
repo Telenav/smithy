@@ -17,7 +17,7 @@ package com.telenav.smithy.rex;
 
 import java.util.Optional;
 import java.util.Random;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.IntFunction;
 
 /**
@@ -55,7 +55,7 @@ interface RegexElement {
     static RegexElement EMPTY = new RegexElement() {
         @Override
         public ElementKinds kind() {
-            return ElementKinds.REGEX;
+            return ElementKinds.EMPTY;
         }
 
         @Override
@@ -64,8 +64,8 @@ interface RegexElement {
         }
     };
 
-    default void traverse(Consumer<RegexElement> c) {
-        c.accept(this);
+    default void traverse(int depth, BiConsumer<Integer, RegexElement> c) {
+        c.accept(depth, this);
     }
 
     default <T> Optional<T> as(Class<T> type) {
@@ -73,5 +73,59 @@ interface RegexElement {
             return Optional.of(type.cast(this));
         }
         return Optional.empty();
+    }
+
+    static String escapeForDisplay(String what) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < what.length(); i++) {
+            char c = what.charAt(i);
+            escapeForDisplay(c, sb);
+        }
+        return sb.toString();
+    }
+
+    static String escapeForDisplay(char c) {
+        StringBuilder sb = new StringBuilder(4);
+        escapeForDisplay(c, sb);
+        return sb.toString();
+    }
+
+    static void escapeForDisplay(char c, StringBuilder sb) {
+        switch (c) {
+            case '\t':
+                sb.append("\\t");
+                break;
+            case '\r':
+                sb.append("\\r");
+                break;
+            case '\n':
+                sb.append("\\n");
+                break;
+            case '\f':
+                sb.append("\\f");
+                break;
+            case '\b':
+                sb.append("\\b");
+                break;
+            default:
+                if (c >= 32 && c < 127) {
+                    sb.append(c);
+                } else if (c < 32) {
+                    String s = Integer.toHexString(c).toLowerCase();
+
+                    sb.append("\\x");
+                    if (s.length() == 1) {
+                        sb.append("0");
+                    }
+                    sb.append(s);
+                } else if (c > 127) {
+                    sb.append("\\u");
+                    String val = Integer.toHexString(c).toLowerCase();
+                    for (int j = 0; j < 4 - val.length(); j++) {
+                        sb.append('0');
+                    }
+                    sb.append(val);
+                }
+        }
     }
 }
