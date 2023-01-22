@@ -561,6 +561,11 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         @Override
         <B extends TsBlockBuilderBase<T, B>, T> String instantiate(B bb, TestContext ctx) {
             String varName = ctx.varFor(shape);
+            if (!valid) {
+                bb.lineComment("Invalid. " + invalidity);
+            } else {
+                bb.lineComment("Valid.");
+            }
             Assignment<B> decl = bb.declareConst(varName);
             String type = ctx.strategy(shape).targetType();
             decl.ofType(type);
@@ -1602,13 +1607,21 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         <B extends TsBlockBuilderBase<T, B>, T> String instantiate(B bb, TestContext ctx) {
             String type = ctx.strategy(shape).targetType();
             bb.blankLine().lineComment(getClass().getSimpleName() + " for " + type);
+
+            if (!valid) {
+                bb.lineComment("Invalid: " + this.invalidityDescription().orElse("")
+                        + " " + type + " via "
+                        + invalidItem.getId().getMember().map(m -> "." + m).orElse(""));
+            }
+
             String varName = ctx.varFor(shape);
 
             List<String> varNames = new ArrayList<>();
             for (MemberShape mem : eachMemberOptionalLast()) {
                 RandomInstance<?> ri = members.get(mem);
                 if (mem.equals(invalidItem)) {
-                    bb.lineComment("Deliberately invalid: " + mem.getId().getName());
+                    bb.lineComment("Deliberately invalid: " + mem.getId().getName()
+                            + mem.getId().getMember().map(m -> "." + m).orElse(""));
                 }
                 varNames.add(ri.instantiate(bb, ctx));
             }
@@ -1740,7 +1753,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             }
             int range = Math.min(24, max - min);
             int count = Math.max(0, min) + ctx.rnd().nextInt(range);
-            int invalidOne = ctx.rnd().nextInt(range);
+            int invalidOne = ctx.rnd().nextInt(count);
             for (int i = 0; i < count; i++) {
                 if (i == invalidOne) {
                     result.add(memberGenerator.invalid(ctx).get());
@@ -1762,7 +1775,6 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                 result.add(memberGenerator.valid(ctx).get());
             }
             return result;
-
         }
 
         List<RandomInstance<?>> invalidItemsTooLarge(TestContext ctx) {
@@ -1883,6 +1895,11 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
         @Override
         <B extends TsBlockBuilderBase<T, B>, T> String instantiate(B bb, TestContext ctx) {
+            if (!valid) {
+                bb.lineComment("Should be invalid: " + invalidity);
+            } else {
+                bb.lineComment("Valid list instance");
+            }
             List<String> vars = new ArrayList<>();
             members.forEach(mem -> vars.add(mem.instantiate(bb, ctx)));
             TypeStrategy<?> strat = ctx.strategy(shape);

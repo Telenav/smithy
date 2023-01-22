@@ -51,7 +51,10 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
                 ? validationFunctionName(strategies.model(), shape)
                 : recognitionFunctionName(strategies.model(), shape);
         if (rawVar.optional()) {
-            assig.assignedToUndefinedIfUndefinedOr(rawVar.name())
+            assig
+                    .assignedToTernary("typeof " + rawVar.name() + " === 'undefined'")
+                    .expression("undefined")
+//                    .assignedToUndefinedIfUndefinedOr(rawVar.name())
                     .invoke(mth)
                     .withArgument(rawVar.name() + " as number")
                     .inScope();
@@ -68,8 +71,8 @@ final class IntEnumStrategy extends AbstractTypeStrategy<IntEnumShape> {
         String type = rawVar.optional() ? rawVarType().typeName() + " | undefined" : rawVarType().typeName();
         Assignment<B> assig = (declare ? bb.declareConst(instantiatedVar).ofType(type) : bb.assign(instantiatedVar));
         if (rawVar.optional()) {
-            assig.assignedToUndefinedIfUndefinedOr(rawVar.name())
-                    .expression(rawVar.name() + " as number");
+            assig.assignedToTernary("typeof " + rawVar.name() + " === 'undefined'")
+                    .expression("undefined").expression(rawVar.name() + " as number");
         } else {
             assig.assignedTo(rawVar.name() + " as number");
         }

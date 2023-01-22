@@ -176,7 +176,7 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
         boolean modelDefined = isModelDefined();
         doValidate(owningType(PatternTrait.class), patternFieldName(), member, lengthProperty(),
                 pathVar, bb, on, canBeNull, member.getContainer().getName() + "." + member().getMemberName(),
-                modelDefined, shape().getType());
+                modelDefined, shape().getType(), typeStrategy.valuesCanEvaluateToFalse());
 
         if (typeStrategy.isModelDefined() && typeStrategy.hasValidatableValues()) {
             if (shape().isUnionShape()) {
@@ -196,7 +196,8 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
 
     private static <T, B extends TsBlockBuilderBase<T, B>> void doValidate(String owningType,
             String patternField, MemberShape shape, String lengthProperty, String pathVar, B bb,
-            String on, boolean canBeNull, String name, boolean modelDefined, ShapeType type) {
+            String on, boolean canBeNull, String name, boolean modelDefined, ShapeType type,
+            boolean canEvaluateToFalse) {
 
         if (!shape.getTrait(LengthTrait.class).isPresent()
                 && !shape.getTrait(PatternTrait.class).isPresent()
@@ -210,7 +211,13 @@ abstract class AbstractMemberStrategy<S extends Shape> implements TypeStrategy<S
         Consumer<Consumer<TsBlockBuilderBase<?, ?>>> testApplier;
         TypescriptSource.ConditionalClauseBuilder<B> ifExists = null;
         if (canBeNull) {
-            TypescriptSource.ConditionalClauseBuilder<B> ie = ifExists = bb.ifDefined(on);
+            TypescriptSource.ConditionalClauseBuilder<B> ie;
+            if (canEvaluateToFalse) {
+                ie = ifExists = bb.iff("typeof " + on + " !== 'undefined'");
+            } else {
+                ie = ifExists = bb.ifDefined(on);
+            }
+
             testApplier = cons -> {
                 cons.accept(ie);
             };
