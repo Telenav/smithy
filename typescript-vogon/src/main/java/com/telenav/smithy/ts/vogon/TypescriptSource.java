@@ -5852,13 +5852,51 @@ public final class TypescriptSource extends TypescriptCodeGenerator implements S
             return text.compareTo(o.text);
         }
 
+        private String escapeText(String txt, char quoteChar) {
+            StringBuilder sb = new StringBuilder(txt.length() + 8);
+            for (int i = 0; i < txt.length(); i++) {
+                char c = txt.charAt(i);
+                switch (c) {
+                    case '\f':
+                        sb.append("\\f");
+                        break;
+                    case '\b':
+                        sb.append("\\b");
+                        break;
+                    case '\r':
+                        sb.append("\\r");
+                        break;
+                    case '\n':
+                        sb.append("\\n");
+                        break;
+                    case '\\':
+                        sb.append("\\\\");
+                        break;
+                    default:
+                        if (c == quoteChar) {
+                            sb.append('\\').append(c);
+                        } else if (c < 32 || c > 127) {
+                            String hex = Integer.toHexString(c);
+                            sb.append("\\u");
+                            for (int j = 0; j < 4 - hex.length(); j++) {
+                                sb.append('0');
+                            }
+                            sb.append(hex);
+                        } else {
+                            sb.append(c);
+                        }
+                }
+            }
+            return sb.toString();
+        }
+
         @Override
         public void generateInto(LinesBuilder lines) {
             if (text.indexOf('\'') < 0 && text.indexOf('"') < 0) {
-                lines.word("'" + text + "'");
+                lines.word("'" + escapeText(text, '\'') + "'");
                 return;
             }
-            lines.word(stringLiteral(text));
+            lines.word('"' + escapeText(text, '"') + '"');
         }
 
         @Override

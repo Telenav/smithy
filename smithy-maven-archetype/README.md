@@ -76,6 +76,35 @@ you will put your code to implement business logic, configure the
 server, etc.
 
 
+Limitations
+-----------
+
+It is perfectly possible to create a regular expression that cannot possibly
+match anything, such as `$blah^`; such regular expressions will, of course,
+not be able to have matches generated for them.
+
+Specific known limitations:
+
+ * Boundary matchers - `\b`, `\G`, `\z`, `\Z` and `\B` are not supported
+ * Java-specific properties - `javaLowerCase` and friends from 
+   [Java's `Pattern`](https://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html)
+   are not supported
+ * Unicode blocks - e.g. `\p{Greek}` are not supported
+ * Line start and end markers are ignored (they don't mean much when you're generating
+   output); in or blocks, they are elided - so, `(\W|^)` is translated to `\W?` for
+   practical purposes
+ * Capture group names are ignored (but numbered back-references work)
+ * The `\x{h...h}` construct is not supported
+
+### Limitations of Confounding
+
+Confounding regular expressions - generating non-matching output (which is done
+by generating a regular expression that is an inversion of the original, with
+inverted character classes and deliberately incompatible boundaries) has some
+natural limitations, which can result in a low percentage of generated strings
+*actually* not matching the original - for example, a regular expression
+like `\W?.+` matches all strings except the empty string.
+
 npm
 ---
 

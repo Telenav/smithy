@@ -24,6 +24,7 @@ import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.generators.SettingsKey;
 import com.telenav.smithy.names.NumberKind;
+import com.telenav.smithy.rex.Xeger;
 import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.AbstractInstanceGenerator;
 import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.RandomInstance;
 import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.TestContext;
@@ -47,6 +48,7 @@ import java.util.ArrayList;
 import static java.util.Arrays.asList;
 import java.util.Collections;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.shuffle;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -59,6 +61,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.node.ExpectationNotMetException;
 import software.amazon.smithy.model.shapes.BooleanShape;
@@ -703,8 +706,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         @Override
         public Optional<RandomInstance<S>> invalid(TestContext ctx) {
             if (canGenerateInvalidValues()) {
-                RandomInstance<S> result = newInvalidValue(ctx);
-                return Optional.of(result);
+                return Optional.ofNullable(newInvalidValue(ctx));
             }
             return Optional.empty();
         }
@@ -712,7 +714,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         @Override
         public Optional<RandomInstance<S>> valid(TestContext ctx) {
             if (canGenerateValidValues()) {
-                return Optional.of(newValidValue(ctx));
+                return Optional.ofNullable(newValidValue(ctx));
             }
             return Optional.empty();
         }
@@ -874,10 +876,78 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                 return new RandomNumberInstance(target, shape, "outside_range");
             }
         }
-
     }
 
-    static class SamplesStringShape extends AbstractInstanceGenerator<StringShape> {
+    static abstract class AbstractStringInstanceGenerator<S extends Shape>
+            extends AbstractInstanceGenerator<S> {
+
+        private Optional<Xeger> xeger;
+        private Optional<Xeger> confounded;
+
+        AbstractStringInstanceGenerator(TestContext ctx, S shape, TraitFinder traits) {
+            super(ctx, shape, traits);
+        }
+
+        boolean hasPatternTrait() {
+            return traits.find(PatternTrait.class).isPresent();
+        }
+
+        Optional<Xeger> xeger() {
+            if (xeger == null) {
+                if (!hasPatternTrait()) {
+                    return xeger = Optional.empty();
+                }
+                String pattern = traits.find(PatternTrait.class).get().getValue();
+                return xeger = Optional.of(new Xeger(pattern));
+            }
+            return xeger;
+        }
+
+        Optional<Xeger> confounded() {
+            if (confounded != null) {
+                return confounded;
+            }
+            return confounded == null
+                    ? confounded = xeger().flatMap(x -> x.confound())
+                    : confounded;
+        }
+
+        Optional<String> xegerInvalidSample(TestContext ctx) {
+            return confounded().flatMap(xeger -> {
+                for (int i = 0; i < 10; i++) {
+                    Optional<String> str = xeger.emitChecked(ctx.rnd(), 100);
+                    if (str.isPresent()) {
+                        return str;
+                    }
+                }
+                return Optional.empty();
+            });
+        }
+
+        Optional<String> xegerValidSample(TestContext ctx) {
+            return xeger().flatMap(xeger -> {
+                for (int i = 0; i < 10; i++) {
+                    Optional<String> str = xeger.emitChecked(ctx.rnd(), 100);
+                    if (str.isPresent()) {
+                        Optional<LengthTrait> len = traits.find(LengthTrait.class);
+                        if (len.isPresent()) {
+                            int min = len.get().getMin().map(m -> m.intValue())
+                                    .orElse(0);
+                            int max = len.get().getMax().map(m -> m.intValue())
+                                    .orElse(Integer.MAX_VALUE);
+                            String result = str.get();
+                            if (result.length() >= min && result.length() <= max) {
+                                return Optional.of(result);
+                            }
+                        }
+                    }
+                }
+                return Optional.empty();
+            });
+        }
+    }
+
+    static class SamplesStringShape extends AbstractStringInstanceGenerator<StringShape> {
 
         private final SamplesTrait samples;
         private final List<String> valids;
@@ -885,7 +955,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         private int invalidCursor;
         private int validCursor;
 
-        public SamplesStringShape(TestContext ctx, StringShape shape, TraitFinder traits, SamplesTrait samples) {
+        SamplesStringShape(TestContext ctx, StringShape shape, TraitFinder traits, SamplesTrait samples) {
             super(ctx, shape, traits);
             this.samples = samples;
             valids = samples.validSamples(nd -> {
@@ -911,9 +981,25 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         String value(TestContext ctx, boolean invalid) {
             String result;
             if (invalid) {
-                result = invalids.get((invalidCursor++) % invalids.size());
+                Supplier<String> fromSamples = ()
+                        -> invalids.get((invalidCursor++) % invalids.size());
+                if (invalidCursor >= invalids.size()) {
+                    invalidCursor++;
+                    result = xegerInvalidSample(ctx)
+                            .orElseGet(fromSamples);
+                } else {
+                    result = fromSamples.get();
+                }
             } else {
-                result = valids.get((validCursor++) % valids.size());
+                Supplier<String> fromSamples = ()
+                        -> valids.get((validCursor++) % valids.size());
+                if (validCursor >= valids.size()) {
+                    validCursor++;
+                    result = xegerValidSample(ctx)
+                            .orElseGet(fromSamples);
+                } else {
+                    result = fromSamples.get();
+                }
             }
             return result;
         }
@@ -924,13 +1010,18 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         }
 
         @Override
+        public boolean validPermutationsExhausted() {
+            return validCursor >= valids.size() + 1;
+        }
+
+        @Override
         public boolean canGenerateInvalidValues() {
-            return !invalids.isEmpty();
+            return !invalids.isEmpty() || hasPatternTrait();
         }
 
         @Override
         public boolean canGenerateValidValues() {
-            return !valids.isEmpty();
+            return !valids.isEmpty() || hasPatternTrait();
         }
 
         @Override
@@ -944,7 +1035,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         }
     }
 
-    static class StringInstanceGenerator extends AbstractInstanceGenerator<StringShape> {
+    static class StringInstanceGenerator extends AbstractStringInstanceGenerator<StringShape> {
 
         static final char[] ALPHANUM
                 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".toCharArray();
@@ -955,19 +1046,26 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
         @Override
         protected RandomInstance<StringShape> newInvalidValue(TestContext ctx) {
-            return new RandomStringInstance<>(randomInvalidString(), shape, false);
+            return randomInvalidString(ctx).map(str
+                    -> new RandomStringInstance<>(str, shape, false)
+            ).orElse(null);
         }
 
         @Override
         protected RandomInstance<StringShape> newValidValue(TestContext ctx) {
-            return new RandomStringInstance<>(randomString(), shape, true);
+            return randomString(ctx).map(str
+                    -> new RandomStringInstance<>(str, shape, true)
+            ).orElse(null);
         }
 
-        String randomInvalidString() {
+        Optional<String> randomInvalidString(TestContext ctx) {
+            if (hasPatternTrait()) {
+                return xegerInvalidSample(ctx);
+            }
             int min = minLength();
             int max = maxLength();
             if (min == 1 && max > 256) {
-                return "";
+                return Optional.of("");
             }
             int target;
             if (min > 1) {
@@ -976,7 +1074,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                 int base = max + 1;
                 target = base + ctx.rnd().nextInt(12);
             }
-            return randomString(target);
+            return Optional.of(randomString(target));
         }
 
         private char randomChar() {
@@ -991,16 +1089,19 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             return sb.toString();
         }
 
-        String randomString() {
+        Optional<String> randomString(TestContext ctx) {
+            if (hasPatternTrait()) {
+                return xegerValidSample(ctx);
+            }
             int min = minLength();
             int max = maxLength();
             if (min == max) {
-                return randomString(max);
+                return Optional.of(randomString(max));
             }
             // Don't really try to create an Integer.MAX_VALUE length string
             int realMax = Math.min(max, min + 128);
             int targetLength = min + ctx.rnd().nextInt(realMax - min);
-            return randomString(targetLength);
+            return Optional.of(randomString(targetLength));
         }
 
         int minLength() {
@@ -1017,15 +1118,11 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             return result.intValue();
         }
 
-        private boolean hasPatternTrait() {
-            return traits.find(PatternTrait.class).isPresent();
-        }
-
         @Override
         public boolean canGenerateInvalidValues() {
-            if (hasPatternTrait()) {
-                return false;
-            }
+//            if (hasPatternTrait()) {
+//                return false;
+//            }
             int min = minLength();
             int max = maxLength();
             if (min == 0 && max > 128) {
@@ -1039,9 +1136,9 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
         @Override
         public boolean canGenerateValidValues() {
-            if (hasPatternTrait()) {
-                return false;
-            }
+//            if (hasPatternTrait()) {
+//                return false;
+//            }
             int min = minLength();
             int max = maxLength();
             if (min > 256 || max == 0) {
@@ -1080,15 +1177,18 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
     static class RandomStringEnumInstanceGenerator extends AbstractInstanceGenerator<EnumShape> {
 
+        private final List<String> all;
+        private int cursor;
+
         RandomStringEnumInstanceGenerator(TestContext ctx, EnumShape shape, TraitFinder traits) {
             super(ctx, shape, traits);
+            all = new ArrayList<>(shape.getEnumValues().values());
+            shuffle(all, ctx.rnd());
         }
 
         @Override
         protected RandomInstance<EnumShape> newValidValue(TestContext ctx) {
-            List<String> all = new ArrayList<>(shape.getEnumValues().values());
-            String target = all.get(ctx.rnd().nextInt(all.size()));
-
+            String target = all.get((cursor++ % all.size()));
             return new RandomStringInstance<>(target, shape, true);
         }
 
@@ -1105,14 +1205,18 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
     static class RandomNamedStringEnumInstanceGenerator extends AbstractInstanceGenerator<EnumShape> {
 
+        private final ArrayList<String> all;
+        private int cursor;
+
         RandomNamedStringEnumInstanceGenerator(TestContext ctx, EnumShape shape, TraitFinder traits) {
             super(ctx, shape, traits);
+            all = new ArrayList<>(shape.getEnumValues().keySet());
+            shuffle(all, ctx.rnd());
         }
 
         @Override
         protected RandomInstance<EnumShape> newValidValue(TestContext ctx) {
-            List<String> all = new ArrayList<>(shape.getEnumValues().keySet());
-            String target = all.get(ctx.rnd().nextInt(all.size()));
+            String target = all.get((cursor++ % all.size()));
             return new RandomNamedEnumInstance(target, shape, true, ctx.strategy(shape).targetType());
         }
 
@@ -1129,8 +1233,13 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
     static class RandomIntEnumInstanceGenerator extends AbstractInstanceGenerator<IntEnumShape> {
 
+        private final List<Integer> all;
+        int cursor;
+
         RandomIntEnumInstanceGenerator(TestContext ctx, IntEnumShape shape, TraitFinder traits) {
             super(ctx, shape, traits);
+            all = new ArrayList<>(shape.getEnumValues().values());
+            shuffle(all, ctx.rnd());
         }
 
         @Override
@@ -1145,8 +1254,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
         @Override
         protected RandomInstance<IntEnumShape> newValidValue(TestContext ctx) {
-            List<Integer> all = new ArrayList<>(shape.getEnumValues().values());
-            int index = all.get(ctx.rnd().nextInt(all.size()));
+            int index = all.get(cursor++ % all.size());
             return new RandomIntEnumInstance(shape, index);
         }
     }
@@ -1324,8 +1432,9 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             return true;
         }
     }
-    
+
     static class ValueBoundsInfo {
+
         private final int maxValues;
         private final boolean isSufficient;
 
@@ -1333,15 +1442,18 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             this.maxValues = maxValues;
             this.isSufficient = isSufficient;
         }
-        
+
         int constrain(int targetAmount) {
             return Math.min(maxValues, targetAmount);
         }
     }
-    
+
     interface FiniteInvalidInstanceGenerator {
+
         int totalValidValues();
+
         int totalInvalidValues();
+
         default ValueBoundsInfo canCreateSufficientValidValues(LengthTrait t) {
             int tot = totalValidValues();
             if (tot == Integer.MAX_VALUE) {
@@ -1350,6 +1462,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             return t.getMin().map(m -> new ValueBoundsInfo(m.intValue(), m.intValue() > tot))
                     .orElse(new ValueBoundsInfo(-1, false));
         }
+
         default ValueBoundsInfo canCreateSufficientInvalidValues(LengthTrait t) {
             return null; // FIXME
         }
@@ -1370,7 +1483,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
         protected RandomInstance<StructureShape> newValidValue(TestContext ctx) {
             Map<MemberShape, RandomInstance<?>> members = new HashMap<>();
             for (Map.Entry<MemberShape, RandomInstanceGenerator<?>> e : memberGenerators.entrySet()) {
-                RandomInstance<?> ri = randomInstanceFrom(e.getValue(), true);
+                RandomInstance<?> ri = randomInstanceFrom(e.getKey(), e.getValue(), true);
                 members.put(e.getKey(), ri);
             }
             return new RandomStructureInstance(shape, true, members, null);
@@ -1384,17 +1497,28 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             for (Map.Entry<MemberShape, RandomInstanceGenerator<?>> e : memberGenerators.entrySet()) {
                 RandomInstance<?> ri;
                 if (e.getKey().getId().equals(bad.getKey().getId())) {
-                    ri = randomInstanceFrom(bad.getValue(), false);
+                    ri = randomInstanceFrom(e.getKey(), bad.getValue(), false);
                 } else {
-                    ri = randomInstanceFrom(e.getValue(), true);
+                    ri = randomInstanceFrom(e.getKey(), e.getValue(), true);
                 }
                 members.put(e.getKey(), ri);
             }
             return new RandomStructureInstance(shape, false, members, bad.getKey());
         }
 
-        private <T extends Shape> RandomInstance<T> randomInstanceFrom(RandomInstanceGenerator<T> r, boolean valid) {
-            return valid ? r.valid(ctx).get() : r.invalid(ctx).get();
+        private <T extends Shape> RandomInstance<T> randomInstanceFrom(MemberShape shape, RandomInstanceGenerator<T> r, boolean valid) {
+
+            Optional<RandomInstance<T>> result = valid ? r.valid(ctx) : r.invalid(ctx);
+
+            if (!result.isPresent()) {
+                throw new IllegalStateException("Could not get a "
+                        + (valid ? "valid" : "invalid") + " instance from a "
+                        + r.getClass().getSimpleName()
+                        + " for " + shape.getId()
+                );
+            }
+
+            return result.get();
         }
 
         private List<Map.Entry<MemberShape, RandomInstanceGenerator<?>>> candidates;
@@ -1423,14 +1547,6 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
                 }
             }
             return l;
-        }
-
-        private List<MemberShape> invalidValueMembers() {
-            List<MemberShape> result = new ArrayList<>();
-            for (Map.Entry<MemberShape, RandomInstanceGenerator<?>> e : invalidValueCapable()) {
-                result.add(e.getKey());
-            }
-            return result;
         }
 
         @Override
@@ -1716,7 +1832,7 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             }
             return result;
         }
-        
+
         private boolean checkCanGenerateEnoughValues(LengthTrait len) {
             return true;
         }

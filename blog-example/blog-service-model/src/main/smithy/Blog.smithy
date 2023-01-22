@@ -284,10 +284,10 @@ structure ListCommentsInput {
 
 /// Identifier of a blog
 @length(min: 2, max: 256)
-@pattern("^[^ .'\"/\\:,.?;\\[\\]}{]+$")
-@samples(
-    valid: ["some_thing", "this_is_a_blog", "xxxx"],
-    invalid:["This Is A Blog", "I'm a thing", "http://foo", "", "x", "y", "1"])
+@pattern("^[\\w0-9|,:;._-]+$")
+//@samples(
+//    valid: ["some_thing", "this_is_a_blog", "xxxx"],
+//    invalid:["This Is A Blog", "I'm a thing", "http://foo", "", "x", "y", "1"])
 string BlogId
 
 /// Title of a blog, with some constraints
@@ -435,13 +435,13 @@ structure ReadBlogOutput with [PersistedBlogProperties] {
 @sensitive
 @length(min: 5, max: 512)
 @pattern("^\\S.*?@[^ @.]+\\.[^ @]*$")
-@samples(
-    valid: ["foo@bar.com", "bubu@patodlehodt.blarg.moof.org", "x@y.com",
-            "snorks@portlebortsnorks.com", "Snorks Portleblort <snorks@portlebortsnorks.com>"]
-    invalid: ["", "x", "x@", "xxxxxxxxx@", "@", "@yodle", "foo@bar.com@moo",
-              "foo@bar.com and stuff", "@bar.com", "@bar.blee.com", "A Big Thing",
-              ".......", "....@....", "snorks@.com"]
-)
+//@samples(
+//    valid: ["foo@bar.com", "bubu@patodlehodt.blarg.moof.org", "x@y.com",
+//            "snorks@portlebortsnorks.com", "Snorks Portleblort <snorks@portlebortsnorks.com>"]
+//    invalid: ["", "x", "x@", "xxxxxxxxx@", "@", "@yodle", "foo@bar.com@moo",
+//              "foo@bar.com and stuff", "@bar.com", "@bar.blee.com", "A Big Thing",
+//              ".......", "....@....", "snorks@.com"]
+//)
 string Email
 
 @mixin
@@ -466,8 +466,8 @@ structure CommentContent {
 
 @length(min: 12, max: 16)
 @pattern("^[a-zA-Z0-9_-]{12,16}$")
-@samples(valid: ["hey-you-I-am-1", "IlikeCheese1111", "123456789abcdef"], invalid: [
-    "this", "that", "", "wug", "bunch of words", "you,me,he,she,tree,whee"])
+//@samples(valid: ["hey-you-I-am-1", "IlikeCheese1111", "123456789abcdef"], invalid: [
+//    "this", "that", "", "wug", "bunch of words", "you,me,he,she,tree,whee"])
 string CommentId
 
 /// A comment on a blog entry

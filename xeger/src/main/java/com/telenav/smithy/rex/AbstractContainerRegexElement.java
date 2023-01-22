@@ -115,6 +115,10 @@ abstract class AbstractContainerRegexElement<C extends AbstractContainerRegexEle
     public void boundLast(int min, int max) {
         int end = contents.size() - 1;
         RegexElement el = contents.get(end);
+        if (el instanceof CharacterClass) {
+            ((CharacterClass) el).boundLast(min, max);
+            return;
+        }
         if (!(el instanceof ContainerRegexElement)) {
             GeneralBag nue = new GeneralBag(REGEX, ALL);
             nue.add(el);

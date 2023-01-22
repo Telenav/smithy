@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.rex;
 
+import static java.lang.Integer.min;
 import java.util.Optional;
 import java.util.Random;
 import java.util.function.BiConsumer;
@@ -88,6 +89,25 @@ interface RegexElement {
         StringBuilder sb = new StringBuilder(4);
         escapeForDisplay(c, sb);
         return sb.toString();
+    }
+
+    static int countForMinMax(int min, int max, Random rnd) {
+        int count;
+        if (min == -1 && max == -1) {
+            count = 1;
+        } else if (min > 0 && (max == -1 || max > Integer.MAX_VALUE / 2)) {
+            count = min + rnd.nextInt(12);
+        } else if (min > 0 && max > 0) {
+            if (min == max) {
+                count = min;
+            } else {
+                int range = min(16, max - min);
+                count = min + rnd.nextInt(range);
+            }
+        } else {
+            count = 1;
+        }
+        return count;
     }
 
     static void escapeForDisplay(char c, StringBuilder sb) {

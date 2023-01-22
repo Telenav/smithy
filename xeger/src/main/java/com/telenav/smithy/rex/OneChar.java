@@ -29,6 +29,14 @@ final class OneChar implements RegexElement, Confoundable<OneChar> {
     final char cc;
     private final boolean negated;
 
+    OneChar(int cc) {
+        this((char) cc);
+    }
+
+    OneChar(char cc) {
+        this(cc, false);
+    }
+
     OneChar(char cc, boolean negated) {
         this.cc = cc;
         this.negated = negated;

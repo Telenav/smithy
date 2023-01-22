@@ -62,5 +62,11 @@ limitations under the License.
             <groupId>com.telenav.smithy</groupId>
             <artifactId>typescript-vogon</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.telenav.smithy</groupId>
+            <artifactId>xeger</artifactId>
+            <version>1.0.2</version>
+            <type>jar</type>
+        </dependency>
     </dependencies>   
 </project>

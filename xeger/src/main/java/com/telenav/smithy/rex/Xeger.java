@@ -183,7 +183,7 @@ public class Xeger {
         for (int i = 0; i < attempts; i++) {
             String result = emit(rnd);
             Matcher m = pattern.matcher(result);
-            if (m.find()) {
+            if (m.find() == !confounded) {
                 return Optional.of(result);
             }
         }

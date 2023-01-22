@@ -3,15 +3,14 @@
     "version": "1.0.2",
     "description": "Generated model types for the blog demo in typescript",
     "private": true,
+    "type": "module",
     "scripts": {
-        "build": "rimraf ./target && tsc && cp src/domstuff.html target/domstuff.html",
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "build": "rimraf ./target && tsc && ./copy-markup target",
         "clean-all": "rimraf ./src && rimraf ./target && rimraf ./dist",
         "clean": "rimraf ./target && rimraf ./dist",
-        "dist": "rimraf ./dist && webpack -o ./dist && cp src/domstuff.html dist/domstuff.html && cp src/model/index.html dist/index.html",
-        "dev": "rimraf ./dist && webpack -c dev.config.js -o ./dist --mode none && cp src/domstuff.html dist/domstuff.html && mkdir -p dist && cp src/index.html dist/index.html",
-        "help": "webpack --help",
-        "test": "node test/test.js"
+        "dist": "rimraf ./dist && webpack -o ./dist && ./copy-markup dist",
+        "test-build": "rimraf ./test && mkdir test && tsc -p tsconfig-test.json --outDir ./test",
+        "test": "node test/test-src/test.js"
     },
     "repository": {
         "type": "git",
@@ -19,8 +18,7 @@
     },
     "keywords": [
         "blog",
-        "smithy",
-        "typescript"
+        "smithy"
     ],
     "author": "Tim Boudreau",
     "license": "Apache-2.0",

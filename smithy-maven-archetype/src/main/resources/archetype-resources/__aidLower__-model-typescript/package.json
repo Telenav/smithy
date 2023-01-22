@@ -1,16 +1,16 @@
 {
     "name": "${artifactId}-typescript",
     "version": "$version",
-    "description": "Generated model types for the ${artifactId} in typescript",
+    "description": "Generated model types for ${artifactId} in typescript",
     "private": true,
     "type": "module",
     "scripts": {
         "build": "rimraf ./target && tsc && ./copy-markup target",
-        "clean-all": "rimraf ./src && rimraf ./target && rimraf ./dist && rimraf ./test",
-        "clean": "rimraf ./target && rimraf ./dist && rimraf ./test",
+        "clean-all": "rimraf ./src && rimraf ./target && rimraf ./dist",
+        "clean": "rimraf ./target && rimraf ./dist",
         "dist": "rimraf ./dist && webpack -o ./dist && ./copy-markup dist",
         "test-build": "rimraf ./test && mkdir test && tsc -p tsconfig-test.json --outDir ./test",
-        "test": "node test/test.js"
+        "test": "node test/test-src/test.js"
     },
     "keywords": [
         "${artifactId}"

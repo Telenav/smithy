@@ -237,7 +237,7 @@ export function expectInvalid<T extends Validatable>(): Test<T> {
     return (desc: string, input: T, onProblem: (path: string, problem: FailureOutput) => void) => {
         let r = runValidatable(desc, input);
         if (!r) {
-            onProblem(desc, { "Input should have been invalid": input });
+            onProblem(desc, "Input should have been invalid");
         }
     }
 }

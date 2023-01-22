@@ -127,13 +127,16 @@ quantifier_type
 //       default,  but  some  of them use Unicode properties if PCRE_UCP is set.
 //       You can use \Q...\E inside a character class.
 character_class
-    : '[' '^' CharacterClassEnd Hyphen cc_atom+ ']'
-    | '[' '^' CharacterClassEnd cc_atom* ']'
-    | '[' '^' cc_atom+ ']'
-    | '[' CharacterClassEnd Hyphen cc_atom+ ']'
-    | '[' CharacterClassEnd cc_atom* ']'
-    | '[' cc_atom+ ']'
+    : '[' '^' CharacterClassEnd Hyphen cc_atom+ sub_character_class* ']'
+    | '[' '^' CharacterClassEnd cc_atom* sub_character_class* ']'
+    | '[' '^' cc_atom+ sub_character_class* ']'
+    | '[' CharacterClassEnd Hyphen cc_atom+ sub_character_class* ']'
+    | '[' CharacterClassEnd cc_atom* sub_character_class* ']'
+    | '[' cc_atom+ sub_character_class* ']'
     ;
+
+sub_character_class 
+    : DoubleAmpersand character_class;
 
 // BACKREFERENCES
 //

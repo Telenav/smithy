@@ -35,8 +35,8 @@ import org.antlr.v4.runtime.Token;
 final class ShorthandCharacterClass implements RegexElement, Confoundable<ShorthandCharacterClass> {
 
     final ShorthandCharacterClassKinds tokenKind;
-    private static final Pattern NAMED_SET = Pattern.compile("^\\[\\[:\\^?(\\w+)\\:]\\]$");
-    private static final Pattern SHAR_PROP = Pattern.compile("^\\[pP]\\{([A-Za-z_]+)\\}$");
+    private static final Pattern NAMED_SET = Pattern.compile("^\\[\\[:\\^?(\\w+)\\:]\\]$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SHAR_PROP = Pattern.compile(".[pP]\\{(\\S+)\\}", Pattern.CASE_INSENSITIVE);
     private static final char[] WHITESPACE = " \t\n\r".toCharArray();
     private static final char[] SPACE_TAB = " \t".toCharArray();
     private static final char[] DIGITS = "0123456789".toCharArray();
@@ -299,7 +299,10 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
                 }
             case CharWithProperty:
                 Matcher matcher3 = SHAR_PROP.matcher(tokenText);
-                matcher3.find();
+                boolean res = matcher3.find();
+                if (!res) {
+                    throw new IllegalStateException("Failed to match '" + tokenText + "' with " + SHAR_PROP.pattern());
+                }
                 String g3 = matcher3.group(1);
                 switch (g3) {
                     case "Upper":
@@ -315,7 +318,8 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
                         into.append(DIGITS[rnd.nextInt(DIGITS.length)]);
                         break;
                     case "Punct":
-                        into.append(PUNCTUATION[rnd.nextInt(PUNCTUATION.length)]);
+                        char cc = PUNCTUATION[rnd.nextInt(PUNCTUATION.length)];
+                        into.append(cc);
                         break;
                     case "XDigit":
                         into.append(HEX[rnd.nextInt(HEX.length)]);
@@ -324,6 +328,7 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
                         throw new IllegalArgumentException("Unsupported character class "
                                 + g3);
                 }
+                break;
             case CharWithoutProperty:
                 Matcher matcher4 = SHAR_PROP.matcher(tokenText);
                 matcher4.find();
@@ -336,25 +341,22 @@ final class ShorthandCharacterClass implements RegexElement, Confoundable<Shorth
                         into.append(UPPER_CASE[rnd.nextInt(UPPER_CASE.length)]);
                         break;
                     case "Alpha":
-//                        into.append(NON_WORD_CHARS[rnd.nextInt(WORD_CHARS.length)]);
                         into.append(charExcluding(WORD_CHARS, rnd));
                         break;
                     case "Digit":
-//                        into.append(DIGITS[rnd.nextInt(DIGITS.length)]);
                         into.append(charExcluding(DIGITS, rnd));
                         break;
-                    case "Print":
-//                        into.append(PUNCTUATON[rnd.nextInt(PUNCTUATON.length)]);
+                    case "Punct":
                         into.append(charExcluding(PUNCTUATION, rnd));
                         break;
                     case "XDigit":
-//                        into.append(HEX[rnd.nextInt(HEX.length)]);
                         into.append(charExcluding(HEX, rnd));
                         break;
                     default:
                         throw new IllegalArgumentException("Unsupported character class "
                                 + g4);
                 }
+                break;
         }
     }
 

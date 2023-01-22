@@ -15,9 +15,8 @@
  */
 package com.telenav.smithy.rex;
 
-import static com.telenav.smithy.rex.Xeger.MAX_LENGTH;
+import static com.telenav.smithy.rex.RegexElement.countForMinMax;
 import static java.lang.Character.MAX_VALUE;
-import static java.lang.Math.min;
 import java.util.Optional;
 import java.util.Random;
 import java.util.function.BiConsumer;
@@ -69,7 +68,8 @@ final class Bounds implements ContainerRegexElement, Confoundable<Bounds> {
 
     @Override
     public String toString() {
-        StringBuilder base = new StringBuilder(delegate.toString());
+        StringBuilder base = new StringBuilder("<<");
+        base.append(delegate);
         if (min == 0 && max == 1) {
             base.append('?');
         } else if (min == max) {
@@ -83,7 +83,7 @@ final class Bounds implements ContainerRegexElement, Confoundable<Bounds> {
         } else {
             base.append('{').append(min).append(',').append(max).append('}');
         }
-        return base.toString();
+        return base.append(">>").toString();
     }
 
     @Override
@@ -104,22 +104,8 @@ final class Bounds implements ContainerRegexElement, Confoundable<Bounds> {
     @Override
     public void emit(StringBuilder into, Random rnd,
             IntFunction<CaptureGroup> backreferenceResolver) {
-        int count = max - min;
-        if (count == Integer.MAX_VALUE) {
-            // avoid overflow
-            count /= 2;
-        }
-        int target = min;
-        if (count > 1) {
-            int inp = min(MAX_LENGTH, count + 1);
-            if (inp > 0) {
-                target += rnd.nextInt(inp);
-            } else {
-                throw new IllegalStateException("Bounds insane: min: " + min + " max " + max
-                        + " max-min=" + count + " inp " + inp);
-            }
-        }
-        for (int i = 0; i < target; i++) {
+        int count = countForMinMax(min, max, rnd);
+        for (int i = 0; i < count; i++) {
             delegate.emit(into, rnd, backreferenceResolver);
         }
     }
@@ -145,13 +131,16 @@ final class Bounds implements ContainerRegexElement, Confoundable<Bounds> {
                 = (ContainerRegexElement) delegate.as(Confoundable.class).flatMap(con -> {
                     return con.confound();
                 }).orElse(delegate);
-        if (del == delegate) {
-            System.out.println("NOT CONFOUNDABLE: " + delegate.getClass().getSimpleName() + " " + del);
-        }
         int newMin, newMax;
         if (min > 1 || (max < 256 && max > 1)) {
-            newMin = max + 1;
-            newMax = max + 5;
+            newMin = max + 3;
+            newMax = max + 7;
+        } else if (min > 1 && max < 0) {
+            newMin = 0;
+            newMax = min - 1;
+        } else if (max > 0 && max < 256) {
+            newMin = max + 3;
+            newMax = max + 7;
         } else {
             newMin = min;
             newMax = max;

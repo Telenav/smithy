@@ -16,6 +16,7 @@
 package com.telenav.smithy.ts.generator;
 
 import com.mastfrog.function.state.Int;
+import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
@@ -181,16 +182,17 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
         });
     }
 
+    @SuppressWarnings("unchecked")
     private void generateInvalidInstanceTestFunctions(RandomInstanceGenerator<?> gen, String typeName, TypescriptSource src, TestContext testContext) {
         if (gen.canGenerateInvalidValues()) {
             boolean multiplePermutations = !gen.invalidPermutationsExhausted();
             Int invalidCounter = Int.of(1);
             Consumer<RandomInstance<?>> invalidPermutationGenerator = instance -> {
                 String suffix = instance.invalidityDescription().map(desc -> {
-                    return "_invalid_" + desc + "_" + invalidCounter.increment();
+                    return "_invalid_" + ESCAPER.escape(desc) + "_" + invalidCounter.increment();
                 }).orElse(multiplePermutations ? "_" + invalidCounter.increment() : "");
 
-                String populateFunction = escape("addInvalid" + typeName + "Tests" + suffix);
+                String populateFunction = ESCAPER.escape("addInvalid" + typeName + "Tests" + suffix);
                 src.function(populateFunction, f -> {
                     f.withArgument("suite").ofType("TestSuite");
                     f.body(bb -> {
@@ -211,13 +213,14 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void generateValidInstanceTestFunctions(RandomInstanceGenerator<?> gen, String typeName, TypescriptSource src, TestContext testContext) {
         if (gen.canGenerateValidValues()) {
             boolean multiplePermutations = !gen.validPermutationsExhausted();
             Int counter = Int.of(1);
             Consumer<RandomInstance<?>> validPermutationGenerator = instance -> {
                 String suffix = multiplePermutations ? "_" + counter.increment() : "";
-                String populateFunction = escape("addValid" + typeName + "Tests" + suffix);
+                String populateFunction = ESCAPER.escape("addValid" + typeName + "Tests" + suffix);
                 src.function(populateFunction, f -> {
                     f.withArgument("suite").ofType("TestSuite");
                     f.docComment("Tests the shape " + shape.getId().getName()
@@ -334,7 +337,7 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
                 String typeName = strategies.strategy(mem).targetType();
                 bb.invoke("add", ib -> {
                     ib.withInvocationOf("expectEqual")
-                            .withStringLiteralArgument("Value of field '" + mem.getMemberName() + " equals input")
+                            .withStringLiteralArgument("Value of field '" + mem.getMemberName() + "' equals input")
                             .withArgument(memberVar)
                             .withLambda(lb -> {
                                 lb.withArgument("v").ofType(shapeType)
@@ -583,4 +586,13 @@ final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator
         }
     }
 
+    static Escaper ESCAPER = new Escaper() {
+        @Override
+        public CharSequence escape(char c) {
+            if (c < 32 || c > 127) {
+                return "0x" + Integer.toHexString(c);
+            }
+            return Character.toString(c);
+        }
+    }.and(Escaper.JAVA_IDENTIFIER_CAMEL_CASE);
 }

@@ -41,6 +41,18 @@ final class CharRange implements ContainerRegexElement, Confoundable<CharRange> 
         this.negated = negated;
     }
 
+    public CharRange(int start, int end) {
+        this((char) start, (char) end);
+    }
+
+    public CharRange(char start, char end) {
+        this(start, end, false);
+    }
+
+    public CharRange(char start, char end, boolean negated) {
+        this(new OneChar(start, false), new OneChar(end, false), negated);
+    }
+
     public CharRange(OneChar start, OneChar end, boolean negated) {
         this.start = start;
         this.end = end;

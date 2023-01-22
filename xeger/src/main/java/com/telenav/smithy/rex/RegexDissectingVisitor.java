@@ -104,8 +104,9 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
         return Optional.empty();
     }
 
-    void add(RegexElement el) {
+    Void add(RegexElement el) {
         currElement.add(el);
+        return null;
     }
 
     <T> T nest(ContainerRegexElement what, Function<Consumer<RegexElement>, T> f) {
@@ -234,11 +235,12 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
     @Override
     public Void visitCharacter_class(Character_classContext ctx) {
         Supplier<Void> supp = () -> {
-            return nest(new GeneralBag(CHAR_CLASS, ONE).negated(ctx.Caret() != null), c -> {
+            return nest(new CharacterClass(ctx.Caret() != null), c -> {
                 return super.visitCharacter_class(ctx);
             });
         };
         if (ctx.Caret() != null) {
+//            System.out.println("NEGATED CHAR CLASS");
 //            return negated(supp);
             return supp.get();
         } else {
@@ -374,6 +376,41 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
     public Void visitCc_atom(Cc_atomContext ctx) {
         if (ctx.Hyphen() != null) {
             return nest(new CharRange(negated), c -> super.visitCc_atom(ctx));
+        } else {
+            String txt = ctx.getText();
+            if (txt.length() == 2 && txt.charAt(0) == '\\') {
+                switch (txt) {
+                    case "\\d":
+                        return add(new CharRange('0', '9'));
+                    case "\\w":
+                        add(new CharRange('A', 'Z'));
+                        return add(new CharRange('a', 'z'));
+                    case "\\D":
+                        add(new CharRange(32, '0' - 1));
+                        return add(new CharRange('9' + 1, 127));
+                    case "\\W":
+                        add(new CharRange(32, 'A'));
+                        add(new CharRange('Z' + 1, 'a' - 1));
+                        return add(new CharRange('z' + 1, 127));
+                    case "\\s":
+                        add(new OneChar(' '));
+                        add(new OneChar('\t'));
+                        add(new OneChar('\r'));
+                        return add(new OneChar('\n'));
+                    case "\\S":
+                        for (int i = 0; i < 127; i++) {
+                            char c = (char) i;
+                            if (!Character.isWhitespace(c)) {
+                                add(new OneChar(c));
+                            }
+                        }
+                        return null;
+                }
+            }
+            Optional<Character> esc = interpretEscape(ctx.getText());
+            if (esc.isPresent()) {
+                return add(new OneChar(esc.get(), negated));
+            }
         }
         return super.visitCc_atom(ctx);
     }
@@ -381,6 +418,15 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
     @Override
     public Void visitCc_literal(XegerParser.Cc_literalContext ctx) {
         String txt = ctx.getText();
+        switch (txt) {
+            case "\\d":
+                add(new CharRange('0', '9', false));
+                return null;
+            case "\\w":
+                add(new CharRange('a', 'z', false));
+                add(new CharRange('A', 'Z', false));
+                return null;
+        }
         if ("\\.".equals(ctx.toString())) {
             add(new OneChar('\\', negated));
             add(new OneChar('.', negated));
@@ -401,14 +447,20 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
                     add(new OneChar('\\', negated));
                     return null;
                 default:
+//                    System.out.println("ADD '" + txt + "' as " + txt.charAt(1));
                     add(new OneChar(txt.charAt(1), negated));
 //                    throw new IllegalStateException("Cannot interpret escaped '" + txt + "'");
             }
         } else {
+//            System.out.println("HAVE '" + txt + "'");
             Optional<Character> esc = interpretEscape(txt);
             if (esc.isPresent()) {
+//                System.out.println("INTERPRET '" + txt + "' as " + esc.get());
                 add(new OneChar(esc.get(), negated));
             } else {
+                if (txt.length() > 1) {
+                    throw new IllegalStateException("Failed to interpret literal '" + txt + "'");
+                }
                 add(new OneChar(txt.charAt(0), negated));
             }
         }

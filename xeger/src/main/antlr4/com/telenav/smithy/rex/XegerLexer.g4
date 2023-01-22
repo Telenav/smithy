@@ -201,6 +201,7 @@ Colon       : ':';
 Hash        : '#';
 Equals      : '=';
 Exclamation : '!';
+DoubleAmpersand   : '&&';
 Ampersand   : '&';
 
 ALC : 'a';
