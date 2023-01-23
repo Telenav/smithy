@@ -25,6 +25,19 @@ side effect of that is that the task of writing a server is boiled down to imple
 a few business-logic interfaces.
 
 
+Quickstart
+----------
+
+Build this repository, then follow the instructions for the
+[Smithy Maven Archetype](tree/main/smithy-maven-archetype) which will generate
+a tree of projects implementing server, client, data model, and typescript model
+and client code.
+
+For the typescript projects, you will want to have `npm` and NodeJS on the path - the
+build won't fail without them, but the Typescript model and client library 
+will not be built into Javascript, and will not be bundled into the generated server.
+
+
 What's Here
 -----------
 
