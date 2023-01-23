@@ -1,6 +1,1 @@
-
-// You can put tests of the generated model types here to test them with
-// nodejs;  you will need the xmlhttprequest node package to have a working
-// xmlhttprequest sans browser.
-
-console.log("No tests defined yet");
+console.log("Build the model project, then run `npm run test-build` to replace this file with your tests.");

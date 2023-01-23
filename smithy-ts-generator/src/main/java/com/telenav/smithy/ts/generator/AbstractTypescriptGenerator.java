@@ -151,9 +151,7 @@ public abstract class AbstractTypescriptGenerator<S extends Shape>
     TypescriptSource src() {
         return ctx.computeIfAbsent(key, () -> {
             TypescriptSource result = typescript(serviceSourceFile());
-            if (canImplementValidating()) {
-                maybeGenerateValidationInterface(result);
-            }
+            maybeGenerateValidationInterface(result);
             if (ctx.settings().is(DEBUG)) {
                 result.generateDebugLogCode();
             }

@@ -47,7 +47,7 @@ let testFailures: Map<string, FailureOutput[]>[] | void = suite.run();
 
 if (testFailures) {
     console.log(`${testFailures.length} test failures:`,
-        util.inspect(findProblems(testFailures), null, 10000));
+        util.inspect(findProblems(testFailures), true, 10000));
     // We are in an ES6 module, so __dirname, available in a CommonJS
     // node module is not defined, so...
     let outputFile = process.argv.slice(2)[0];
@@ -58,7 +58,7 @@ if (testFailures) {
     // Due to inscrutable vagaries of typescript, JSON.stringify on Array
     // results in {}, so copy them into something more straightforwardly
     // a javascript array.
-    let result = [];
+    let result : Array<any> = [];
     testFailures.forEach(item => {
         let realItem = {};
         item.forEach((v, k) => {
@@ -66,7 +66,7 @@ if (testFailures) {
         });
         result.push(realItem);
     });
-    fs.writeFileSync(outputFile, JSON.stringify(result, null, 2));
+    fs.writeFileSync(outputFile, JSON.stringify(result, undefined, 2));
     console.log(`Wrote test report to ${outputFile}`);
     process.exit(1);
 }

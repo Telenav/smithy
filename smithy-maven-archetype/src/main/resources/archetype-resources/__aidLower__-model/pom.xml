@@ -158,6 +158,9 @@
                                 <vertx-server>\${basedir}/../\${aidLower}-generated-vertx-server/src/main/java/</vertx-server>
                                 <!-- Where to put typescript model classes -->
                                 <typescript.model>\${basedir}/../\${aidLower}-model-typescript/src/model</typescript.model>
+                                <!-- We also generate typescript unit tests and include a test-runner microframework -
+                                     run them using `npm run test-build && npm run test` in the ${aidLower}-model-typescript project -->
+                                <typescript.modeltest>\${basedir}/../\${aidLower}-model-typescript/test-src/generated</typescript.modeltest>
                             </destinations>
 
                         </configuration>
