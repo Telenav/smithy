@@ -65,8 +65,6 @@ limitations under the License.
         <dependency>
             <groupId>com.telenav.smithy</groupId>
             <artifactId>xeger</artifactId>
-            <version>1.0.2</version>
-            <type>jar</type>
         </dependency>
     </dependencies>   
 </project>

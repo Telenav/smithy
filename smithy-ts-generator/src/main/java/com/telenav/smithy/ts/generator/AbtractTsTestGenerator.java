@@ -41,6 +41,7 @@ import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilder;
 import com.telenav.smithy.ts.vogon.TypescriptSource.TsBlockBuilderBase;
 import static com.telenav.smithy.ts.vogon.TypescriptSource.typescript;
 import static com.telenav.smithy.utils.EnumCharacteristics.characterizeEnum;
+import static java.lang.Integer.min;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -1746,13 +1747,22 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
         List<RandomInstance<?>> invalidListMember(TestContext ctx) {
             List<RandomInstance<?>> result = new ArrayList<>();
+
             int min = min();
             int max = max();
-            if (max == min) {
+            if (max == 1) {
                 return asList(memberGenerator.invalid(ctx).get());
             }
-            int range = Math.min(24, max - min);
-            int count = Math.max(0, min) + ctx.rnd().nextInt(range);
+            int count;
+            if (max == min) {
+                count = max;
+            } else if (max >= Integer.MAX_VALUE / 2) {
+                int workingRange = ctx.rnd().nextInt(12) + 4;
+                count = min + workingRange;
+            } else {
+                int workingRange = Math.min(12, max - min);
+                count = min + ctx.rnd().nextInt(workingRange);
+            }
             int invalidOne = ctx.rnd().nextInt(count);
             for (int i = 0; i < count; i++) {
                 if (i == invalidOne) {
@@ -2129,10 +2139,16 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             int target;
             if (min == max) {
                 target = min;
+            } else if (max > Integer.MAX_VALUE / 2) {
+                target = Math.max(0, min) + +ctx.rnd().nextInt(12);
             } else {
                 int range = (max - min) + 1;
                 if (range > 8) {
                     range = 8;
+                }
+                if (range <= 0) {
+                    throw new IllegalStateException("Invalid range " + range
+                            + " for " + min + "," + max);
                 }
                 target = min + Math.max(1, ctx.rnd().nextInt(range));
             }
@@ -2271,4 +2287,39 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
     protected void maybeGenerateValidationInterface(TypescriptSource ts) {
         // do nothing
     }
+
+    static int invalidCountForMinMax(int min, int max, Random rnd) {
+        if (min > 2) {
+            int range = min - 1;
+            return rnd.nextInt(range - 1) + 1;
+        } else if (max < 512 && max > 0) {
+            return max + 1 + rnd.nextInt(12);
+        } else if (min == 2) {
+            return 1;
+        }
+        throw new IllegalArgumentException("Cannot create an invalid size for "
+                + min + " thru " + max);
+    }
+
+    static int countForMinMax(int min, int max, Random rnd) {
+        int count;
+        if (max == min && max > 0) {
+            return min + 1;
+        } else if (min == -1 && max == -1) {
+            count = 1;
+        } else if (min > 0 && (max == -1 || max > Integer.MAX_VALUE / 2)) {
+            count = min + rnd.nextInt(12);
+        } else if (min > 0 && max > 0) {
+            if (min == max) {
+                count = min;
+            } else {
+                int range = min(12, max - min);
+                count = min + rnd.nextInt(range);
+            }
+        } else {
+            count = 1;
+        }
+        return count;
+    }
+
 }

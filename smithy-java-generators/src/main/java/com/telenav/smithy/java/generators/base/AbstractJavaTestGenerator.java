@@ -65,6 +65,7 @@ import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import static com.telenav.smithy.names.JavaTypes.forShapeType;
 import static com.telenav.smithy.names.TypeNames.packageOf;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
+import com.telenav.smithy.rex.Xeger;
 import com.telenav.smithy.utils.ShapeUtils;
 import static com.telenav.smithy.validation.ValidationExceptionProvider.validationExceptions;
 import static java.lang.Math.ceil;
@@ -80,9 +81,11 @@ import static java.util.Optional.empty;
 import static javax.lang.model.element.Modifier.*;
 import static software.amazon.smithy.model.shapes.ShapeType.MEMBER;
 import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
+import software.amazon.smithy.model.traits.PatternTrait;
 
 /**
- * Base class for generators for JUnit 5 tests of classes that implement model shapes.
+ * Base class for generators for JUnit 5 tests of classes that implement model
+ * shapes.
  *
  * @author Tim Boudreau
  */
@@ -837,13 +840,25 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
     protected List<String> validStringSamples() {
         return samples().map(samps -> samps.validSamples(nd
                 -> nd.asStringNode().map(StringNode::getValue).orElse(null)))
-                .orElse(emptyList());
+                .or(() -> shape.getTrait(PatternTrait.class)
+                .map(pat -> new Xeger(pat.getValue()).emitChecked(rnd, 20)
+                .map(Arrays::asList).orElse(emptyList())
+                )).orElse(emptyList());
     }
 
     protected List<String> invalidStringSamples() {
-        return samples().map(samps -> samps.invalidSamples(nd
-                -> nd.asStringNode().map(StringNode::getValue).orElse(null)))
-                .orElse(emptyList());
+        Optional<List<String>> a = samples().map(sam -> sam.invalidSamples(s -> s.asStringNode().get().getValue()));
+        return a.or(() -> shape.getTrait(PatternTrait.class).map(pat -> new Xeger(pat.getValue()))
+                .flatMap(xe -> xe.confound().flatMap(confounded -> {
+            for (int i = 0; i < 10; i++) {
+                String antiExample = confounded.emit(rnd);
+                if (!xe.matches(antiExample)) {
+                    System.out.println("XEGER CONFOUND SAMPLE " + i + ": '" + antiExample + "'");
+                    return Optional.of(Arrays.asList(antiExample));
+                }
+            }
+            return Optional.empty();
+        }))).orElse(emptyList());
     }
 
     protected List<String> validStringSamples(Shape shape) {
@@ -857,9 +872,16 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
     }
 
     protected List<String> validStringSamples(Shape memberShape, Shape shape) {
-        return samples(memberShape, shape).map(samps -> samps.validSamples(nd
-                -> nd.asStringNode().map(StringNode::getValue).orElse(null)))
-                .orElse(emptyList());
+        Optional<List<String>> a = samples(memberShape, shape).map(samps -> samps.validSamples(nd
+                -> nd.asStringNode().map(StringNode::getValue).orElse(null)));
+        return a.or(() -> {
+            Optional<PatternTrait> pattern = memberShape == null ? shape.getTrait(PatternTrait.class)
+                    : memberShape.getTrait(PatternTrait.class).or(() -> shape.getTrait(PatternTrait.class));
+            return pattern.flatMap(pat -> {
+                return new Xeger(pat.getValue()).emitChecked(rnd, 20)
+                        .map(Arrays::asList);
+            });
+        }).orElse(emptyList());
     }
 
     protected List<String> invalidStringSamples(Shape shape) {
@@ -871,10 +893,28 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         return invalidStringSamples(ms, shape);
     }
 
-    protected List<String> invalidStringSamples(Shape ms, Shape shape) {
-        return samples(ms, shape).map(samps -> samps.invalidSamples(nd
-                -> nd.asStringNode().map(StringNode::getValue).orElse(null)))
-                .orElse(emptyList());
+    protected List<String> invalidStringSamples(Shape memberShape, Shape shape) {
+        Optional<List<String>> a = samples(memberShape, shape).map(samps -> samps.invalidSamples(nd
+                -> nd.asStringNode().map(StringNode::getValue).orElse(null)));
+
+        return a.or(() -> {
+            Optional<PatternTrait> pattern = memberShape == null ? shape.getTrait(PatternTrait.class)
+                    : memberShape.getTrait(PatternTrait.class).or(() -> shape.getTrait(PatternTrait.class));
+            return pattern.flatMap(pat -> {
+                Xeger xe = new Xeger(pat.getValue());
+                return xe.confound()
+                        .map(confounded -> {
+                            for (int i = 0; i < 10; i++) {
+                                String antiExample = confounded.emit(rnd);
+                                System.out.println("XEGER CONFOUND SAMPLE " + i + ": '" + antiExample + "'");
+                                if (!xe.matches(antiExample)) {
+                                    return Arrays.asList(antiExample);
+                                }
+                            }
+                            return emptyList();
+                        });
+            });
+        }).orElse(emptyList());
     }
 
     protected void withOutOfRangeInts(Shape shape, IntConsumer c) {

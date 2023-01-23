@@ -41,6 +41,10 @@ limitations under the License.
             <artifactId>smithy-utils</artifactId>
         </dependency>
         <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>xeger</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>annotation-processors</artifactId>
             <scope>provided</scope>
