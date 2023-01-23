@@ -42,7 +42,9 @@ class PostGenerate {
             deltree(projectPath("model-typescript"));
         } else {
             makeExecutable(projectFile("model-typescript", "rebuild"));
+            makeExecutable(projectFile("model-typescript", "test.sh"));
             makeExecutable(projectFile("model-typescript", "copy-markup"));
+            makeExecutable(projectFile(null, "build-all"));
         }
     }
 

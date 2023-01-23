@@ -66,7 +66,7 @@ import software.amazon.smithy.model.traits.MixinTrait;
  *
  * @author Tim Boudreau
  */
-final class GeneralTestGenerator<S extends Shape> extends AbtractTsTestGenerator<S> {
+final class GeneralTestGenerator<S extends Shape> extends AbstractTsTestGenerator<S> {
 
     private final SettingsKey<Set<Model>> WKEY
             = SettingsKey.key(Set.class, "testSupportWritten");

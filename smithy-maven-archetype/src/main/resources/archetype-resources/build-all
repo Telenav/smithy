@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+DIR=`dirname "$0"`
+cd $DIR
+
+mvn clean install
+cd ${artifactId}-model-typescript
+
+npm run clean
+npm run build
+npm run test-build
+npm run test
+npm run dist
+
+echo "Build completed successfully."

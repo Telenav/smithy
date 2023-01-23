@@ -85,6 +85,9 @@ generation code itself, the generated JUnit 5 tests also serve to prove that
 all generated types can be converted to JSON and back, returning an object which
 `equals()` the original, which is useful for confidence that the generated code
 does what it is supposed to.
+   * Tests are also generated for typescript model classes, and can be built and
+     run in the typescript project (if you are using the archectype, this will be
+     `${artifactId}-model-typescript`) by running `npm run test-build && npm run test`
 
 Server code generation will generate a set of interfaces for you to implement,
 one for each `OperationShape` in your Smithy model (and additional interfaces
@@ -425,7 +428,10 @@ The plugin takes a few settings that are important:
 <languages>java</languages>
 ```
 
-The only language supported currently (and the default if unspecified).
+The languages supported currently are `java` (the default if unspecified) and
+`typescript`.  Server generation exists only for Java - typescript support generates
+a library for your data library, and a client (using plain `XmlHttpRequest` under
+the hood) that makes calling the generated server from javascript trivial.
 
 ```xml
 <targets>model,modeltest</targets>
@@ -464,8 +470,8 @@ runtime, so code generators should not be direct dependencies of your
 project - they should be specified as dependencies in the `<plugin>` section
 for the `smithy-maven-plugin`.
 
-See `test/maven-plugin-test` for an example of a complete configuration
-that works.
+See [`blog-example/blog-service-/model/pom.xml`](https://github.com/Telenav/smithy/blob/main/blog-example/blog-service-model/pom.xml#L140)
+for an example of a complete configuration that works.
 
 To-Do
 =====
@@ -486,6 +492,7 @@ To-Do
    no similar support for wrapper types and collection types.  Extending that to be
    used for all types would facilitate moving Jackson support to a separate extension,
    rather than requiring it as a dependency.
+
 
 Extensibility and API
 =====================

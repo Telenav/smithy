@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -e
 npm run clean
 npm run build
-npm run dist
+npm run test-build
+npm run test

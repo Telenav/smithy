@@ -25,10 +25,10 @@ import com.telenav.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.generators.SettingsKey;
 import com.telenav.smithy.names.NumberKind;
 import com.telenav.smithy.rex.Xeger;
-import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.AbstractInstanceGenerator;
-import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.RandomInstance;
-import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.TestContext;
-import com.telenav.smithy.ts.generator.AbtractTsTestGenerator.TraitFinder;
+import com.telenav.smithy.ts.generator.AbstractTsTestGenerator.AbstractInstanceGenerator;
+import com.telenav.smithy.ts.generator.AbstractTsTestGenerator.RandomInstance;
+import com.telenav.smithy.ts.generator.AbstractTsTestGenerator.TestContext;
+import com.telenav.smithy.ts.generator.AbstractTsTestGenerator.TraitFinder;
 import com.telenav.smithy.ts.generator.type.TsTypeUtils;
 import com.telenav.smithy.ts.generator.type.TypeStrategies;
 import com.telenav.smithy.ts.generator.type.TypeStrategy;
@@ -81,6 +81,7 @@ import software.amazon.smithy.model.traits.LengthTrait;
 import software.amazon.smithy.model.traits.MixinTrait;
 import software.amazon.smithy.model.traits.PatternTrait;
 import software.amazon.smithy.model.traits.RangeTrait;
+import software.amazon.smithy.model.traits.RequiredTrait;
 import software.amazon.smithy.model.traits.Trait;
 import software.amazon.smithy.model.traits.UniqueItemsTrait;
 
@@ -88,14 +89,14 @@ import software.amazon.smithy.model.traits.UniqueItemsTrait;
  *
  * @author Tim Boudreau
  */
-abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescriptGenerator<S> {
+abstract class AbstractTsTestGenerator<S extends Shape> extends AbstractTypescriptGenerator<S> {
 
     private static final SettingsKey<TypescriptSource> key
             = SettingsKey.key(TypescriptSource.class, "generated-tests");
     private static final Map<TypescriptSource, TestContext> CONTEXTS
             = new WeakHashMap<>();
 
-    protected AbtractTsTestGenerator(S shape, Model model, LanguageWithVersion ver, Path dest, GenerationTarget target) {
+    protected AbstractTsTestGenerator(S shape, Model model, LanguageWithVersion ver, Path dest, GenerationTarget target) {
         super(shape, model, ver, dest, target);
     }
 
@@ -1099,6 +1100,20 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
             if (hasPatternTrait()) {
                 return xegerValidSample(ctx);
             }
+            if (!traits.find(LengthTrait.class).isPresent()) {
+                int minLength;
+                if (traits.find(RequiredTrait.class).isPresent()) {
+                    minLength = 0;
+                } else {
+                    // The empty string can be deserialized as undefined,
+                    // making deserialization tests fail because the property
+                    // is absent, so always generate at least one character
+                    // of output for these
+                    minLength = 1;
+                }
+                int len = ctx.rnd().nextInt(7) + minLength;
+                return Optional.of(randomString(len));
+            }
             int min = minLength();
             int max = maxLength();
             if (min == max) {
@@ -1126,9 +1141,6 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
         @Override
         public boolean canGenerateInvalidValues() {
-//            if (hasPatternTrait()) {
-//                return false;
-//            }
             int min = minLength();
             int max = maxLength();
             if (min == 0 && max > 128) {
@@ -1142,9 +1154,6 @@ abstract class AbtractTsTestGenerator<S extends Shape> extends AbstractTypescrip
 
         @Override
         public boolean canGenerateValidValues() {
-//            if (hasPatternTrait()) {
-//                return false;
-//            }
             int min = minLength();
             int max = maxLength();
             if (min > 256 || max == 0) {
