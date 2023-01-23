@@ -29,7 +29,7 @@ Quickstart
 ----------
 
 Build this repository, then follow the instructions for the
-[Smithy Maven Archetype](tree/main/smithy-maven-archetype) which will generate
+[Smithy Maven Archetype](https://github.com/Telenav/smithy/tree/main/smithy-maven-archetype) which will generate
 a tree of projects implementing server, client, data model, and typescript model
 and client code.
 
