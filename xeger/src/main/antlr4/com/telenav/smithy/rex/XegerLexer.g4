@@ -1,4 +1,3 @@
-
 /*
  * [The "BSD license"]
  *  Copyright (c) 2019 PANTHEON.tech
@@ -27,7 +26,6 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
 /*
  * Lexer grammar for https://www.w3.org/TR/2004/REC-xmlschema-2-20041028/#regexs.
  *
@@ -36,12 +34,10 @@
  * - we use separate lexer tokens to disambiguate positive and negative character groups
  * - XmlCharIncDash is removed in favor of DASH token, which is handled in parser
  */
-
 /**
  * This is a slightly tweaked version of
  * https://github.com/bkiers/pcre-parser
  */
-
 lexer grammar XegerLexer;
 
 import xeger;
@@ -50,9 +46,11 @@ import xeger;
 //
 //         \x         where x is non-alphanumeric is a literal x
 //         \Q...\E    treat enclosed characters as literal
-Quoted      : '\\' NonAlphaNumeric;
-BlockQuoted : '\\Q' .*? '\\E';
+Quoted
+    : '\\' NonAlphaNumeric;
 
+BlockQuoted
+    : '\\Q' .*? '\\E';
 // CHARACTERS
 //
 //         \a         alarm, that is, the BEL character (hex 07)
@@ -65,19 +63,33 @@ BlockQuoted : '\\Q' .*? '\\E';
 //         \ddd       character with octal code ddd, or backreference
 //         \xhh       character with hex code hh
 //         \x{hhh..}  character with hex code hhh..
-BellChar       : '\\a';
-ControlChar    : '\\c' ASCII?;
-EscapeChar     : '\\e';
-FormFeed       : '\\f';
-NewLine        : '\\n';
-CarriageReturn : '\\r';
-Tab            : '\\t';
-Backslash      : '\\';
-HexChar        : '\\x' ( HexDigit HexDigit
-                       | '{' HexDigit HexDigit HexDigit+ '}'
-                       )
-               ;
+BellChar
+    : '\\a';
 
+ControlChar
+    : '\\c' ASCII?;
+
+EscapeChar
+    : '\\e';
+
+FormFeed
+    : '\\f';
+
+NewLine
+    : '\\n';
+
+CarriageReturn
+    : '\\r';
+
+Tab
+    : '\\t';
+
+Backslash
+    : '\\';
+
+HexChar
+    : '\\x' ( HexDigit HexDigit
+            | '{' HexDigit HexDigit HexDigit+ '}' );
 // CHARACTER TYPES
 //
 //         .          any character except newline;
@@ -102,24 +114,56 @@ HexChar        : '\\x' ( HexDigit HexDigit
 //       In  PCRE,  by  default, \d, \D, \s, \S, \w, and \W recognize only ASCII
 //       characters, even in a UTF mode. However, this can be changed by setting
 //       the PCRE_UCP option.
-Dot                     : '.';
-OneDataUnit             : '\\C';
-DecimalDigit            : '\\d';
-NotDecimalDigit         : '\\D';
-HorizontalWhiteSpace    : '\\h';
-NotHorizontalWhiteSpace : '\\H';
-NotNewLine              : '\\N';
-CharWithProperty        : '\\p{' UnderscoreAlphaNumerics '}';
-CharWithoutProperty     : '\\P{' UnderscoreAlphaNumerics '}';
-NewLineSequence         : '\\R';
-WhiteSpace              : '\\s';
-NotWhiteSpace           : '\\S';
-VerticalWhiteSpace      : '\\v';
-NotVerticalWhiteSpace   : '\\V';
-WordChar                : '\\w';
-NotWordChar             : '\\W';
-ExtendedUnicodeChar     : '\\X';
+Dot
+    : '.';
 
+OneDataUnit
+    : '\\C';
+
+DecimalDigit
+    : '\\d';
+
+NotDecimalDigit
+    : '\\D';
+
+HorizontalWhiteSpace
+    : '\\h';
+
+NotHorizontalWhiteSpace
+    : '\\H';
+
+NotNewLine
+    : '\\N';
+
+CharWithProperty
+    : '\\p{' UnderscoreAlphaNumerics '}';
+
+CharWithoutProperty
+    : '\\P{' UnderscoreAlphaNumerics '}';
+
+NewLineSequence
+    : '\\R';
+
+WhiteSpace
+    : '\\s';
+
+NotWhiteSpace
+    : '\\S';
+
+VerticalWhiteSpace
+    : '\\v';
+
+NotVerticalWhiteSpace
+    : '\\V';
+
+WordChar
+    : '\\w';
+
+NotWordChar
+    : '\\W';
+
+ExtendedUnicodeChar
+    : '\\X';
 // CHARACTER CLASSES
 //
 //         [...]       positive character class
@@ -146,20 +190,41 @@ ExtendedUnicodeChar     : '\\X';
 //       In PCRE, POSIX character set names recognize only ASCII  characters  by
 //       default,  but  some  of them use Unicode properties if PCRE_UCP is set.
 //       You can use \Q...\E inside a character class.
-CharacterClassStart  : '[';
-CharacterClassEnd    : ']';
-Caret                : '^';
-Hyphen               : '-';
-POSIXNamedSet        : '[[:' AlphaNumerics ':]]';
-POSIXNegatedNamedSet : '[[:^' AlphaNumerics ':]]';
+CharacterClassStart
+    : '[';
 
-QuestionMark : '?';
-Plus         : '+';
-Star         : '*';
-OpenBrace    : '{';
-CloseBrace   : '}';
-Comma        : ',';
+CharacterClassEnd
+    : ']';
 
+Caret
+    : '^';
+
+Hyphen
+    : '-';
+
+POSIXNamedSet
+    : '[[:' AlphaNumerics ':]]';
+
+POSIXNegatedNamedSet
+    : '[[:^' AlphaNumerics ':]]';
+
+QuestionMark
+    : '?';
+
+Plus
+    : '+';
+
+Star
+    : '*';
+
+OpenBrace
+    : '{';
+
+CloseBrace
+    : '}';
+
+Comma
+    : ',';
 // ANCHORS AND SIMPLE ASSERTIONS
 //
 //         \b          word boundary
@@ -174,100 +239,263 @@ Comma        : ',';
 //                      also before newline at end of subject
 //         \z          end of subject
 //         \G          first matching position in subject
-WordBoundary                   : '\\b';
-NonWordBoundary                : '\\B';
-StartOfSubject                 : '\\A'; 
-EndOfSubjectOrLine             : '$';
-EndOfSubjectOrLineEndOfSubject : '\\Z'; 
-EndOfSubject                   : '\\z'; 
-PreviousMatchInSubject         : '\\G';
+WordBoundary
+    : '\\b';
 
+NonWordBoundary
+    : '\\B';
+
+StartOfSubject
+    : '\\A';
+
+EndOfSubjectOrLine
+    : '$';
+
+EndOfSubjectOrLineEndOfSubject
+    : '\\Z';
+
+EndOfSubject
+    : '\\z';
+
+PreviousMatchInSubject
+    : '\\G';
 // MATCH POINT RESET
 //
 //         \K          reset start of match
-ResetStartMatch : '\\K';
+ResetStartMatch
+    : '\\K';
 
-SubroutineOrNamedReferenceStartG : '\\g';
-NamedReferenceStartK             : '\\k';
+SubroutineOrNamedReferenceStartG
+    : '\\g';
 
-Pipe        : '|';
-OpenParen   : '(';
-CloseParen  : ')';
-LessThan    : '<';
-GreaterThan : '>';
-SingleQuote : '\'';
-Underscore  : '_';
-Colon       : ':';
-Hash        : '#';
-Equals      : '=';
-Exclamation : '!';
-DoubleAmpersand   : '&&';
-Ampersand   : '&';
+NamedReferenceStartK
+    : '\\k';
 
-ALC : 'a';
-BLC : 'b';
-CLC : 'c';
-DLC : 'd';
-ELC : 'e';
-FLC : 'f';
-GLC : 'g';
-HLC : 'h';
-ILC : 'i';
-JLC : 'j';
-KLC : 'k';
-LLC : 'l';
-MLC : 'm';
-NLC : 'n';
-OLC : 'o';
-PLC : 'p';
-QLC : 'q';
-RLC : 'r';
-SLC : 's';
-TLC : 't';
-ULC : 'u';
-VLC : 'v';
-WLC : 'w';
-XLC : 'x';
-YLC : 'y';
-ZLC : 'z';
+Pipe
+    : '|';
 
-AUC : 'A';
-BUC : 'B';
-CUC : 'C';
-DUC : 'D';
-EUC : 'E';
-FUC : 'F';
-GUC : 'G';
-HUC : 'H';
-IUC : 'I';
-JUC : 'J';
-KUC : 'K';
-LUC : 'L';
-MUC : 'M';
-NUC : 'N';
-OUC : 'O';
-PUC : 'P';
-QUC : 'Q';
-RUC : 'R';
-SUC : 'S';
-TUC : 'T';
-UUC : 'U';
-VUC : 'V';
-WUC : 'W';
-XUC : 'X';
-YUC : 'Y';
-ZUC : 'Z';
+OpenParen
+    : '(';
 
-D1 : '1';
-D2 : '2';
-D3 : '3';
-D4 : '4';
-D5 : '5';
-D6 : '6';
-D7 : '7';
-D8 : '8';
-D9 : '9';
-D0 : '0';
+CloseParen
+    : ')';
 
-OtherChar : . ;
+LessThan
+    : '<';
 
+GreaterThan
+    : '>';
+
+SingleQuote
+    : '\'';
+
+Underscore
+    : '_';
+
+Colon
+    : ':';
+
+Hash
+    : '#';
+
+Equals
+    : '=';
+
+Exclamation
+    : '!';
+
+DoubleAmpersand
+    : '&&';
+
+Ampersand
+    : '&';
+
+AUC
+    : 'A';
+
+BUC
+    : 'B';
+
+CUC
+    : 'C';
+
+DUC
+    : 'D';
+
+EUC
+    : 'E';
+
+FUC
+    : 'F';
+
+GUC
+    : 'G';
+
+HUC
+    : 'H';
+
+IUC
+    : 'I';
+
+JUC
+    : 'J';
+
+KUC
+    : 'K';
+
+LUC
+    : 'L';
+
+MUC
+    : 'M';
+
+NUC
+    : 'N';
+
+OUC
+    : 'O';
+
+PUC
+    : 'P';
+
+QUC
+    : 'Q';
+
+RUC
+    : 'R';
+
+SUC
+    : 'S';
+
+TUC
+    : 'T';
+
+UUC
+    : 'U';
+
+VUC
+    : 'V';
+
+WUC
+    : 'W';
+
+XUC
+    : 'X';
+
+YUC
+    : 'Y';
+
+ZUC
+    : 'Z';
+
+// Lower case letters
+ALC
+    : 'a';
+
+BLC
+    : 'b';
+
+CLC
+    : 'c';
+
+DLC
+    : 'd';
+
+ELC
+    : 'e';
+
+FLC
+    : 'f';
+
+GLC
+    : 'g';
+
+HLC
+    : 'h';
+
+ILC
+    : 'i';
+
+JLC
+    : 'j';
+
+KLC
+    : 'k';
+
+LLC
+    : 'l';
+
+MLC
+    : 'm';
+
+NLC
+    : 'n';
+
+OLC
+    : 'o';
+
+PLC
+    : 'p';
+
+QLC
+    : 'q';
+
+RLC
+    : 'r';
+
+SLC
+    : 's';
+
+TLC
+    : 't';
+
+ULC
+    : 'u';
+
+VLC
+    : 'v';
+
+WLC
+    : 'w';
+
+XLC
+    : 'x';
+
+YLC
+    : 'y';
+
+ZLC
+    : 'z';
+
+D1
+    : '1';
+
+D2
+    : '2';
+
+D3
+    : '3';
+
+D4
+    : '4';
+
+D5
+    : '5';
+
+D6
+    : '6';
+
+D7
+    : '7';
+
+D8
+    : '8';
+
+D9
+    : '9';
+
+D0
+    : '0';
+
+OtherChar
+    : .;

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-lexer grammar rex;
+lexer grammar xeger;
 
 /**
  * This is a slightly tweaked version of
@@ -21,9 +21,21 @@ lexer grammar rex;
  */
 
 // fragments
-fragment UnderscoreAlphaNumerics : ('_' | AlphaNumeric)+;
-fragment AlphaNumerics           : AlphaNumeric+;
-fragment AlphaNumeric            : [a-zA-Z0-9];
-fragment NonAlphaNumeric         : ~[a-zA-Z0-9];
-fragment HexDigit                : [0-9a-fA-F];
-fragment ASCII                   : [\u0000-\u007F];
+fragment UnderscoreAlphaNumerics
+    : ( '_'
+      | AlphaNumeric )+;
+
+fragment AlphaNumerics
+    : AlphaNumeric+;
+
+fragment AlphaNumeric
+    : [a-zA-Z0-9];
+
+fragment NonAlphaNumeric
+    : ~[a-zA-Z0-9];
+
+fragment HexDigit
+    : [0-9a-fA-F];
+
+fragment ASCII
+    : [\u0000-\u007F];

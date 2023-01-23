@@ -26,7 +26,6 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
 /*
  * Parser grammar for https://www.w3.org/TR/2004/REC-xmlschema-2-20041028/#regexs.
  *
@@ -35,38 +34,33 @@
  *   This allows us to simplify processing, eliminating one level of nesting. It
  *   also makes this rule consistent with XSD 1.1 definition.
  */
-
 /**
  * This is a slightly tweaked version of
  * https://github.com/bkiers/pcre-parser
  */
-
 parser grammar XegerParser;
+
 options { tokenVocab = XegerLexer; }
+
 // Most single line comments above the lexer- and  parser rules 
 // are copied from the official PCRE man pages (last updated: 
 // 10 January 2012): http://www.pcre.org/pcre.txt
 parse
-    : alternation EOF
-    ;
-
+    : alternation EOF;
 // ALTERNATION
 //
 //         expr|expr|expr...
 alternation
-    : expr alternative*
-    ;
+    : expr alternative*;
 
-alternative : '|' expr;
+alternative
+    : Pipe expr;
 
 expr
-    : element*
-    ;
+    : element*;
 
 element
-    : atom quantifier?
-    ;
-
+    : atom quantifier?;
 // QUANTIFIERS
 //
 //         ?           0 or 1, greedy
@@ -86,20 +80,16 @@ element
 //         {n,}+       n or more, possessive
 //         {n,}?       n or more, lazy
 quantifier
-    : '?' (quantifier_type|)
-    | '+' (quantifier_type|)
-    | '*' (quantifier_type|)
-    | '{' count=number '}' (quantifier_type|)
-    | '{' start=number ',' '}' (quantifier_type|)
-    | '{' start=number ',' end=number '}' (quantifier_type|)
-    ;
+    : QuestionMark ( quantifier_type| )
+    | Plus ( quantifier_type| )
+    | Star ( quantifier_type| )
+    | OpenBrace count=number CloseBrace ( quantifier_type| )
+    | OpenBrace start=number Comma CloseBrace ( quantifier_type| )
+    | OpenBrace start=number Comma end=number CloseBrace ( quantifier_type| );
 
 quantifier_type
-    : plus='+'
-    | question='?'
-    ;
-
-
+    : plus=Plus
+    | question=QuestionMark;
 // CHARACTER CLASSES
 //
 //         [...]       positive character class
@@ -127,17 +117,15 @@ quantifier_type
 //       default,  but  some  of them use Unicode properties if PCRE_UCP is set.
 //       You can use \Q...\E inside a character class.
 character_class
-    : '[' '^' CharacterClassEnd Hyphen cc_atom+ sub_character_class* ']'
-    | '[' '^' CharacterClassEnd cc_atom* sub_character_class* ']'
-    | '[' '^' cc_atom+ sub_character_class* ']'
-    | '[' CharacterClassEnd Hyphen cc_atom+ sub_character_class* ']'
-    | '[' CharacterClassEnd cc_atom* sub_character_class* ']'
-    | '[' cc_atom+ sub_character_class* ']'
-    ;
+    : CharacterClassStart Caret CharacterClassEnd Hyphen cc_atom+ sub_character_class* CharacterClassEnd
+    | CharacterClassStart Caret CharacterClassEnd cc_atom* sub_character_class* CharacterClassEnd
+    | CharacterClassStart Caret cc_atom+ sub_character_class* CharacterClassEnd
+    | CharacterClassStart CharacterClassEnd Hyphen cc_atom+ sub_character_class* CharacterClassEnd
+    | CharacterClassStart CharacterClassEnd cc_atom* sub_character_class* CharacterClassEnd
+    | CharacterClassStart cc_atom+ sub_character_class* CharacterClassEnd;
 
-sub_character_class 
+sub_character_class
     : DoubleAmpersand character_class;
-
 // BACKREFERENCES
 //
 //         \n              reference by number (can be ambiguous)
@@ -151,21 +139,18 @@ sub_character_class
 //         (?P=name)       reference by name (Python)
 backreference
     : backreference_or_octal
-    | '\\g' number
-    | '\\g' '{' number '}'
-    | '\\g' '{' '-' number '}'
-    | '\\k' '<' name '>'
-    | '\\k' '\'' name '\''
-    | '\\g' '{' name '}'
-    | '\\k' '{' name '}'
-    | '(' '?' 'P' '=' name ')'
-    ;
+    | SubroutineOrNamedReferenceStartG number
+    | SubroutineOrNamedReferenceStartG OpenBrace number CloseBrace
+    | SubroutineOrNamedReferenceStartG OpenBrace Hyphen number CloseBrace
+    | NamedReferenceStartK LessThan name GreaterThan
+    | NamedReferenceStartK SingleQuote name SingleQuote
+    | SubroutineOrNamedReferenceStartG OpenBrace name CloseBrace
+    | NamedReferenceStartK OpenBrace name CloseBrace
+    | OpenParen QuestionMark PUC Equals name CloseParen;
 
 backreference_or_octal
     : octal_char
-    | Backslash digit
-    ;
-
+    | Backslash digit;
 // CAPTURING
 //
 //         (...)           capturing group
@@ -180,29 +165,25 @@ backreference_or_octal
 //
 //         (?>...)         atomic, non-capturing group
 capture
-    : '(' '?' capture_name alternation ')'
-    | '(' '?' capture_name alternation ')'
-    | '(' '?' 'P' capture_name alternation ')'
-    | '(' alternation ')'
-    ;
+    : OpenParen QuestionMark capture_name alternation CloseParen
+    | OpenParen QuestionMark capture_name alternation CloseParen
+    | OpenParen QuestionMark PUC capture_name alternation CloseParen
+    | OpenParen alternation CloseParen;
 
-capture_name : '<' name '>'
-    | '\'' name '\'';
+capture_name
+    : LessThan name GreaterThan
+    | SingleQuote name SingleQuote;
 
 non_capture
-    : '(' '?' ':' alternation ')'
-    | '(' '?' '|' alternation ')'
-    | '(' '?' '>' alternation ')'
-    | '(' '?' option_flags ':' alternation ')'
-    ;
-
+    : OpenParen QuestionMark Colon alternation CloseParen
+    | OpenParen QuestionMark Pipe alternation CloseParen
+    | OpenParen QuestionMark GreaterThan alternation CloseParen
+    | OpenParen QuestionMark option_flags Colon alternation CloseParen;
 // COMMENT
 //
 //         (?#....)        comment (not nestable)
 comment
-    : '(' '?' '#' non_close_parens ')'
-    ;
-
+    : OpenParen QuestionMark Hash non_close_parens CloseParen;
 // OPTION SETTING
 //
 //         (?i)            caseless
@@ -221,28 +202,24 @@ comment
 //         (*UTF16)        set UTF-16 mode: 16-bit library (PCRE_UTF16)
 //         (*UCP)          set PCRE_UCP (use Unicode properties for \d etc)
 option
-    : '(' '?' option_flags '-' option_flags ')'
-    | '(' '?' option_flags ')'
-    | '(' '?' '-' option_flags ')'
-    | '(' '*' 'N' 'O' '_' 'S' 'T' 'A' 'R' 'T' '_' 'O' 'P' 'T' ')'
-    | '(' '*' 'U' 'T' 'F' '8' ')'
-    | '(' '*' 'U' 'T' 'F' '1' '6' ')'
-    | '(' '*' 'U' 'C' 'P' ')'
-    ;
+    : OpenParen QuestionMark option_flags Hyphen option_flags CloseParen
+    | OpenParen QuestionMark option_flags CloseParen
+    | OpenParen QuestionMark Hyphen option_flags CloseParen
+    | OpenParen Star NUC OUC Underscore SUC TUC AUC RUC TUC Underscore OUC PUC TUC CloseParen
+    | OpenParen Star UUC TUC FUC D8 CloseParen
+    | OpenParen Star UUC TUC FUC D1 D6 CloseParen
+    | OpenParen Star UUC CUC PUC CloseParen;
 
 option_flags
-    : option_flag+
-    ;
+    : option_flag+;
 
 option_flag
-    : 'i'
-    | 'J'
-    | 'm'
-    | 's'
-    | 'U'
-    | 'x'
-    ;
-
+    : ILC
+    | JUC
+    | MLC
+    | SLC
+    | UUC
+    | XLC;
 // LOOKAHEAD AND LOOKBEHIND ASSERTIONS
 //
 //         (?=...)         positive look ahead
@@ -252,12 +229,10 @@ option_flag
 //
 //       Each top-level branch of a look behind must be of a fixed length.
 look_around
-    : '(' '?' '=' alternation ')'
-    | '(' '?' '!' alternation ')'
-    | '(' '?' '<' '=' alternation ')'
-    | '(' '?' '<' '!' alternation ')'
-    ;
-
+    : OpenParen QuestionMark Equals alternation CloseParen
+    | OpenParen QuestionMark Exclamation alternation CloseParen
+    | OpenParen QuestionMark LessThan Equals alternation CloseParen
+    | OpenParen QuestionMark LessThan Exclamation alternation CloseParen;
 // SUBROUTINE REFERENCES (POSSIBLY RECURSIVE)
 //
 //         (?R)            recurse whole pattern
@@ -275,22 +250,20 @@ look_around
 //         \g<-n>          call subpattern by relative number (PCRE extension)
 //         \g'-n'          call subpattern by relative number (PCRE extension)
 subroutine_reference
-    : '(' '?' 'R' ')'
-    | '(' '?' number ')'
-    | '(' '?' '+' number ')'
-    | '(' '?' '-' number ')'
-    | '(' '?' '&' name ')'
-    | '(' '?' 'P' '>' name ')'
-    | '\\g' '<' name '>'
-    | '\\g' '\'' name '\''
-    | '\\g' '<' number '>'
-    | '\\g' '\'' number '\''
-    | '\\g' '<' '+' number '>'
-    | '\\g' '\'' '+' number '\''
-    | '\\g' '<' '-' number '>'
-    | '\\g' '\'' '-' number '\''
-    ;
-
+    : OpenParen QuestionMark RUC CloseParen
+    | OpenParen QuestionMark number CloseParen
+    | OpenParen QuestionMark Plus number CloseParen
+    | OpenParen QuestionMark Hyphen number CloseParen
+    | OpenParen QuestionMark Ampersand name CloseParen
+    | OpenParen QuestionMark PUC GreaterThan name CloseParen
+    | SubroutineOrNamedReferenceStartG LessThan name GreaterThan
+    | SubroutineOrNamedReferenceStartG SingleQuote name SingleQuote
+    | SubroutineOrNamedReferenceStartG LessThan number GreaterThan
+    | SubroutineOrNamedReferenceStartG SingleQuote number SingleQuote
+    | SubroutineOrNamedReferenceStartG LessThan Plus number GreaterThan
+    | SubroutineOrNamedReferenceStartG SingleQuote Plus number SingleQuote
+    | SubroutineOrNamedReferenceStartG LessThan Hyphen number GreaterThan
+    | SubroutineOrNamedReferenceStartG SingleQuote Hyphen number SingleQuote;
 // CONDITIONAL PATTERNS
 //
 //         (?(condition)yes-pattern)
@@ -308,19 +281,18 @@ subroutine_reference
 //         (?(DEFINE)...   define subpattern for reference
 //         (?(assert)...   assertion condition
 conditional
-    : '(' '?' '(' number ')' alternation ('|' alternation)? ')'
-    | '(' '?' '(' '+' number ')' alternation ('|' alternation)? ')'
-    | '(' '?' '(' '-' number ')' alternation ('|' alternation)? ')'
-    | '(' '?' '(' '<' name '>' ')' alternation ('|' alternation)? ')'
-    | '(' '?' '(' '\'' name '\'' ')' alternation ('|' alternation)? ')'
-    | '(' '?' '(' 'R' number ')' alternation ('|' alternation)? ')'
-    | '(' '?' '(' 'R' ')' alternation ('|' alternation)? ')'
-    | '(' '?' '(' 'R' '&' name ')' alternation ('|' alternation)? ')'
-    | '(' '?' '(' 'D' 'E' 'F' 'I' 'N' 'E' ')' alternation ('|' alternation)? ')'
-    | '(' '?' '(' 'a' 's' 's' 'e' 'r' 't' ')' alternation ('|' alternation)? ')'
-    | '(' '?' '(' name ')' alternation ('|' alternation)? ')'
-    ;
-
+    : OpenParen QuestionMark OpenParen number CloseParen alternation ( Pipe alternation )? CloseParen
+    | OpenParen QuestionMark OpenParen Plus number CloseParen alternation ( Pipe alternation )? CloseParen
+    | OpenParen QuestionMark OpenParen Hyphen number CloseParen alternation ( Pipe alternation )? CloseParen
+    | OpenParen QuestionMark OpenParen LessThan name GreaterThan CloseParen alternation ( Pipe alternation )? CloseParen
+    | OpenParen QuestionMark OpenParen SingleQuote name SingleQuote CloseParen alternation ( Pipe alternation )?
+    CloseParen
+    | OpenParen QuestionMark OpenParen RUC number CloseParen alternation ( Pipe alternation )? CloseParen
+    | OpenParen QuestionMark OpenParen RUC CloseParen alternation ( Pipe alternation )? CloseParen
+    | OpenParen QuestionMark OpenParen RUC Ampersand name CloseParen alternation ( Pipe alternation )? CloseParen
+    | OpenParen QuestionMark OpenParen DUC EUC FUC IUC NUC EUC CloseParen alternation ( Pipe alternation )? CloseParen
+    | OpenParen QuestionMark OpenParen ALC SLC SLC ELC RLC TLC CloseParen alternation ( Pipe alternation )? CloseParen
+    | OpenParen QuestionMark OpenParen name CloseParen alternation ( Pipe alternation )? CloseParen;
 // BACKTRACKING CONTROL
 //
 //       The following act immediately they are reached:
@@ -343,18 +315,16 @@ conditional
 //         (*THEN)         local failure, backtrack to next alternation
 //         (*THEN:NAME)    equivalent to (*MARK:NAME)(*THEN)
 backtrack_control
-    : '(' '*' 'A' 'C' 'C' 'E' 'P' 'T' ')'
-    | '(' '*' 'F' ('A' 'I' 'L')? ')'
-    | '(' '*' ('M' 'A' 'R' 'K')? ':' 'N' 'A' 'M' 'E' ')'
-    | '(' '*' 'C' 'O' 'M' 'M' 'I' 'T' ')'
-    | '(' '*' 'P' 'R' 'U' 'N' 'E' ')'
-    | '(' '*' 'P' 'R' 'U' 'N' 'E' ':' 'N' 'A' 'M' 'E' ')'
-    | '(' '*' 'S' 'K' 'I' 'P' ')'
-    | '(' '*' 'S' 'K' 'I' 'P' ':' 'N' 'A' 'M' 'E' ')'
-    | '(' '*' 'T' 'H' 'E' 'N' ')'
-    | '(' '*' 'T' 'H' 'E' 'N' ':' 'N' 'A' 'M' 'E' ')'
-    ;
-
+    : OpenParen Star AUC CUC CUC EUC PUC TUC CloseParen
+    | OpenParen Star FUC ( AUC IUC LUC )? CloseParen
+    | OpenParen Star ( MUC AUC RUC KUC )? Colon NUC AUC MUC EUC CloseParen
+    | OpenParen Star CUC OUC MUC MUC IUC TUC CloseParen
+    | OpenParen Star PUC RUC UUC NUC EUC CloseParen
+    | OpenParen Star PUC RUC UUC NUC EUC Colon NUC AUC MUC EUC CloseParen
+    | OpenParen Star SUC KUC IUC PUC CloseParen
+    | OpenParen Star SUC KUC IUC PUC Colon NUC AUC MUC EUC CloseParen
+    | OpenParen Star TUC HUC EUC NUC CloseParen
+    | OpenParen Star TUC HUC EUC NUC Colon NUC AUC MUC EUC CloseParen;
 // NEWLINE CONVENTIONS
 //capture
 //       These are recognized only at the very start of the pattern or  after  a
@@ -374,23 +344,20 @@ backtrack_control
 //         (*BSR_ANYCRLF)  CR, LF, or CRLF
 //         (*BSR_UNICODE)  any Unicode newline sequence
 newline_convention
-    : '(' '*' 'C' 'R' ')'
-    | '(' '*' 'L' 'F' ')'
-    | '(' '*' 'C' 'R' 'L' 'F' ')'
-    | '(' '*' 'A' 'N' 'Y' 'C' 'R' 'L' 'F' ')'
-    | '(' '*' 'A' 'N' 'Y' ')'
-    | '(' '*' 'B' 'S' 'R' '_' 'A' 'N' 'Y' 'C' 'R' 'L' 'F' ')'
-    | '(' '*' 'B' 'S' 'R' '_' 'U' 'N' 'I' 'C' 'O' 'D' 'E' ')'
-    ;
-
+    : OpenParen Star CUC RUC CloseParen
+    | OpenParen Star LUC FUC CloseParen
+    | OpenParen Star CUC RUC LUC FUC CloseParen
+    | OpenParen Star AUC NUC YUC CUC RUC LUC FUC CloseParen
+    | OpenParen Star AUC NUC YUC CloseParen
+    | OpenParen Star BUC SUC RUC Underscore AUC NUC YUC CUC RUC LUC FUC CloseParen
+    | OpenParen Star BUC SUC RUC Underscore UUC NUC IUC CUC OUC DUC EUC CloseParen;
 // CALLOUTS
 //
 //         (?C)      callout
 //         (?Cn)     callout with data n
 callout
-    : '(' '?' 'C' ')'
-    | '(' '?' 'C' number ')'
-    ;
+    : OpenParen QuestionMark CUC CloseParen
+    | OpenParen QuestionMark CUC number CloseParen;
 
 atom
     : subroutine_reference
@@ -418,15 +385,14 @@ atom
     | PreviousMatchInSubject
     | ResetStartMatch
     | OneDataUnit
-    | ExtendedUnicodeChar
-    ;
+    | ExtendedUnicodeChar;
 
 cc_atom
     : cc_literal Hyphen cc_literal
     | shared_atom
     | cc_literal
-    | backreference_or_octal // only octal is valid in a cc
-    ;
+    | backreference_or_octal// only octal is valid in a cc
+;
 
 shared_atom
     : POSIXNamedSet
@@ -446,13 +412,12 @@ shared_atom
     | NotVerticalWhiteSpace
     | WordChar
     | NotWordChar
-    | Backslash . // will match "unfinished" escape sequences, like `\x`
-    ;
+    | Backslash .// will match "unfinished" escape sequences, like `\x`
+;
 
 literal
     : shared_literal
-    | CharacterClassEnd
-    ;
+    | CharacterClassEnd;
 
 cc_literal
     : shared_literal
@@ -466,8 +431,7 @@ cc_literal
     | EndOfSubjectOrLine
     | Pipe
     | OpenParen
-    | CloseParen
-    ;
+    | CloseParen;
 
 shared_literal
     : octal_char
@@ -495,49 +459,108 @@ shared_literal
     | Equals
     | Exclamation
     | Ampersand
-    | OtherChar
-    ;
+    | OtherChar;
 
 number
-    : digits
-    ;
+    : digits;
 
 octal_char
-    : ( Backslash (D0 | D1 | D2 | D3) octal_digit octal_digit
-    | Backslash octal_digit octal_digit                     
-    )
-    
-    ;
+    : Backslash ( D0
+                | D1
+                | D2
+                | D3 ) octal_digit octal_digit
+    | Backslash octal_digit octal_digit;
 
 octal_digit
-    : D0 | D1 | D2 | D3 | D4 | D5 | D6 | D7
-    ;
- 
+    : D0
+    | D1
+    | D2
+    | D3
+    | D4
+    | D5
+    | D6
+    | D7;
+
 digits
-    : digit+
-    ;
+    : digit+;
 
 digit
-    : D0 | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9
-    ;
+    : D0
+    | D1
+    | D2
+    | D3
+    | D4
+    | D5
+    | D6
+    | D7
+    | D8
+    | D9;
 
 name
-    : alpha_nums
-    ;
+    : alpha_nums;
 
 alpha_nums
-    : (letter | Underscore) (letter | Underscore | digit)*
-    ;
+    : ( letter
+      | Underscore )( letter
+                     | Underscore
+                     | digit )*;
 
 non_close_parens
-    : non_close_paren+
-    ;
+    : non_close_paren+;
 
 non_close_paren
-    : ~CloseParen
-    ;
+    : ~ CloseParen;
 
 letter
-    : ALC | BLC | CLC | DLC | ELC | FLC | GLC | HLC | ILC | JLC | KLC | LLC | MLC | NLC | OLC | PLC | QLC | RLC | SLC | TLC | ULC | VLC | WLC | XLC | YLC | ZLC |
-    AUC | BUC | CUC | DUC | EUC | FUC | GUC | HUC | IUC | JUC | KUC | LUC | MUC | NUC | OUC | PUC | QUC | RUC | SUC | TUC | UUC | VUC | WUC | XUC | YUC | ZUC
-    ;
+    : ALC
+    | BLC
+    | CLC
+    | DLC
+    | ELC
+    | FLC
+    | GLC
+    | HLC
+    | ILC
+    | JLC
+    | KLC
+    | LLC
+    | MLC
+    | NLC
+    | OLC
+    | PLC
+    | QLC
+    | RLC
+    | SLC
+    | TLC
+    | ULC
+    | VLC
+    | WLC
+    | XLC
+    | YLC
+    | ZLC
+    | AUC
+    | BUC
+    | CUC
+    | DUC
+    | EUC
+    | FUC
+    | GUC
+    | HUC
+    | IUC
+    | JUC
+    | KUC
+    | LUC
+    | MUC
+    | NUC
+    | OUC
+    | PUC
+    | QUC
+    | RUC
+    | SUC
+    | TUC
+    | UUC
+    | VUC
+    | WUC
+    | XUC
+    | YUC
+    | ZUC;
