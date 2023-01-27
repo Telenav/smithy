@@ -87,6 +87,7 @@ limitations under the License.
         <verx.guice.version>1.0.0</verx.guice.version>
         <netbeans.hint.license>apache20</netbeans.hint.license>
         <mastfrog.graph.version>${mastfrog.version}.1</mastfrog.graph.version>
+        <mastfrog.strings.version>${mastfrog.version}.1</mastfrog.strings.version>
         <antlr.version>4.11.1</antlr.version>
     </properties>
 
@@ -99,7 +100,13 @@ limitations under the License.
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.10.1</version>
                 </plugin>
-
+                
+                <plugin>
+                    <groupId>com.mastfrog</groupId>
+                    <artifactId>revision-info-plugin</artifactId>
+                    <version>0.23</version>
+                </plugin>
+                
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
@@ -305,6 +312,11 @@ limitations under the License.
                 <groupId>com.mastfrog</groupId>
                 <artifactId>acteur-headers</artifactId>
                 <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>util-strings</artifactId>
+                <version>${mastfrog.strings.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.mastfrog</groupId>
