@@ -369,11 +369,6 @@ limitations under the License.
                 <version>${mastfrog.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>util-strings</artifactId>
-                <version>${mastfrog.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>com.mastfrog.antlr</groupId>
                 <artifactId>antlr-code-completion</artifactId>
                 <version>${nemesis.version}</version>

@@ -5,6 +5,7 @@ namespace my.test.ns
 use com.telenav.smithy#identity
 use com.telenav.smithy#builder
 use com.telenav.smithy#samples
+use com.telenav.smithy#blobEncoding
 
 service MyService {
     version : "1.0"
@@ -525,4 +526,70 @@ enum SizeUnit {
     /// This is a kilometer
     KILOMETER,
     LEAGUE,
+}
+
+/// THis is a blob.
+@blobEncoding("raw")
+blob RawBlob
+
+/// THis is another blob, with a length constraint.
+@length(min:4, max: 32)
+blob MyOtherBlob
+
+@blobEncoding("base-64")
+blob Base64DefaultBlob
+
+@blobEncoding("base-64-url")
+@length(min:11, max: 17)
+blob Base64UrlBlob
+
+@blobEncoding("base-64-mime")
+@length(min:0, max: 52)
+blob Base64MimeBlob
+
+@blobEncoding("hex-lower-case")
+@length(min:0, max: 52)
+blob HexLowerBlob
+
+@blobEncoding("hex-upper-case")
+@length(min:0, max: 52)
+blob HexUpperBlob
+
+@blobEncoding("hex-upper-or-lower-case")
+@length(min:0, max: 52)
+blob HexUpperLowerBlob
+
+/// This is a thing that owns some blobs.
+@builder("flat")
+structure ThingWithBlobs {
+
+    @required
+    h1 : HexLowerBlob
+
+    @required
+    h2 : HexUpperBlob
+
+    @required
+    h3 : HexUpperLowerBlob
+
+    @required
+    a : RawBlob,
+
+    @required
+    b : MyOtherBlob,
+
+    @required
+    @length(min:10, max: 20)
+    justARandomBlob : Blob
+
+    anUnrequitedBlob : Blob
+
+    @required
+    defaultBlob : Base64DefaultBlob,
+
+    @required
+    urlBlob : Base64UrlBlob,
+
+    @required
+    mimeBlob : Base64MimeBlob,
 }

@@ -61,6 +61,8 @@ import com.telenav.smithy.java.generators.size.ObjectSizes;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import static com.mastfrog.util.strings.Strings.decapitalize;
+import com.telenav.smithy.java.generators.builtin.BlobModelGenerator;
+import com.telenav.smithy.java.generators.builtin.BlobModelGenerator.BlobEncodings;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import static com.telenav.smithy.names.JavaTypes.forShapeType;
 import static com.telenav.smithy.names.TypeNames.packageOf;
@@ -82,6 +84,7 @@ import static javax.lang.model.element.Modifier.*;
 import static software.amazon.smithy.model.shapes.ShapeType.MEMBER;
 import static software.amazon.smithy.model.shapes.ShapeType.TIMESTAMP;
 import software.amazon.smithy.model.traits.PatternTrait;
+import software.amazon.smithy.model.traits.Trait;
 
 /**
  * Base class for generators for JUnit 5 tests of classes that implement model
@@ -123,7 +126,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
     }
 
     protected void testMethod(String what, ClassBuilder<String> cb, Consumer<ClassBuilder.BlockBuilder<?>> c) {
-        cb.method("test" + what, mth -> {
+        cb.method("test" + capitalize(what), mth -> {
             onCreateTestMethod(what, mth);
             mth.withModifier(PUBLIC, FINAL)
                     .throwing("Exception")
@@ -182,7 +185,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         return escape(decapitalize(prefix) + capitalize(Integer.toHexString(suffix)));
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> void assertEquals(String exp, String got, String msg, B bb) {
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X> void assertEquals(String exp, String got, String msg, B bb) {
         bb.invoke("assertEquals")
                 .withArgument(exp)
                 .withArgument(got)
@@ -190,22 +193,22 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                 .inScope();
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> InstanceInfo
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X> InstanceInfo
             declareInstance(B bb) {
         return declareInstance(newVarName(typeNameOf(shape)), bb);
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> InstanceInfo
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X> InstanceInfo
             declareInstance(String name, B bb) {
         return declareInstance(name, shape, bb);
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> InstanceInfo
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X> InstanceInfo
             declareInstance(String name, Shape shape, B bb) {
         return declareInstance(name, shape, bb, currentTypeName);
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> InstanceInfo
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X> InstanceInfo
             declareInstance(String name, Shape shape, B bb, String currentTypeName) {
         if (shape.isMemberShape()) {
             Shape nue = model.expectShape(shape.asMemberShape().get().getTarget());
@@ -218,7 +221,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         ensureImported(currentClassBuilder, shape);
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> InstanceInfo
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X> InstanceInfo
             declareInstance(String name, Shape shape, B bb,
                     String currentTypeName, MemberShape memberShape) {
 
@@ -281,7 +284,9 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                             nb.withArgument(member.instanceVar).ofType(currentTypeName + "." + unionSubtype);
                         }).as(typeNameOf(union));
                 return new InstanceInfo(member.instanceVar, val);
-
+            case BLOB:
+                BlobShape blob = shape.asBlobShape().get();
+                return declareBlob(blob, memberShape, bb);
         }
 
         String src = declarePrimitiveFor(name + "Contents", bb, shape, memberShape);
@@ -304,20 +309,20 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
 
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> String declarePrimitive(B bb) {
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X> String declarePrimitive(B bb) {
         return declarePrimitive(shape, bb);
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> String declarePrimitive(Shape shape, B bb) {
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X> String declarePrimitive(Shape shape, B bb) {
         return declarePrimitive("testValue", bb);
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T>
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X>
             String declarePrimitive(String name, B bb) {
         return declarePrimitive(name, shape, bb);
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T>
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X>
             String declarePrimitive(String name, Shape shape, B bb) {
         String vn = newVarName(name);
         if (shape.getType() == MEMBER) {
@@ -553,7 +558,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         return min + (rnd.nextDouble() * range);
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T>
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X>
             String declarePrimitiveFor(String name, B bb, Shape shape) {
         if (shape.isMemberShape()) {
             return declarePrimitiveFor(name, bb, model.expectShape(shape.asMemberShape().get().getTarget()),
@@ -562,7 +567,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         return declarePrimitiveFor(name, bb, shape, null);
     }
 
-    protected <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T>
+    protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X>
             String declarePrimitiveFor(String name, B bb,
                     Shape shape, Shape memberShape) {
 
@@ -570,17 +575,6 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
             Shape nue = model.expectShape(shape.asMemberShape().get().getTarget());
             return declarePrimitiveFor(name, bb, nue, shape);
         }
-        bb.lineComment("Shape " + shape);
-        bb.lineComment("Member " + memberShape);
-        bb.lineComment("Range " + range(memberShape, shape));
-        range(memberShape, shape).ifPresent(rng -> {
-            rng.getMin().ifPresent(min -> {
-                bb.lineComment("Range min: " + min);
-            });
-            rng.getMax().ifPresent(max -> {
-                bb.lineComment("Range max: " + max);
-            });
-        });
 
         String vn = newVarName(name);
         switch (shape.getType()) {
@@ -630,8 +624,6 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                         .as("Instant");
                 break;
             case STRING:
-                bb.lineComment("Shape " + shape.getId());
-                bb.lineComment("MemberShape " + memberShape);
                 bb.declare(vn).initializedWithStringLiteral(boundedRandomString(shape, memberShape)).as("String");
                 break;
             case LIST:
@@ -663,12 +655,139 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
 //                            .as(typeNameOf(shape));
                 }
                 break;
+            case BLOB:
+                BlobShape blob = shape.asBlobShape().get();
+                byte[] bts = randomBytesForBlob(blob, memberShape);
+                declareByteArray(vn, bts, bb);
+                break;
             default:
                 throw new AssertionError("Cannot generate a random value for "
                         + shape.getId() + " for " + this.shape.getId()
                         + " of type " + shape.getType());
         }
         return vn;
+    }
+
+    protected BlobModelGenerator.BlobEncodings blobEncoding(BlobShape shape, Shape memberShape) {
+        return blobEncoding(shape, memberShape, model);
+    }
+
+    public static BlobModelGenerator.BlobEncodings blobEncoding(BlobShape shape, Shape memberShape, Model model) {
+        ShapeId id = memberShape == null ? shape.getId()
+                : memberShape.getId();
+        MemberShape mem = memberShape == null ? null : memberShape.asMemberShape().orElse(null);
+        return BLOB_ENCODINGS.computeIfAbsent(id, i -> {
+            return BlobModelGenerator.encodingFor(shape, mem, model);
+        });
+    }
+
+    private <T extends Trait> Optional<T> traitFor(Shape shape, Shape memberShape, Class<T> trait) {
+        if (memberShape != null && memberShape.isMemberShape()) {
+            return memberShape.asMemberShape().flatMap(mem -> mem.getMemberTrait(model, trait));
+        }
+        return shape.getTrait(trait);
+    }
+
+    protected final int minFor(Shape shape, Shape memberShape) {
+        return traitFor(shape, memberShape, LengthTrait.class)
+                .flatMap(len -> {
+                    return len.getMin().map(l -> l.intValue());
+                }).orElse(0);
+    }
+
+    protected final int maxFor(Shape shape, Shape memberShape) {
+        return traitFor(shape, memberShape, LengthTrait.class)
+                .flatMap(len -> {
+                    return len.getMax().map(l -> l.intValue());
+                }).orElse(Integer.MAX_VALUE);
+    }
+    
+    protected <B extends BlockBuilderBase<T, B, X>, T, X> InstanceInfo declareBlob(
+            BlobShape shape, Shape memberShape, B bb) {
+
+        byte[] bts = randomBytesForBlob(shape, memberShape);
+
+        boolean modelDefined = !"smithy.api".equals(shape.getId().getNamespace());
+        if (modelDefined) {
+            String vn = newVarName(shape.getId().getName() + "_input");
+            BlobEncodings enc = blobEncoding(shape, memberShape);
+            if (enc.isRaw()) {
+                declareByteArray(vn, bts, bb);
+            } else {
+                declareEncodedBlobInput(enc, vn, bts, bb);
+            }
+            String resN = newVarName(shape.getId().getName());
+            bb.declare(resN).initializedWithNew(nb -> {
+                nb.withArgument(vn)
+                        .ofType(typeNameOf(shape));
+            }).as(typeNameOf(shape));
+            return new InstanceInfo(vn, resN);
+        } else {
+            String resN = newVarName(shape.getId().getName());
+            declareByteArray(resN, bts, bb);
+            return new InstanceInfo(null, resN);
+        }
+    }
+
+    static Map<ShapeId, BlobModelGenerator.BlobEncodings> BLOB_ENCODINGS = new HashMap<>();
+
+    protected byte[] randomBytesForBlob(BlobShape shape, Shape memberShape) {
+        BlobEncodings enc = blobEncoding(shape, memberShape);
+        int min = minFor(shape, memberShape);
+        int max = maxFor(shape, memberShape);
+        if (min == max) {
+            byte[] result = new byte[min];
+            rnd.nextBytes(result);
+            return result;
+        }
+        if (max > 512) {
+            max = min + 4 + rnd.nextInt(32);
+        }
+        int range = (max - min) + 1;
+        int val = rnd.nextInt(range);
+        byte[] b = new byte[min + val];
+        rnd.nextBytes(b);
+        return b;
+    }
+    
+    protected Optional<byte[]> randomInvalidBytesForBlob(BlobShape shape, Shape memberShape) {
+        BlobEncodings enc = blobEncoding(shape, memberShape);
+        int min = minFor(shape, memberShape);
+        int max = maxFor(shape, memberShape);
+        
+        if (min == 1) {
+            return Optional.of(new byte[0]);
+        }
+        if (min > 1) {
+            byte[] bytes = new byte[rnd.nextInt(min -1) + 1];
+            rnd.nextBytes(bytes);
+            return Optional.of(bytes);
+        }
+        if (max < 512) {
+            int add = rnd.nextInt(32) + 1;
+            byte[] bytes = new byte[rnd.nextInt(add) + max + 1];
+            rnd.nextBytes(bytes);
+            return Optional.of(bytes);
+        }
+        return Optional.empty();
+    }
+    
+
+    protected static <B extends BlockBuilderBase<T, B, X>, T, X> void declareByteArray(String vn,
+            byte[] bytes, B bb) {
+        bb.declare(vn).initializedAsNewArray("byte", arr -> {
+            for (byte b : bytes) {
+                String hex = Integer.toHexString(b & 0xFF);
+                if (hex.length() == 1) {
+                    hex = "0" + hex;
+                }
+                arr.add("(byte) 0x" + hex);
+            }
+        });
+    }
+
+    protected static <B extends BlockBuilderBase<T, B, X>, T, X> void declareEncodedBlobInput(BlobEncodings enc, String vn, byte[] bytes, B bb) {
+        bb.declare(vn).initializedWithStringLiteral(enc.encodeBytes(bytes)).as("String");
     }
 
     private int targetSizeForCollection(Shape shape, Shape memberShape) {
@@ -685,7 +804,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         return targetSize;
     }
 
-    private <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> void
+    private <B extends BlockBuilderBase<T, B, X>, T, X> void
             instantiateListOrSet(String vn, ListShape shape, B bb,
                     Shape memberShape) {
         boolean isSet = shape.getTrait(UniqueItemsTrait.class)
@@ -693,18 +812,6 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                 && memberShape.getTrait(UniqueItemsTrait.class).isPresent());
 
         int targetSize = targetSizeForCollection(shape, memberShape);
-        bb.lineComment("List or set " + shape.getId());
-        bb.lineComment("Target size " + targetSize);
-        bb.lineComment("Shape " + shape);
-        bb.lineComment("Member shape " + memberShape);
-        length(memberShape, shape).ifPresent(len -> {
-            len.getMin().ifPresent(min -> {
-                bb.lineComment("Min length " + min);
-            });
-            len.getMax().ifPresent(max -> {
-                bb.lineComment("Max length " + max);
-            });
-        });
 
         String base = memberShape == null ? shape.getId().getName()
                 : memberShape.asMemberShape().get().getMemberName();
@@ -746,7 +853,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                 }).as(destTypeName);
     }
 
-    private <B extends ClassBuilder.BlockBuilderBase<T, B, ?>, T> void
+    private <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X> void
             instantiateMap(String vn, MapShape shape, B bb,
                     Shape memberShape) {
 
@@ -1086,7 +1193,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         }
     }
 
-    protected <B extends BlockBuilderBase<T, B, ?>, T>
+    protected <B extends BlockBuilderBase<T, B, X>, T, X>
             StructureInstantiation instantiateStructure(String name,
                     StructureShape shape, B bb) {
         if (name == null) {
@@ -1170,9 +1277,6 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                                     shape, bb);
                         }
 
-                        bb.lineComment("XX-Member " + typeNameOf(shape) + ": " + e.getKey() + " " + e.getValue().getId()
-                                + " memberVar " + m.memberVar);
-
                         members.add(m);
                         Optional<JavaTypes> tp = m.member == null
                                 ? empty() : m.member.javaType();
@@ -1198,7 +1302,7 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
         return result;
     }
 
-    protected <B extends BlockBuilderBase<T, B, ?>, T>
+    protected <B extends BlockBuilderBase<T, B, X>, T, X>
             MemberInstantiation<?> instantiateStructureMember(MemberShape member,
                     StructureShape shape, B bb) {
         ShapeId tgt = member.getTarget();

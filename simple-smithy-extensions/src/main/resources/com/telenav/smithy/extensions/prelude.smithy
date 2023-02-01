@@ -48,6 +48,12 @@ list Documents {
   member: Document
 }
 
+@trait(
+    selector: "blob",
+)
+string blobEncoding
+
+
 /// Allows generated serialization tests to construct valid and invalid examples
 /// of types so that we do not generate tests that attempt to use invalid data
 @trait( selector : "*" )

@@ -30,9 +30,9 @@ import java.nio.file.Path;
 final class GeneratedJavaCode implements GeneratedCode {
 
     private final Path destDir;
-
     private final ClassBuilder<String> classBuilder;
     private final SmithyGenerationLogger log;
+    private final Exception creation = new Exception();
 
     GeneratedJavaCode(Path destDir, ClassBuilder<String> classBuilder, SmithyGenerationLogger log) {
         this.destDir = destDir;
@@ -59,7 +59,13 @@ final class GeneratedJavaCode implements GeneratedCode {
             if (!Files.exists(dest.getParent())) {
                 Files.createDirectories(dest.getParent());
             }
-            classBuilder.save(dest.getParent());
+            try {
+                classBuilder.save(dest.getParent());
+            } catch (Throwable e) {
+                IOException ioe = new IOException("Exception saving " + classBuilder.className(), e);
+                e.addSuppressed(creation);
+                throw ioe;
+            }
         }
     }
 

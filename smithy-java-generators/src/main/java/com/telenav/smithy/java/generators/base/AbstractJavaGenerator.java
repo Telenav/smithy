@@ -23,6 +23,7 @@ import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.Value;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.variable;
+import com.mastfrog.util.strings.Strings;
 import static com.telenav.smithy.generators.GenerationSwitches.DEBUG;
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
@@ -394,7 +395,7 @@ public abstract class AbstractJavaGenerator<S extends Shape>
 
         Value a = variable(v);
         Value b = variable(compareWith);
-
+        
         Value condition = a.isNotNull().parenthesized().isNotEqualTo(
                 b.isNotNull().parenthesized()).parenthesized()
                 .logicalOrWith(

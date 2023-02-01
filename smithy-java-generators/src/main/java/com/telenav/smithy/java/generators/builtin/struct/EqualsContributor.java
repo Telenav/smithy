@@ -16,6 +16,7 @@
 package com.telenav.smithy.java.generators.builtin.struct;
 
 import com.mastfrog.java.vogon.ClassBuilder;
+import java.util.Arrays;
 import java.util.Optional;
 import software.amazon.smithy.model.shapes.DoubleShape;
 import software.amazon.smithy.model.shapes.FloatShape;
@@ -65,20 +66,25 @@ public interface EqualsContributor<S extends Shape> {
     @SuppressWarnings("unchecked")
     public static <S extends Shape> EqualsContributor<S> equalsContributor(
             StructureMember<S> member, StructureGenerationHelper helper) {
-        EqualsContributor<S> result;
+        EqualsContributor<S> result = null;
         if (member.isModelDefinedType()) {
             result = (EqualsContributor<S>) OBJECT_EQUALITY;
         } else {
-            Optional<EqualsContributor<?>> opt = member.as(DoubleShape.class).map(sm -> DOUBLE_EQUALITY);
-            if (!opt.isPresent()) {
-                opt = member.as(FloatShape.class).map(fl -> FLOAT_EQUALITY);
+            if (member.target().isBlobShape()) {
+                result = (EqualsContributor<S>) ARRAY_EQUALITY;
             }
-            if (!opt.isPresent() && member.isSmithyApiDefinedType()) {
-                if (member.isPrimitive() && (member.isRequired() || member.hasDefault())) {
-                    opt = Optional.of(INSTANCE_EQUALITY);
+            if (result == null) {
+                Optional<EqualsContributor<?>> opt = member.as(DoubleShape.class).map(sm -> DOUBLE_EQUALITY);
+                if (!opt.isPresent()) {
+                    opt = member.as(FloatShape.class).map(fl -> FLOAT_EQUALITY);
                 }
+                if (!opt.isPresent() && member.isSmithyApiDefinedType()) {
+                    if (member.isPrimitive() && (member.isRequired() || member.hasDefault())) {
+                        opt = Optional.of(INSTANCE_EQUALITY);
+                    }
+                }
+                result = (EqualsContributor<S>) opt.orElse(OBJECT_EQUALITY);
             }
-            result = (EqualsContributor<S>) opt.orElse(OBJECT_EQUALITY);
         }
         if (!member.isRequired() && !member.hasDefault()) {
             result = result.wrapInNullCheck();
@@ -135,6 +141,44 @@ public interface EqualsContributor<S extends Shape> {
                         .isFalse()
                         .endCondition()
                         .returning(false).endIf();
+            }
+        }
+    };
+
+    static EqualsContributor<Shape> ARRAY_EQUALITY
+            = new EqualsContributor<Shape>() {
+        @Override
+        public <R, B extends ClassBuilder.BlockBuilderBase<R, B, ?>> void contributeToEqualsComputation(
+                StructureMember<? extends Shape> member,
+                StructureGenerationHelper helper,
+                String otherVar,
+                B bb,
+                ClassBuilder<?> cb) {
+            cb.importing(Arrays.class);
+            String fld = member.field();
+            if (!member.isRequired() && !member.hasDefault()) {
+//                ARRAY CHECK HERE, BOTH BRANCHES
+//                        THEN USE THIS CODE WHERE NEEDED
+                bb.iff().booleanExpression("((this." + fld + " == null) != (" + otherVar + "." + fld + " == null)) || !Arrays.equals(this." + fld + ", " + otherVar + "." + fld + ")")
+                        .returning(false).endIf();
+//                helper.generateEqualityCheckOfNullable("this." + member.field(), "other." + member.field(), bb);
+            } else {
+                bb.iff().invocationOf("equals")
+                        .withArgumentFromField(fld).ofThis()
+                        .withArgumentFromField(fld).of(otherVar)
+                        .on("Arrays")
+                        .isFalse()
+                        .endCondition()
+                        .returning(false)
+                        .endIf();
+//                
+//                bb.iff().invocationOf("equals")
+//                        .withArgumentFromField(member.field()).of(otherVar)
+//                        .onField(member.field())
+//                        .ofThis()
+//                        .isFalse()
+//                        .endCondition()
+//                        .returning(false).endIf();
             }
         }
     };

@@ -30,6 +30,7 @@ import com.telenav.smithy.generators.SmithyGenerationLogger;
 import com.telenav.smithy.generators.SmithyGenerationSettings;
 import com.telenav.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
+import static com.telenav.smithy.generators.GenerationTarget.MODEL_TEST;
 import com.telenav.smithy.java.generators.builtin.struct.StructureGenerator;
 import com.telenav.smithy.names.TypeNames;
 import java.nio.file.Path;
@@ -38,6 +39,7 @@ import java.util.HashSet;
 import java.util.Set;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.Shape;
+import static software.amazon.smithy.model.shapes.ShapeType.DOCUMENT;
 import software.amazon.smithy.model.traits.MixinTrait;
 import software.amazon.smithy.model.traits.UniqueItemsTrait;
 
@@ -178,6 +180,8 @@ public class SmithyJavaGenerators implements SmithyGenerator {
                         model, destSourceRoot, MODEL, language));
                 break;
             case BLOB:
+                result.add(new BlobModelGenerator(shape.asBlobShape().get(),
+                        model, destSourceRoot, MODEL, language));
                 break;
             case OPERATION:
             case RESOURCE:
@@ -220,7 +224,9 @@ public class SmithyJavaGenerators implements SmithyGenerator {
             case DOCUMENT:
                 result.add(new DocumentTestGenerator(shape.asDocumentShape().get(), model, destSourceRoot, MODEL_TEST, language));
                 break;
-
+            case BLOB:
+                result.add(new BlobTestGenerator(shape.asBlobShape().get(), model, destSourceRoot, MODEL_TEST, language));
+                break;
         }
     }
 

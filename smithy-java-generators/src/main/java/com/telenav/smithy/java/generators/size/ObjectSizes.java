@@ -174,6 +174,7 @@ public class ObjectSizes {
         onto.addMinMax(elementSize, min, max);
     }
 
+    @SuppressWarnings("deprecation")
     private ObjectSize computeDeepSizeOf(MemberShape member, Shape shape) {
         ObjectSize result = new ObjectSize(shallowSizeOf(member, shape));
         switch (shape.getType()) {

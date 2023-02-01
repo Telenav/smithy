@@ -21,6 +21,7 @@ import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.number;
 import static com.mastfrog.java.vogon.ClassBuilder.variable;
 import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
+import java.util.Arrays;
 import software.amazon.smithy.model.shapes.BooleanShape;
 import software.amazon.smithy.model.shapes.DoubleShape;
 import software.amazon.smithy.model.shapes.EnumShape;
@@ -162,7 +163,7 @@ public interface HashCodeContributor<S extends Shape> {
                 return (HashCodeContributor<S>) invokeHashCode();
             default:
                 throw new IllegalArgumentException("Cannot create a hash code generator for a " + member.member()
-                    + " with type " + member.target().getType());
+                        + " with type " + member.target().getType());
         }
     }
 
@@ -229,8 +230,16 @@ public interface HashCodeContributor<S extends Shape> {
                     throw new IllegalArgumentException("Attempt to use Object.hashCode() on a primitive: " + member.member().getId());
                 }
                 long hashSub = AbstractJavaGenerator.prime(member.member().getId().toString());
-                bb.plusAssign(hashVar).to(
-                        invocationOf("hashCode").on(member.field()).times(hashSub));
+                boolean canBeArray = member.target().isBlobShape()
+                        && !member.isModelDefinedType();
+                if (canBeArray) {
+                    cb.importing(Arrays.class);
+                    bb.plusAssign(hashVar).to(
+                            invocationOf("hashCode").withArgument(member.field()).on("Arrays").times(hashSub));
+                } else {
+                    bb.plusAssign(hashVar).to(
+                            invocationOf("hashCode").on(member.field()).times(hashSub));
+                }
             }
         };
     }

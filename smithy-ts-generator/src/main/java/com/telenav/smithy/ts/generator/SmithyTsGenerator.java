@@ -64,12 +64,14 @@ public class SmithyTsGenerator implements SmithyGenerator {
     @Override
     public Collection<? extends ModelElementGenerator> generatorsFor(Shape shape, Model model,
             Path destSourceRoot, GenerationTarget targets, LanguageWithVersion language, SmithyGenerationSettings settings, SmithyGenerationLogger logger) {
-        if (GenerationTarget.MODEL.equals(targets)) {
-            return modelGeneratorsFor(shape, model, destSourceRoot, targets, language, settings, logger);
-        } else if (GenerationTarget.MODEL_TEST.equals(targets)) {
-            return modelTestGeneratorsFor(shape, model, destSourceRoot, targets, language, settings, logger);
-        } else if (GenerationTarget.CLIENT.equals(targets)) {
+        if (language.isLanguage("typescript")) {
+            if (GenerationTarget.MODEL.equals(targets)) {
+                return modelGeneratorsFor(shape, model, destSourceRoot, targets, language, settings, logger);
+            } else if (GenerationTarget.MODEL_TEST.equals(targets)) {
+                return modelTestGeneratorsFor(shape, model, destSourceRoot, targets, language, settings, logger);
+            } else if (GenerationTarget.CLIENT.equals(targets)) {
 
+            }
         }
         return emptyList();
     }

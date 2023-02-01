@@ -17,7 +17,9 @@ package com.telenav.smithy.java.generators.builtin.struct;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.StringConcatenationBuilder;
+import software.amazon.smithy.model.shapes.BlobShape;
 import software.amazon.smithy.model.shapes.Shape;
+import static software.amazon.smithy.model.shapes.ShapeType.BLOB;
 
 /**
  * Contributes code to render a string representation of a field to the string
@@ -55,6 +57,9 @@ public interface ToStringContributor<S extends Shape> {
                         concat.appendField(member.field()).ofThis();
                         concat.append("\"");
                         break;
+                    case BLOB:
+                        generateBlobConcatenation(member, helper, cb, concat, hasFollowingMembers);
+                        break;
                     default:
                         concat.appendField(member.field()).ofThis();
                 }
@@ -76,6 +81,20 @@ public interface ToStringContributor<S extends Shape> {
             if (hasFollowingMembers) {
                 concat.append(",");
             }
+        }
+
+        private <T> void generateBlobConcatenation(StructureMember<? extends Shape> member,
+                StructureGenerationHelper helper, ClassBuilder<?> cb,
+                StringConcatenationBuilder<T> concat, boolean hasFollowingMembers) {
+            StructureMember<BlobShape> blob = member.as(BlobShape.class).get();
+//            BlobModelGenerator.BlobEncodings enc = AbstractJavaTestGenerator.blobEncoding(member.target().asBlobShape().get(), member.member(), member.model());
+            cb.importing("java.util.Base64");
+            concat.append("\"");
+            concat.appendInvocationOf("encodeToString")
+                    .withArgumentFromField(member.field()).ofThis()
+                    .onInvocationOf("getEncoder")
+                    .on("Base64")
+                    .append('"');
         }
     };
 
