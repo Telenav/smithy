@@ -41,7 +41,6 @@ final class BlobGenerator extends AbstractTsTestGenerator<BlobShape> {
     protected void generate(TypescriptSource tb, TestContext ctx) {
                 tb.declareClass(typeName(), cb -> {
             applyValidatableInterface(cb);
-            cb.implementing("Number");
             cb.exported();
             cb.property("value")
                     .setPublic()

@@ -48,33 +48,33 @@ public class RequestScopeTest {
         assertFalse(scope.inScope());
         try (ScopeEntry first = scope.enter(123456L)) {
             assertTrue(scope.inScope());
-            assertTrue(scope.contents().equals(asList(123456L)));
+            assertTrue(scope.objects().equals(asList(123456L)), () -> scope.objects().toString());
             try (ScopeEntry second = scope.enter(56789L, Optional.of(23))) {
                 assertTrue(scope.inScope());
-                assertTrue(scope.contents().contains(123456L));
-                assertTrue(scope.contents().contains(56789L));
-                assertTrue(scope.contents().contains(Optional.of(23)));
+                assertTrue(scope.objects().contains(123456L));
+                assertTrue(scope.objects().contains(56789L));
+                assertTrue(scope.objects().contains(Optional.of(23)));
                 try (ScopeEntry third = scope.enter(Optional.of("foo"))) {
-                    assertTrue(scope.contents().contains(123456L));
-                    assertTrue(scope.contents().contains(56789L));
-                    assertTrue(scope.contents().contains(Optional.of(23)));
-                    assertTrue(scope.contents().contains(Optional.of("foo")));
+                    assertTrue(scope.objects().contains(123456L));
+                    assertTrue(scope.objects().contains(56789L));
+                    assertTrue(scope.objects().contains(Optional.of(23)));
+                    assertTrue(scope.objects().contains(Optional.of("foo")));
                     one = inj.getInstance(ThingOne.class);
                     two = inj.getInstance(ThingTwo.class);
                     three = inj.getInstance(ThingThree.class);
                 }
-                assertTrue(scope.contents().contains(123456L));
-                assertTrue(scope.contents().contains(56789L));
-                assertTrue(scope.contents().contains(Optional.of(23)));
-                assertFalse(scope.contents().contains(Optional.of("foo")));
+                assertTrue(scope.objects().contains(123456L));
+                assertTrue(scope.objects().contains(56789L));
+                assertTrue(scope.objects().contains(Optional.of(23)));
+                assertFalse(scope.objects().contains(Optional.of("foo")));
             }
             assertTrue(scope.inScope());
-            assertFalse(scope.contents().contains(56789L));
+            assertFalse(scope.objects().contains(56789L));
             threeB = inj.getInstance(ThingThree.class);
             oneA = inj.getInstance(ThingOne.class);
         }
         assertFalse(scope.inScope());
-        assertTrue(scope.contents().isEmpty());
+        assertTrue(scope.objects().isEmpty());
 
         ThingTwo twoB = inj.getInstance(ThingTwo.class);
 

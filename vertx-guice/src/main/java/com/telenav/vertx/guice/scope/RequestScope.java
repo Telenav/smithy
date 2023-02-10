@@ -62,7 +62,7 @@ import java.util.function.Supplier;
  */
 public final class RequestScope implements Scope {
 
-    private final LinkedList<List<Object>> contents = new LinkedList<>();
+    private final ThreadLocal<LinkedList<List<Object>>> contents = ThreadLocal.withInitial(NullIntolerantList::new);
 
     @Override
     @SuppressWarnings({"unchecked", "rawType"})
@@ -93,7 +93,47 @@ public final class RequestScope implements Scope {
 
     @Override
     public String toString() {
-        return "RequestScope(" + contents + ")";
+        return "RequestScope(" + contents() + ")";
+    }
+
+    LinkedList<List<Object>> contents() {
+        return contents.get();
+    }
+
+    List<Object> objects() {
+        List<Object> result = new ArrayList<>();
+        for (List<Object> l : contents()) {
+            result.addAll(l);
+        }
+        return result;
+    }
+
+    /**
+     * For purposes such as error logging, it may be necessary to get an object
+     * out of the scope, such as a requeest ID, if one is present, without
+     * throwing an exception as a provider would.
+     *
+     * @param <T> The type
+     * @param type The type
+     * @return An optional containing the first match in-scope, if there is one
+     */
+    @SuppressWarnings("unchecked")
+    public <T> Optional<T> getSafe(Class<T> type) {
+        for (List<Object> l : contents()) {
+            for (Object o : l) {
+                if (type.isInstance(o)) {
+                    return Optional.of(type.cast(o));
+                } else if (o instanceof Optional<?>) {
+                    if (((Optional<?>) ((Optional<?>) o)).isPresent()) {
+                        Object val = ((Optional<?>) o).get();
+                        if (type.isInstance(val)) {
+                            return (Optional<T>) o;
+                        }
+                    }
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /**
@@ -121,8 +161,9 @@ public final class RequestScope implements Scope {
         }
         LinkedList<Object> newContents = new LinkedList<>();
         newContents.addAll(with);
-        contents.addFirst(newContents);
-        return () -> contents.removeFirst();
+        LinkedList<List<Object>> l = contents();
+        l.addFirst(newContents);
+        return () -> l.removeFirst();
     }
 
     /**
@@ -147,8 +188,15 @@ public final class RequestScope implements Scope {
      */
     @SuppressWarnings("unchecked")
     public <T> RequestScope bindType(Binder binder, Class<T> type) {
-        binder.bind(type).toProvider(scope(Key.get(type),
-                (Provider<T>) NotInScopeProvider.INSTANCE))
+        if (type == null) {
+            throw new IllegalArgumentException("Null type");
+        }
+        if (binder == null) {
+            throw new IllegalArgumentException("Null binder");
+        }
+        Provider<T> fallback = (Provider<T>) NotInScopeProvider.INSTANCE;
+        Provider<T> scopedProvider = scope(Key.get(type), fallback);
+        binder.bind(type).toProvider(scopedProvider)
                 .in(this);
         return this;
     }
@@ -218,13 +266,19 @@ public final class RequestScope implements Scope {
      * @return A wrapper for that runnable
      */
     public Runnable wrap(Runnable run) {
-        if (contents.isEmpty()) {
+        if (contents().isEmpty()) {
             return run;
         }
         Snapshot snap = new Snapshot();
         return snap.wrap(run);
     }
 
+    /**
+     * Wrap a handler so that scope contents are available.
+     *
+     * @param supp A supplier for the handler
+     * @return A handler which invokes the supplier on demand
+     */
     public Handler<RoutingContext> wrap(Supplier<? extends Handler<RoutingContext>> supp) {
         return new WrappedHandler(this, supp);
     }
@@ -237,16 +291,6 @@ public final class RequestScope implements Scope {
      * @return A wrapper for that runnable
      */
     public Runnable wrap(Runnable run, Consumer<? super Throwable> onError, Object... toAdd) {
-//        if (contents.isEmpty()) {
-//            return () -> {
-//                try {
-//                    run.run();
-//                } catch (Exception | Error e) {
-//                    onError.accept(e);
-//                }
-//            };
-////            return run;
-//        }
         Snapshot snap = new Snapshot(asList(toAdd));
         return snap.wrap(run, onError);
     }
@@ -280,7 +324,7 @@ public final class RequestScope implements Scope {
      */
     public Runnable wrap(Collection<? extends Object> add, Runnable run) {
         try (ScopeEntry en = enter(add)) {
-            if (contents.isEmpty()) {
+            if (contents().isEmpty()) {
                 return run;
             }
             return new Snapshot(add).wrap(run);
@@ -326,14 +370,14 @@ public final class RequestScope implements Scope {
     }
 
     // Used by tests
-    List<Object> contents() {
+    List<Object> contentsCopy() {
         List<Object> result = new ArrayList<>();
-        contents.forEach(result::addAll);
+        contents().forEach(result::addAll);
         return result;
     }
 
     boolean inScope() {
-        return !contents.isEmpty();
+        return !contents().isEmpty();
     }
 
     <T> Provider<Optional<T>> optionalProvider(Key<Optional<T>> key) {
@@ -363,7 +407,7 @@ public final class RequestScope implements Scope {
         @Override
         @SuppressWarnings("unchecked")
         public Optional<T> get() {
-            for (List<Object> l : contents) {
+            for (List<Object> l : contents()) {
                 for (Object o : l) {
                     if (o instanceof Optional<?>) {
                         Optional<?> opt = (Optional<?>) o;
@@ -395,7 +439,10 @@ public final class RequestScope implements Scope {
         @SuppressWarnings("unchecked")
         public T get() {
             Class<? super T> type = key.getTypeLiteral().getRawType();
-            for (List<Object> l : contents) {
+            for (List<Object> l : contents()) {
+                if (l == null) {
+                    continue;
+                }
                 for (Object o : l) {
                     if (type.isInstance(o)) {
                         return (T) type.cast(o);
@@ -412,9 +459,11 @@ public final class RequestScope implements Scope {
 
         Snapshot() {
             this.snapshot = new LinkedList<>();
-            for (List<Object> l : contents) {
-                LinkedList<Object> copy = new LinkedList<>(l);
-                snapshot.add(copy);
+            for (List<Object> l : contents()) {
+                if (l != null) {
+                    LinkedList<Object> copy = new LinkedList<>(l);
+                    snapshot.add(copy);
+                }
             }
         }
 
@@ -485,8 +534,9 @@ public final class RequestScope implements Scope {
 
         public ScopeEntry enter() {
             SnapshotEntry result = new SnapshotEntry();
-            contents.clear();
-            contents.addAll(snapshot);
+            LinkedList<List<Object>> l = contents();
+            l.clear();
+            l.addAll(snapshot);
             return result;
         }
 
@@ -495,13 +545,14 @@ public final class RequestScope implements Scope {
             private final List<List<Object>> originalContents;
 
             SnapshotEntry() {
-                originalContents = new ArrayList<>(contents);
+                originalContents = new ArrayList<>(contents());
             }
 
             @Override
             public void close() {
-                contents.clear();
-                contents.addAll(originalContents);
+                LinkedList<List<Object>> l = contents();
+                l.clear();
+                l.addAll(originalContents);
             }
         }
     }
@@ -519,25 +570,25 @@ public final class RequestScope implements Scope {
     Snapshot snapshot() {
         return new Snapshot();
     }
-    
+
     static class IdentitySupplier<T> implements Supplier<T> {
+
         private final T t;
 
         IdentitySupplier(T t) {
             this.t = t;
         }
-        
 
         @Override
         public T get() {
             return t;
         }
-        
+
         @Override
         public String toString() {
             return t.toString();
         }
-        
+
     }
 
     static class WrappedHandler implements Handler<RoutingContext> {
@@ -549,8 +600,6 @@ public final class RequestScope implements Scope {
             this.scope = scope;
             this.orig = orig;
         }
-        
-        
 
         @Override
         public void handle(RoutingContext event) {
@@ -602,11 +651,13 @@ public final class RequestScope implements Scope {
         }
 
         @Override
+        @SuppressWarnings("deprecation") // can't not implement it
         public void setBody(Buffer buffer) {
             delegate.setBody(buffer);
         }
 
         @Override
+        @SuppressWarnings("deprecation") // can't not implement it
         public void setSession(Session session) {
             delegate.setSession(session);
         }
@@ -852,6 +903,26 @@ public final class RequestScope implements Scope {
         public List<String> queryParam(String name) {
             return delegate.queryParam(name);
         }
+    }
 
+    private static final class NullIntolerantList extends LinkedList<List<Object>> {
+
+        @Override
+        public boolean add(List<Object> e) {
+            if (e == null) {
+                throw new IllegalArgumentException("Adding null not allowed");
+            }
+            return super.add(e);
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends List<Object>> c) {
+            for (Object sub : c) {
+                if (sub == null) {
+                    throw new IllegalArgumentException("Found a null in " + c);
+                }
+            }
+            return super.addAll(c);
+        }
     }
 }

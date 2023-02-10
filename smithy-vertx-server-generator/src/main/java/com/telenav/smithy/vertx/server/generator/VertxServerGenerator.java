@@ -129,6 +129,7 @@ import software.amazon.smithy.model.traits.RequiredTrait;
 public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     private static final String BODY_PLACEHOLDER = "--body--";
+    private static final String ERROR_NOTIFICATIONS_FIELD = "errorNotifications";
     private final ScopeBindings scope = new ScopeBindings();
     private final boolean debug;
     private final boolean generateProbeCode;
@@ -187,6 +188,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         generateStartMethod(cb);
 
+        generateErrorNotificationSupport(cb);
+
         generateCustomizeVerticleFieldsAndMethods(cb);
         generateProbeGuiceModuleMethods(cb);
 
@@ -202,6 +205,39 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         cb.sortMembers();
         registerZipMarkupTask();
         addTo.accept(cb);
+    }
+
+    private <T> void generateErrorNotificationSupport(ClassBuilder<T> cb) {
+        cb.innerClass("ErrorNotifications", ib -> {
+            ib.makePublic()
+                    .docComment("Interface which can be passed to <code>withErrorNotificationsTo</code> "
+                            + "to log errors which propagate up to the top of the context.")
+                    .toInterface()
+                    .annotatedWith("FunctionalInterface")
+                    .closeAnnotation();
+            ib.method("onError", mth -> {
+                mth.addArgument("RoutingContext", "ctx")
+                        .addArgument("Throwable", "thrown");
+            });
+        });
+
+        cb.field(ERROR_NOTIFICATIONS_FIELD, fld -> {
+            fld.withModifier(PRIVATE)
+                    .initializedAsLambda("ErrorNotifications", lb -> {
+                        lb.withArgument("ctx").withArgument("thrown")
+                                .body().endBlock();
+                    });
+        });
+
+        cb.method("withErrorNotificationsTo", mth -> {
+            mth.withModifier(PUBLIC).withModifier(FINAL)
+                    .docComment("Provide an error handler for logging."
+                            + "@param notificationsTo an implementation of ErrorNotifications");
+            mth.addArgument("ErrorNotifications", "notificationsTo")
+                    .returning(cb.className());
+            mth.body().statement("this.errorNotifications = notificationsTo")
+                    .returningThis().endBlock();
+        });
     }
 
     private void registerZipMarkupTask() {
@@ -727,8 +763,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     public void generateBodyHandlerSupport(ClassBuilder<String> routerBuilder, String operationsEnumName) {
         routerBuilder.innerClass("DefaultBodyHandlerFactory", cb -> {
             cb.importing(
-                    //                    "io.vertx.ext.web.handler.BodyHandler",
-                    "com.telenav.smithy.vertx.debug.BodyHandler",
+                    "io.vertx.ext.web.handler.BodyHandler",
+                    //                    "com.telenav.smithy.vertx.debug.BodyHandler",
                     "java.util.function.Function",
                     "io.vertx.ext.web.RoutingContext",
                     "io.vertx.core.Handler")
@@ -1129,7 +1165,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                                 .withStringLiteral("Unspecified error")
                                                 .withArgument(500)
                                                 .withArgument("ctx")
-                                                .withArgument("null")
+                                                .withArgument("failure")
                                                 .inScope()
                                                 .endIf();
                                     });
@@ -1206,13 +1242,27 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                     + "add to the response)"
             );
             routerBuilder.importing("io.vertx.ext.web.RoutingContext");
-            m1.withModifier(PRIVATE, STATIC, FINAL);
+            m1.withModifier(PRIVATE, FINAL);
             m1.addArgument("String", "message")
                     .addArgument("int", "statusCode")
                     .addArgument("RoutingContext", "ctx")
                     .addArgument("Throwable", "thrown");
             m1.body(mbb -> {
                 routerBuilder.importing("io.vertx.core.http.HttpServerResponse");
+
+                mbb.trying(tri -> {
+                    tri.lineComment("In the case the application provided error handler")
+                            .lineComment("throws, simply print it and move on.");
+                    tri.invoke("onError")
+                            .withArgument("ctx")
+                            .withArgument("thrown")
+                            .on(ERROR_NOTIFICATIONS_FIELD);
+                    tri.catching("Throwable")
+                            .invoke("printStackTrace")
+                            .on("th2")
+                            .as("th2").endTryCatch();
+                });
+
                 mbb.declare("resp")
                         .initializedByInvoking("response")
                         .on("ctx")
@@ -1934,9 +1984,9 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .toInvocation("readValue")
                                 .withArgument("stream")
                                 .withArgument("type")
-                                .onField("mapper").ofThis();                        
+                                .onField("mapper").ofThis();
                     });
-/*
+                    /*
                     tri.declare("stream")
                             .initializedWithNew(nb -> {
                                 nb.withArgumentFromInvoking("getByteBuf")
@@ -1953,7 +2003,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
                         innerTry.fynalli(fi -> fi.invoke("close").on("stream"));
                     });
-*/
+                     */
                     ifProbe(() -> {
                         cb.importing(Optional.class);
                         tri.invoke("onAfterPayloadRead")

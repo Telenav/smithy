@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @ServiceProvider(RequestDecorator.class)
 public class RequestIDDecorator implements RequestDecorator {
 
-    public static final String REQ_ID_HEADER = "x-tn-req-id";
+    public static final String REQ_ID_HEADER = "x-tn-crid";
     private static final AtomicLong INDEX = new AtomicLong(ThreadLocalRandom.current().nextLong());
 
     @Override

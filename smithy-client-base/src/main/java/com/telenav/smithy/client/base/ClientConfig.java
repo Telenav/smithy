@@ -64,13 +64,17 @@ public final class ClientConfig {
             : Paths.get(".config/SmithyClient/client.properties");
     private static final ClientConfig INSTANCE = new ClientConfig();
     private static final ThreadLocal<ServiceClientConfig> caller = new ThreadLocal<>();
-    private final Exe threadPool = new Exe();
+    public static final String CONFIG_KEY_GLOBAL_THREAD_POOL_BASE_SIZE = "base-threads";
+    public static final String CONFIG_KEY_GLOBAL_THREAD_POOL_MAX_SIZE = "max-threads";
+    private final Exe threadPool;
     private final HttpClient client;
     private final Map<String, String> metadata;
     private final ObjectMapper mapper;
 
     private ClientConfig() {
         metadata = readProperties();
+        threadPool = new Exe(getIntFromConfig(CONFIG_KEY_GLOBAL_THREAD_POOL_BASE_SIZE, 8),
+                getIntFromConfig(CONFIG_KEY_GLOBAL_THREAD_POOL_MAX_SIZE, 128));
         mapper = createMapper();
         client = HttpClient.newBuilder().executor(threadPool)
                 .followRedirects(HttpClient.Redirect.ALWAYS)
@@ -79,7 +83,24 @@ public final class ClientConfig {
                 .executor(threadPool)
                 .build();
     }
-    
+
+    private final int getIntFromConfig(String key, int defaultValue) {
+        if (metadata.containsKey(key)) {
+            String val = metadata.get(key);
+            try {
+                int result = Integer.parseInt(val);
+                if (result <= 0) {
+                    result = defaultValue;
+                }
+                return result;
+            } catch (NumberFormatException e) {
+                System.err.println("Invalid configuration value for '"
+                        + key + "': " + val);
+            }
+        }
+        return defaultValue;
+    }
+
     static void debugLog(String what) {
         if (DEBUG_LOG) {
             System.err.println(what);
@@ -236,7 +257,12 @@ public final class ClientConfig {
 
         public Exe() {
             // Pending - make configurable
-            super(8, 128, 1, TimeUnit.MINUTES, new LinkedBlockingQueue<>(),
+            this(8, 128);
+        }
+
+        public Exe(int basePoolSize, int maxPoolSize) {
+            super(basePoolSize, maxPoolSize, 1, TimeUnit.MINUTES,
+                    new LinkedBlockingQueue<>(),
                     new TF(), new Rej());
         }
 
@@ -289,6 +315,7 @@ public final class ClientConfig {
 
         @Override
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+            System.out.println("REJECTED EXEUCTION- CLIENT RUNS");
             r.run();
         }
 
