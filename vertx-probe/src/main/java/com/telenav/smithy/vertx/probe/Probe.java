@@ -32,6 +32,11 @@ public class Probe<Ops extends Enum<Ops>> implements ProbeImplementation<Ops> {
 
     static final String START_KEY = "s" + ThreadLocalRandom.current().nextLong();
     static final String AGE_KEY = "a" + ThreadLocalRandom.current().nextLong();
+    /**
+     * Key for use with the stderr probe - any object stored in the request
+     * context under this key will be included in log messages.
+     */
+    public static final String REQUEST_ID_KEY = "requestId";
 
     public static <Ops extends Enum<Ops>> Probe<Ops> create(Collection<? extends ProbeImplementation<? super Ops>> impls) {
         if (impls.isEmpty()) {

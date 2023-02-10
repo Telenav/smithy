@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.vertx.probe;
 
+import static com.telenav.smithy.vertx.probe.Probe.REQUEST_ID_KEY;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Verticle;
@@ -45,7 +46,7 @@ final class SystemErrProbe<O extends Enum<O>> implements ProbeImplementation<O> 
             Arrays.fill(c, ' ');
             sb.insert(0, c);
         }
-        return sb.append('\t').toString();
+        return sb.append(' ').toString();
     }
 
     private static void formatElapsed(long elapsed, StringBuilder sb) {
@@ -117,6 +118,14 @@ final class SystemErrProbe<O extends Enum<O>> implements ProbeImplementation<O> 
         thrown.printStackTrace(System.err);
     }
 
+    private String requestIdString(RoutingContext event) {
+        Object o = event.get(REQUEST_ID_KEY);
+        if (o == null) {
+            return "";
+        }
+        return "\t" + o;
+    }
+
     @Override
     public void onStartRequest(O op, RoutingContext event) {
         emit("start\t" + op.name() + "\t" + event.request().uri()
@@ -125,32 +134,32 @@ final class SystemErrProbe<O extends Enum<O>> implements ProbeImplementation<O> 
 
     @Override
     public void onEnterHandler(O op, RoutingContext event, Class<? extends Handler<RoutingContext>> handler) {
-        emit("enter\t" + op.name() + "\t" + handler.getSimpleName() + "\t" + event.request().uri());
+        emit("enter\t" + op.name() + requestIdString(event) + "\t" + handler.getSimpleName() + "\t" + event.request().uri());
     }
 
     @Override
     public void onBeforePayloadRead(O op, RoutingContext event, Class<? extends Handler<RoutingContext>> handler, Buffer buffer) {
-        emit("read\t" + buffer.length() + "\t" + op.name() + "\t" + handler.getSimpleName() + "\t" + event.request().uri());
+        emit("read\t" + buffer.length() + requestIdString(event) + "\t" + op.name() + "\t" + handler.getSimpleName() + "\t" + event.request().uri());
     }
 
     @Override
     public void onAfterPayloadRead(O op, RoutingContext event, Class<? extends Handler<RoutingContext>> handler, Optional<?> buffer) {
-        emit("read\t" + buffer.isPresent() + "\t" + op.name() + "\t" + handler.getSimpleName() + "\t" + event.request().uri());
+        emit("read\t" + buffer.isPresent() + requestIdString(event) + "\t" + op.name() + "\t" + handler.getSimpleName() + "\t" + event.request().uri());
     }
 
     @Override
     public void onBeforeSendResponse(O op, RoutingContext event, Optional<?> payload) {
-        emit("responding\t" + op.name() + "\t" + event.request().uri() + "\t" + payload.map(obj -> obj.getClass().getSimpleName()).orElse("-empty-"));
+        emit("responding\t" + op.name() + requestIdString(event) + "\t" + event.request().uri() + "\t" + payload.map(obj -> obj.getClass().getSimpleName()).orElse("-empty-"));
     }
 
     @Override
     public void onAfterSendResponse(O op, RoutingContext event, int status) {
-        emit("responded\t" + op.name() + "\t" + event.request().uri() + "\t" + status);
+        emit("responded\t" + op.name() + requestIdString(event) + "\t" + event.request().uri() + "\t" + status);
     }
 
     @Override
     public void onResponseCompleted(O op, RoutingContext event, int status) {
-        emit("completed\t" + op.name() + "\t" + event.request().uri() + "\t" + status + "\tduration " + ageOf(event));
+        emit("completed\t" + op.name() + requestIdString(event) + "\t" + event.request().uri() + "\t" + status + "\tduration " + ageOf(event));
     }
 
     private String ageOf(RoutingContext event) {
