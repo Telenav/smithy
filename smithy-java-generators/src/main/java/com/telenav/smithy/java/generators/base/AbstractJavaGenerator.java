@@ -23,7 +23,6 @@ import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.Value;
 import static com.mastfrog.java.vogon.ClassBuilder.invocationOf;
 import static com.mastfrog.java.vogon.ClassBuilder.variable;
-import com.mastfrog.util.strings.Strings;
 import static com.telenav.smithy.generators.GenerationSwitches.DEBUG;
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
@@ -134,9 +133,10 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     }
 
     /**
-     * Accessor for a TypeNames instance initialized against this generator's model
-     * (needed to resolve things like member elements of collections in order to reify
-     * the complete type of Smithy shapes).
+     * Accessor for a TypeNames instance initialized against this generator's
+     * model (needed to resolve things like member elements of collections in
+     * order to reify the complete type of Smithy shapes).
+     *
      * @return A TypeNames
      */
     public final TypeNames names() {
@@ -144,7 +144,9 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     }
 
     /**
-     * The logger for the generation session. <b>NOT AVAILABLE IN UNTIL generate() IS CALLED!</b>
+     * The logger for the generation session. <b>NOT AVAILABLE IN UNTIL
+     * generate() IS CALLED!</b>
+     *
      * @return A logger
      */
     protected final SmithyGenerationLogger log() {
@@ -153,7 +155,9 @@ public abstract class AbstractJavaGenerator<S extends Shape>
 
     /**
      * Main entry point - generate some code.
-     * @param ctx The generation context, which has mechanisms for plugins to share information.
+     *
+     * @param ctx The generation context, which has mechanisms for plugins to
+     * share information.
      * @param log The logger for the generation session
      * @return A collection of GeneratedCode instances.
      */
@@ -174,9 +178,9 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     }
 
     /**
-     * Allows subclasses to append to the generated class documentation in a call
-     * to applyDocumentation() while preserving the ability to pull in the documentation
-     * from the Smithy model.
+     * Allows subclasses to append to the generated class documentation in a
+     * call to applyDocumentation() while preserving the ability to pull in the
+     * documentation from the Smithy model.
      *
      * @return A string or null
      */
@@ -185,14 +189,15 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     }
 
     /**
-     * Generate class javadoc comments from the smithy documentation for the shape,
-     * and augment that with any documentation returned from additionalDocumentation().
+     * Generate class javadoc comments from the smithy documentation for the
+     * shape, and augment that with any documentation returned from
+     * additionalDocumentation().
      *
      * @param cb A class builder
      * @return The class builder
-     * @param <T> The return type of the class builder (determined by whether it is
-     *           an inner or top-level class, and typically ignored by code that
-     *           just wants to modify it).
+     * @param <T> The return type of the class builder (determined by whether it
+     * is an inner or top-level class, and typically ignored by code that just
+     * wants to modify it).
      */
     protected <T> ClassBuilder<T> applyDocumentation(ClassBuilder<T> cb) {
         StringBuilder sb = new StringBuilder();
@@ -395,7 +400,7 @@ public abstract class AbstractJavaGenerator<S extends Shape>
 
         Value a = variable(v);
         Value b = variable(compareWith);
-        
+
         Value condition = a.isNotNull().parenthesized().isNotEqualTo(
                 b.isNotNull().parenthesized()).parenthesized()
                 .logicalOrWith(
@@ -433,9 +438,9 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     }
 
     /**
-     * Import a shape's type into a class builder, checking that the result will not be
-     * a Java primitive, a class in java.lang or an import from the same package, and doing
-     * nothing in that case.
+     * Import a shape's type into a class builder, checking that the result will
+     * not be a Java primitive, a class in java.lang or an import from the same
+     * package, and doing nothing in that case.
      *
      * @param currentClassBuilder A class builder
      * @param shape A shape
@@ -478,8 +483,8 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     }
 
     /**
-     * Sanity check that this generator's shape does not contain constraints that
-     * are contradictory or would otherwise make it uninstantiable.
+     * Sanity check that this generator's shape does not contain constraints
+     * that are contradictory or would otherwise make it uninstantiable.
      */
     protected void sanityCheckConstraints() {
         checkRangeSane(shape);
@@ -562,8 +567,7 @@ public abstract class AbstractJavaGenerator<S extends Shape>
     private void checkLengthsCompatible(Shape orig, LengthTrait range, MemberShape member, LengthTrait memberRange) {
         String msgHead = "Both " + orig.getId() + " and " + member.getId()
                 + " specify @length;";
-        
-        System.out.println("CHECK LENGTHS COMPATIBLE " + orig.getId() + " and " + member.getId());
+
         range.getMin().ifPresent(origMin -> {
             memberRange.getMin().ifPresent(memberMin -> {
                 boolean memberIsLess

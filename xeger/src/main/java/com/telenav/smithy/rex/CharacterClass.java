@@ -16,8 +16,6 @@
 package com.telenav.smithy.rex;
 
 import static com.telenav.smithy.rex.RegexElement.countForMinMax;
-import static com.telenav.smithy.rex.RegexElement.escapeForDisplay;
-import static java.lang.Math.max;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
@@ -93,7 +91,6 @@ final class CharacterClass implements ContainerRegexElement, Confoundable<Charac
             if (characters.first() >= 32) {
                 cachedComplement.removeRange((char) 0, (char) 31);
             }
-//            System.out.println("COMPLEMENT: " + cachedComplement);
         }
         return cachedComplement;
     }

@@ -371,56 +371,56 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
     private void generateJsonLikeToString(ClassBuilder<String> cb) {
         cb.overridePublic("toString", mth -> {
             mth.returning("String").body(bb -> {
-                        cb.importing(Iterator.class);
-                        bb.declare("result")
-                                .initializedWithNew(nb -> {
-                                    nb.withArgument(invocationOf("size").inScope().times(64))
-                                            .ofType("StringBuilder");
-                                }).as("StringBuilder");
+                cb.importing(Iterator.class);
+                bb.declare("result")
+                        .initializedWithNew(nb -> {
+                            nb.withArgument(invocationOf("size").inScope().times(64))
+                                    .ofType("StringBuilder");
+                        }).as("StringBuilder");
 
-                        bb.declare("it")
-                                .initializedByInvoking("iterator")
-                                .on(CONTENT_FIELD)
-                                .as("Iterator<" + memberType + ">");
+                bb.declare("it")
+                        .initializedByInvoking("iterator")
+                        .on(CONTENT_FIELD)
+                        .as("Iterator<" + memberType + ">");
 
-                        bb.invoke("append").withArgument('[').on("result");
+                bb.invoke("append").withArgument('[').on("result");
 
-                        bb.whileLoop(wh -> {
-                            boolean needQuotes = realMember.getType() == STRING
-                                    || realMember.getType() == ENUM
-                                    || realMember.getType() == TIMESTAMP;
+                bb.whileLoop(wh -> {
+                    boolean needQuotes = realMember.getType() == STRING
+                            || realMember.getType() == ENUM
+                            || realMember.getType() == TIMESTAMP;
 
-                            if (needQuotes) {
-                                wh.invoke("append")
-                                        .withArgument('"')
-                                        .on("result");
-                            }
-
-                            wh.invoke("append")
-                                    .withArgumentFromInvoking("next")
-                                    .on("it")
-                                    .on("result");
-
-                            if (needQuotes) {
-                                wh.invoke("append")
-                                        .withArgument('"')
-                                        .on("result");
-                            }
-
-                            wh.iff().invocationOf("hasNext")
-                                    .on("it").isTrue()
-                                    .endCondition()
-                                    .invoke("append")
-                                    .withArgument(',')
-                                    .on("result")
-                                    .endIf();
-                            wh.underCondition().invokeAsBoolean("hasNext").on("it");
-                        });
-
-                        bb.returningInvocationOf("toString")
-                                .onInvocationOf("append").withArgument(']')
+                    if (needQuotes) {
+                        wh.invoke("append")
+                                .withArgument('"')
                                 .on("result");
-                    });
+                    }
+
+                    wh.invoke("append")
+                            .withArgumentFromInvoking("next")
+                            .on("it")
+                            .on("result");
+
+                    if (needQuotes) {
+                        wh.invoke("append")
+                                .withArgument('"')
+                                .on("result");
+                    }
+
+                    wh.iff().invocationOf("hasNext")
+                            .on("it").isTrue()
+                            .endCondition()
+                            .invoke("append")
+                            .withArgument(',')
+                            .on("result")
+                            .endIf();
+                    wh.underCondition().invokeAsBoolean("hasNext").on("it");
+                });
+
+                bb.returningInvocationOf("toString")
+                        .onInvocationOf("append").withArgument(']')
+                        .on("result");
+            });
         });
     }
 
@@ -805,7 +805,6 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
         String member = typeNameOf(realMember);
         ShapeType memberType = realMember.getType();
         JavaTypes javaType = forShapeType(memberType);
-//        System.out.println("MEMBER TYPE " + memberType + " for " + member + " JT " + javaType);
         if (javaType != null) {
             String returnMemberName = javaType.javaType().getSimpleName();
             String returnTypeName = type() + "<" + returnMemberName + ">";
@@ -849,17 +848,17 @@ abstract class AbstractListAndSetGenerator<S extends ListShape> extends Abstract
                     + "\n@param original The original collection")
                     .annotatedWith("JsonCreator").closeAnnotation().addArgument(typeSignature(),
                     "original").body(bb -> {
-                                generateNullCheck("original", bb, cb);
-                                invokeSizeCheck("original.size()", bb);
-                                if (hasMemberChecks()) {
-                                    bb.invoke("forEach").withLambdaArgument(lb -> {
-                                        lb.withArgument("item").body(lbb -> {
-                                            invokeMemberCheck("item", lbb);
-                                        });
-                                    }).on("original");
-                                }
-                                bb.assign(CONTENT_FIELD).toExpression("original");
-                            });
+                        generateNullCheck("original", bb, cb);
+                        invokeSizeCheck("original.size()", bb);
+                        if (hasMemberChecks()) {
+                            bb.invoke("forEach").withLambdaArgument(lb -> {
+                                lb.withArgument("item").body(lbb -> {
+                                    invokeMemberCheck("item", lbb);
+                                });
+                            }).on("original");
+                        }
+                        bb.assign(CONTENT_FIELD).toExpression("original");
+                    });
         });
         // If we have a primitive type, the argument might as well be a
         // primitive, which eliminates a class of potential bug

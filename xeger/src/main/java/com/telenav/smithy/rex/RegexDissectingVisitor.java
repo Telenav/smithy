@@ -17,11 +17,9 @@ package com.telenav.smithy.rex;
 
 import static com.telenav.smithy.rex.AnyChar.ANY_CHAR;
 import static com.telenav.smithy.rex.ElementKinds.ALTERNATION;
-import static com.telenav.smithy.rex.ElementKinds.CHAR_CLASS;
 import static com.telenav.smithy.rex.ElementKinds.REGEX;
 import static com.telenav.smithy.rex.EmittingElementSelectionStrategy.EmittingElementSelectionStrategies.ALL;
 import static com.telenav.smithy.rex.EmittingElementSelectionStrategy.EmittingElementSelectionStrategies.ONE;
-import static com.telenav.smithy.rex.RegexElement.EMPTY;
 import static com.telenav.smithy.rex.ShorthandCharacterClassKinds.of;
 import static com.telenav.smithy.rex.XegerLexer.Backslash;
 import static com.telenav.smithy.rex.XegerLexer.Plus;
@@ -240,8 +238,6 @@ final class RegexDissectingVisitor extends XegerParserBaseVisitor<Void> {
             });
         };
         if (ctx.Caret() != null) {
-//            System.out.println("NEGATED CHAR CLASS");
-//            return negated(supp);
             return supp.get();
         } else {
             return supp.get();

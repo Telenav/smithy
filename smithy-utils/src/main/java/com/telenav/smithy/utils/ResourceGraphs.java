@@ -57,7 +57,6 @@ public final class ResourceGraphs {
         for (ServiceShape sh : model.getServiceShapes()) {
             return graph(model, sh);
         }
-        System.out.println("No services in model.");
         return ResourceGraph.create(null, model);
     }
 

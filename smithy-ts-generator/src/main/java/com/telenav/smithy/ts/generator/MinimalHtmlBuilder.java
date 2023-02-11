@@ -55,54 +55,6 @@ public class MinimalHtmlBuilder extends TypescriptCodeGenerator {
         // do nothing
     }
 
-    public static void main(String[] args) {
-        MinimalHtmlBuilder h = new MinimalHtmlBuilder()
-                .withTitle("An HTML PAGE")
-                .style(sty -> {
-                    sty.tagRule("body", srb -> {
-                        srb.percentage("width", 100)
-                                .add("font-family", "Helvetica");
-                    }).classRule("thing", srb -> {
-                        srb.add("font-weight", "bold");
-                        srb.add("color", "#22222e")
-                                .add("background", "white");
-                    });
-                })
-                .head(head -> {
-                    head.tag("meta", tg -> {
-                        tg.selfClosing()
-                                .setAttribute("name", "viewport")
-                                .setAttribute("content",
-                                        "width=device-width, initial-scale=1.0");
-                    })
-                            .tag("link")
-                            .noClose()
-                            .setAttribute("rel", "prefetch")
-                            .setAttribute("href", "/blog/list")
-                            .close();
-                }).body(body -> {
-            body.tag("h1").append("Whatever").close();
-            body.tag("div", div -> {
-                div.setAttribute("class", "content");
-                div.append(txt -> {
-                    txt.append("This here is some stuff.\nAnd more and more stuff.");
-                });
-                div.tag("div", sub -> {
-                    sub.setAttribute("class", "row");
-                    sub.tag("input", in -> {
-                        in.setAttribute("type", "text")
-                                .setAttribute("value", "This is some stuff")
-                                .noClose();
-                    });
-                });
-            });
-        })
-                .withScript("./foo.js");
-
-        System.out.println(h);
-
-    }
-
     public MinimalHtmlBuilder() {
         this("index.html");
     }

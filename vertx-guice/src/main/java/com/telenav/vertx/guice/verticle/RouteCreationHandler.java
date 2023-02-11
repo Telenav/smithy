@@ -78,7 +78,6 @@ final class RouteCreationHandler {
             } catch (IllegalStateException ex) {
                 // BodyHandler:
                 if (ex.getMessage() != null && ex.getMessage().contains("has already been read")) {
-                    System.out.println("IGNORE REQUEST READ");
                     ex.printStackTrace();
                     event.next();
                 } else {

@@ -211,7 +211,6 @@ public final class VertxGuiceModule extends AbstractModule {
      */
     public VertxGuiceModule withModule(Module module) {
         checkInitialized();
-        System.out.println("Add module " + module);
         modules.add(module);
         return this;
     }
@@ -303,7 +302,6 @@ public final class VertxGuiceModule extends AbstractModule {
                 vx = this.vertx;
             }
             if (vx != null) {
-                System.out.println("Shutdown vertx");
                 vx.close();
             }
         }

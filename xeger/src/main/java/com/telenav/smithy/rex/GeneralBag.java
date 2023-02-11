@@ -15,9 +15,6 @@
  */
 package com.telenav.smithy.rex;
 
-import static com.telenav.smithy.rex.ElementKinds.ALTERNATION;
-import static com.telenav.smithy.rex.ElementKinds.CHAR_CLASS;
-import static com.telenav.smithy.rex.EmittingElementSelectionStrategy.EmittingElementSelectionStrategies.ONE;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -88,9 +85,6 @@ class GeneralBag extends AbstractContainerRegexElement<GeneralBag> {
         choices.eachElement(contents, rnd, el -> {
             StringBuilder sb = new StringBuilder();
             el.emit(into, rnd, backreferenceResolver);
-            if (" ".equals(sb)) {
-                System.out.println("SPACE EMITTED BY " + el.getClass().getSimpleName() + " " + el);
-            }
             into.append(sb);
         });
     }

@@ -30,9 +30,7 @@ import software.amazon.smithy.model.loader.ModelAssembler;
 public abstract class ModelExtensions {
 
     public static void prepare(ModelAssembler me) throws IOException {
-        System.out.println("ModelExtensions.prepare");
         for (ModelExtensions exts : ServiceLoader.load(ModelExtensions.class)) {
-            System.out.println("MODEL EXTENSIONS " + exts.getClass().getSimpleName());
             exts.prepareModelAssembler(me);
         }
     }

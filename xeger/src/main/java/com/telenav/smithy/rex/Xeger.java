@@ -220,31 +220,4 @@ public class Xeger {
         return regex;
     }
 
-    /**
-     * Runs the demo code from README.md
-     *
-     * @param _ignored ignored
-     */
-    public static void main(String... _ignored) {
-        // Matches a UUID
-        Xeger xeger = new Xeger("^[0-9a-f]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$");
-
-        Random rnd = new Random(812831047810431L);
-        // Use 5 attempts - we know it will work
-        Set<String> uuids = xeger.emitSet(5, rnd, 5).get();
-
-        uuids.forEach(System.out::println);
-
-        xeger.confound().ifPresent(confounded -> {
-            for (int i = 0; i < 5; i++) {
-                System.out.println(confounded.emit(rnd));
-            }
-//          Output like
-//            d.e.b.8.e66b4
-//            0ba0...2b.cdc64
-//           16.e...ac8807d6
-//           dbb0.e6.11..4d7c46a
-        });
-
-    }
 }

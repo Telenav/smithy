@@ -960,7 +960,6 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
             for (int i = 0; i < 10; i++) {
                 String antiExample = confounded.emit(rnd);
                 if (!xe.matches(antiExample)) {
-                    System.out.println("XEGER CONFOUND SAMPLE " + i + ": '" + antiExample + "'");
                     return Optional.of(Arrays.asList(antiExample));
                 }
             }
@@ -1013,7 +1012,6 @@ public abstract class AbstractJavaTestGenerator<S extends Shape> extends Abstrac
                         .map(confounded -> {
                             for (int i = 0; i < 10; i++) {
                                 String antiExample = confounded.emit(rnd);
-                                System.out.println("XEGER CONFOUND SAMPLE " + i + ": '" + antiExample + "'");
                                 if (!xe.matches(antiExample)) {
                                     return Arrays.asList(antiExample);
                                 }

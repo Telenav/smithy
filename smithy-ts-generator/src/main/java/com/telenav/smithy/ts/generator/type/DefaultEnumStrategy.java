@@ -176,7 +176,6 @@ class DefaultEnumStrategy extends AbstractEnumStrategy {
 
     @Override
     public <T> T applyDefault(DefaultTrait def, TypescriptSource.ExpressionBuilder<T> ex) {
-        System.out.println("DEFAULT VALUE IS '" + def.toNode().asStringNode().get() + "'");
         switch (chars) {
             case NONE:
                 return ex.field(defaultValue(def)).of(targetType());

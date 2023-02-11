@@ -258,7 +258,6 @@ public final class ResourceGraph {
             int fix = indexSupplier.applyAsInt(from.getId());
             int tix = indexSupplier.applyAsInt(to.getId());
             bldr.addEdge(fix, tix);
-            System.out.println(from.getId().getName() + " -> " + to.getId().getName() + " " + tag);
             shapeForId.put(from.getId(), from);
             shapeForId.put(to.getId(), to);
             tagForEdge.put(new EdgeKey(fix, tix), tag);
@@ -359,8 +358,6 @@ public final class ResourceGraph {
         IntGraph ig = bldr.build();
         ObjectGraph<ShapeId> graph = ig.toObjectGraph(allIds);
 
-        System.out.println("GRAPH:\n");
-        System.out.println(graph);
         return new ResourceGraph(allIds, shapeForId, tagForEdge, ig, graph);
     }
 

@@ -386,10 +386,8 @@ final class GeneralTestGenerator<S extends Shape> extends AbstractTsTestGenerato
         @Override
         public <B extends TsBlockBuilderBase<T, B>, T> void generate(Shape shape, String collVar, boolean valid,
                 String varName, B bb, TestContext testContext, RandomInstance<?> r, TypeStrategies strategies) {
-            System.out.println("RUN VALUE FIELD GENERATOR FOR " + shape);
             String typeName = strategies.strategy(shape).targetType();
             r.as(Valued.class).ifPresent(v -> {
-                System.out.println("  have number");
                 v.value(Number.class).ifPresent(num -> {
                     bb.invoke("add")
                             .withInvocationOf("expectEqual")
@@ -424,7 +422,6 @@ final class GeneralTestGenerator<S extends Shape> extends AbstractTsTestGenerato
                             .on(collVar);
                 });
                 v.value(Instant.class).ifPresent(when -> {
-                    System.out.println("  have instant");
                     bb.invoke("add")
                             .withInvocationOf("expectEqual")
                             .withStringLiteralArgument("value field is expected value")
@@ -458,7 +455,6 @@ final class GeneralTestGenerator<S extends Shape> extends AbstractTsTestGenerato
                             .on(collVar);
                 });
                 v.value(String.class).ifPresent(str -> {
-                    System.out.println("  have string");
                     bb.invoke("add")
                             .withInvocationOf("expectEqual")
                             .withStringLiteralArgument("value field is expected value")
@@ -491,7 +487,6 @@ final class GeneralTestGenerator<S extends Shape> extends AbstractTsTestGenerato
                             .on(collVar);
                 });
                 v.value(Boolean.class).ifPresent(bool -> {
-                    System.out.println("  have boolean");
                     bb.invoke("add")
                             .withInvocationOf("expectEqual")
                             .withStringLiteralArgument("value field is expected value")

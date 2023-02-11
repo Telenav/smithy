@@ -27,8 +27,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import java.util.concurrent.TimeoutException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.inject.Inject;
 
 /**
@@ -53,7 +51,6 @@ public final class InjectedVerticle extends AbstractVerticle {
         this.serverOptionsCustomizer = serverOptionsCustomizer;
         this.vertxProvider = vertx;
         this.routeCreators = routeCreators;
-        System.out.println("Create an injected verticle");
     }
 
     @Override
@@ -115,12 +112,8 @@ public final class InjectedVerticle extends AbstractVerticle {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 CountDownLatch shutdownLatch = new CountDownLatch(1);
-                System.out.println("shutdown hook - injected verticle");
                 server.close(closeResult -> {
                     try {
-                        System.out.println("  shutdown hook injected "
-                                + "verticle server shutdown "
-                                + closeResult.succeeded());
                         if (closeResult.cause() != null) {
                             closeResult.cause().printStackTrace();
                         }
