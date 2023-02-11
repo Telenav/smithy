@@ -73,13 +73,19 @@ public final class DefaultRequestIdFactory implements RequestIdFactory<DefaultRe
     }
 
     /**
-     * Parse a request ID object from a string, if possible.
+     * Parse a request ID object from a string, if possible. Implementations
+     * should return Optional.empty() if passed an argument of null, and not
+     * assume the input will always be non-null - this improves the readability
+     * of generated code.
      *
-     * @param txt A string, likely from an http header
+     * @param txt A string, likely from an http header, or null
      * @return A request id if possible, or an empty optional
      */
     @Override
     public Optional<DefaultRequestId> fromString(CharSequence txt) {
+        if (txt == null) {
+            return Optional.empty();
+        }
         return DefaultRequestId.fromString(txt);
     }
 

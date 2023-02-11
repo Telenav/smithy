@@ -135,6 +135,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     private final boolean generateProbeCode;
     private final Set<? extends OperationShape> ops;
     private final ResourceGraph graph;
+    private RequestIdSupport requestIdSupport;
 
     VertxServerGenerator(ServiceShape shape, Model model, Path destSourceRoot,
             GenerationTarget target, LanguageWithVersion language,
@@ -165,6 +166,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
+        requestIdSupport = new RequestIdSupport(ctx);
         // Pending - need to sort ops by path to avoid collisions?
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
                 .named(escape(shape.getId().getName(shape)));
@@ -187,6 +189,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         initDebug(cb);
 
         generateStartMethod(cb);
+
+        requestIdSupport.generateModuleMethods(cb);
 
         generateErrorNotificationSupport(cb);
 
@@ -282,6 +286,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 con.body(bb -> {
                     addProbeArgumentsAndFields(cb, con, bb);
                     bb.assignField("scope").ofThis().toExpression("scope");
+                    requestIdSupport.decorateProbeHandlerConstructor(cb, con, bb);
                 });
             });
 
@@ -293,6 +298,9 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             .withArgument("event")
                             .withArgument(opEnum)
                             .on("probe");
+
+                    requestIdSupport.generateRequestInjectionCode(cb, bb, "event");
+
                     if (inputOrNull != null && inputOrNull.consumesHttpPayload()) {
                         bb.blankLine()
                                 .lineComment("Pause reading the request body until the body handler")
@@ -308,11 +316,14 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             .withArgument("event")
                             .withClassArgument(cb.className())
                             .on("probe");
-                    bb.invoke("run")
+                    InvocationBuilder<?> inv = bb.invoke("run")
                             .withMethodReference("next")
                             .on("event")
-                            .withArgument(opEnum)
-                            .on("scope");
+                            .withArgument(opEnum);
+                    if (requestIdSupport.isEnabled()) {
+                        inv = inv.withArgument(requestIdSupport.requestIdVar());
+                    }
+                    inv.on("scope");
                 });
             });
             c.accept(cb);
@@ -444,11 +455,16 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         .withArgument("probeModule")
                         .on(moduleVar));
 
+                String scopeVar;
                 if (!scope.isEmpty()) {
-                    scope.generateBindingCode(binderVar, moduleVar, bb, cb);
+                    scopeVar = scope.generateBindingCode(binderVar, moduleVar, bb, cb);
                 } else {
                     bb.lineComment("No scoped bindings needed");
+                    bb.declare("scope").initializedByInvoking("scope")
+                            .on(moduleVar);
+                    scopeVar = "scope";
                 }
+                requestIdSupport.generateBindingCode(cb, bb, binderVar, scopeVar);
 
                 generateVertxModuleConfigurationStanzas(moduleVar, bb, cb);
 

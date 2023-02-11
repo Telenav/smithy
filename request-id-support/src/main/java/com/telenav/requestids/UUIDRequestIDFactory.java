@@ -28,6 +28,9 @@ public class UUIDRequestIDFactory implements RequestIdFactory<UUID> {
 
     @Override
     public Optional<UUID> fromString(CharSequence txt) {
+        if (txt == null) {
+            return Optional.empty();
+        }
         try {
             return Optional.of(UUID.fromString(txt.toString()));
         } catch (IllegalArgumentException ex) {

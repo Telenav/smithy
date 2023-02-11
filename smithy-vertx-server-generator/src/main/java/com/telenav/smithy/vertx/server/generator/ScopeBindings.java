@@ -64,12 +64,13 @@ final class ScopeBindings {
         return bindDirect(what, comment).bindOptional(what, comment);
     }
 
-    <C, B extends ClassBuilder.BlockBuilderBase<C, B, ?>> void generateBindingCode(
+    <C, B extends ClassBuilder.BlockBuilderBase<C, B, ?>> String generateBindingCode(
             String binder, String vxModule, B bb, ClassBuilder<?> cb) {
         bb.blankLine().lineComment("Scoped bindings so input handling can be broken up")
                 .lineComment("into logical steps");
         cb.importing("com.telenav.vertx.guice.scope.RequestScope");
-        bb.declare("scope").initializedByInvoking("scope").on(vxModule).as("RequestScope");
+        String scopeVar = "scope";
+        bb.declare(scopeVar).initializedByInvoking("scope").on(vxModule).as("RequestScope");
         maybeImport(cb, directBindings.toArray(new String[0]));
         maybeImport(cb, optionalBindings.toArray(new String[0]));
         cb.importing(Optional.class);
@@ -83,7 +84,7 @@ final class ScopeBindings {
             bb.invoke("bindType")
                     .withArgument("binder")
                     .withClassArgument(simpleNameOf(dir))
-                    .on("scope");
+                    .on(scopeVar);
         }
         for (String ind : optionalBindings) {
             cb.importing(ind);
@@ -94,7 +95,8 @@ final class ScopeBindings {
             }
             bb.invoke("bindOptional")
                     .withArgument("binder")
-                    .withClassArgument(simpleNameOf(ind)).on("scope");
+                    .withClassArgument(simpleNameOf(ind)).on(scopeVar);
         }
+        return scopeVar;
     }
 }
