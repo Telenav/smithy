@@ -210,9 +210,39 @@ you direct the destination of source generation by generation target:
 It is also an option to configure each project with the Maven plugin to point
 to the model file in whatever project it lives in.
 
+Request Id Generation
+---------------------
 
-Quick-Start
------------
+The framework supports generating unique (within limits) request ids which are set
+when a request is encountered, and returned as an HTTP header - these can be useful
+to trace work done on behalf of a request for logging purposes and similar.
+
+It is enabled by default, and has a number of settings (all set to strings or booleans
+in the `<settings>` section of plugin configuration) that determine what the generated code
+looks like.
+
+In all cases where they are enabled at all, you can bind your own implementation of
+`RequestIdFactory` to return whatever type you want (its `toString()` will be used to
+generate the header); and two built in implementations are provided.
+
+The settings in question are:
+
+ * `useRequestIds` - if set to false, no request id handling code will be generated
+ * `requestIdHeader` - the header name to use for the request id (default: `x-tn-rid`)
+ * `allowInboundRequestIds` - check the inbound request for the request ID header and use
+it if present - use this if your application runs behind a proxy which will assign the ID -
+that proxy should also ensure they cannot be spoofed by a client.
+ * `useUuidRequestIds` - if true, use the UUID-based factory rather than the default
+(which embeds the same amount of randomness as a uuid, plus a creation time and sequence number)
+ * `forwardClientRequestIds` - in some cases, it can be useful for a client to be returned its
+*own* request ID which it sets - if set to true, this echoing behavior will be enabled,
+using the header name defined in `clientRequestIdHeader`
+ * `clientRequestIdHeader` - The header name to look for if you use client request ID
+forwarding.  This should *not* be the same as `requestIdHeader`.
+
+
+(Older) Quick-Start - From Source
+---------------------------------
 
 To play with code-generation from Smithy models and get a sense of what you can
 do with it

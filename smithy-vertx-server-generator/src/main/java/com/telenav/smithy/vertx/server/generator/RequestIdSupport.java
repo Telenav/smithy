@@ -60,6 +60,9 @@ public class RequestIdSupport {
         useUuid = settings.getBoolean(SETTINGS_KEY_USE_UUID).orElse(false);
         requestIdHeader = settings.getString(SETTINGS_KEY_REQUEST_ID_HEADER).orElse(DEFAULT_REQUEST_ID_HEADER);
         clientRequestIdHeader = settings.getString(SETTINGS_KEY_CLIENT_REQUEST_ID_HEADER).orElse(DEFAULT_CLIENT_REQUEST_ID_HEADER);
+        if (forward && clientRequestIdHeader.equals(requestIdHeader)) {
+            throw new Error("Client request id header and request id header have the same value: " + requestIdHeader);
+        }
     }
 
     public boolean isEnabled() {
