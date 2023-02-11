@@ -36,6 +36,7 @@ public class RequestIdSupport {
 
     public static final String SETTINGS_KEY_REQUEST_IDS_ENABLED = "useRequestIds";
     public static final String SETTINGS_KEY_ACCEPT_INBOUND_REQUEST_IDS = "allowInboundRequestIds";
+    public static final String SETTINGS_KEY_FORWARD_CLIENT_REQUEST_IDS = "forwardClientRequestIds";
     public static final String SETTINGS_KEY_USE_UUID = "useUuidRequestIds";
     public static final String SETTINGS_KEY_REQUEST_ID_HEADER = "requestIdHeader";
     public static final String DEFAULT_REQUEST_ID_HEADER = "x-tn-rid";
@@ -45,6 +46,7 @@ public class RequestIdSupport {
     private final boolean enabled;
     private final boolean allowInbound;
     private final boolean useUuid;
+    private final boolean forward;
     private final SmithyGenerationContext ctx;
     private final String requestIdHeader;
     private final String clientRequestIdHeader;
@@ -53,6 +55,7 @@ public class RequestIdSupport {
         this.ctx = notNull("ctx", ctx);
         SmithyGenerationSettings settings = ctx.settings();
         enabled = settings.getBoolean(SETTINGS_KEY_REQUEST_IDS_ENABLED).orElse(true);
+        forward = settings.getBoolean(SETTINGS_KEY_FORWARD_CLIENT_REQUEST_IDS).orElse(false);
         allowInbound = settings.getBoolean(SETTINGS_KEY_ACCEPT_INBOUND_REQUEST_IDS).orElse(false);
         useUuid = settings.getBoolean(SETTINGS_KEY_USE_UUID).orElse(false);
         requestIdHeader = settings.getString(SETTINGS_KEY_REQUEST_ID_HEADER).orElse(DEFAULT_REQUEST_ID_HEADER);
@@ -86,7 +89,7 @@ public class RequestIdSupport {
             cb.method("extractOrCreateRequestId", mth -> {
                 mth.withModifier(PRIVATE, STATIC, FINAL);
                 mth.withTypeParam("ID")
-                        .addArgument("RequestIdFactory<T>", "factory")
+                        .addArgument("RequestIdFactory<ID>", "factory")
                         .addArgument("RoutingContext", "event")
                         .returning("ID");
                 mth.body(mb -> {
@@ -108,7 +111,7 @@ public class RequestIdSupport {
                     .on("AsciiString").withModifier(PRIVATE, STATIC, FINAL)
                     .ofType("CharSequence");
         });
-        if (clientRequestIdHeader != null) {
+        if (forward) {
             cb.field("CLIENT_ID_HEADER", fld -> {
                 fld.initializedFromInvocationOf("cached")
                         .withStringLiteral(clientRequestIdHeader)
@@ -147,7 +150,7 @@ public class RequestIdSupport {
                 .onInvocationOf("response")
                 .on(eventVar);
 
-        if (clientRequestIdHeader != null) {
+        if (forward) {
             bb.declare("clid")
                     .initializedByInvoking("getHeader")
                     .withArgument("CLIENT_ID_HEADER")
