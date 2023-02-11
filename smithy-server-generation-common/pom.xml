@@ -30,6 +30,10 @@ limitations under the License.
             <groupId>${project.groupId}</groupId>
             <artifactId>smithy-utils</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>java-vogon</artifactId>
+        </dependency>        
     </dependencies>
 
 </project>

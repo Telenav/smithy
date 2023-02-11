@@ -28,12 +28,15 @@ limitations under the License.
     <dependencies>
         <dependency>
             <groupId>com.mastfrog</groupId>
+            <artifactId>java-vogon</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>com.mastfrog</groupId>
             <artifactId>graph</artifactId>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>range</artifactId>
-            <version>${mastfrog.version}</version>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
@@ -44,10 +47,6 @@ limitations under the License.
             <groupId>com.mastfrog</groupId>
             <artifactId>character-functions</artifactId>
             <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.mastfrog</groupId>
-            <artifactId>java-vogon</artifactId>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>

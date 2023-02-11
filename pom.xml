@@ -37,6 +37,7 @@ limitations under the License.
     <modules>
 
         <module>smithy-antlr</module>
+        <module>smithy-utils</module>
 
         <!-- This has external dependencies not in central and probably should be moved -->
         <!--
@@ -59,7 +60,6 @@ limitations under the License.
         <module>smithy-openapi-wrapper</module>
         <module>vertx-guice</module>
         <module>smithy-vertx-server-generator</module>
-        <module>smithy-utils</module>
         <module>smithy-vertx-adapter</module>
         <module>smithy-server-generation-common</module>
         <module>vertx-probe</module>
@@ -75,7 +75,7 @@ limitations under the License.
         <builder-builder.version>1.0.9</builder-builder.version>
         <atomic-state.version>1.0.5</atomic-state.version>
         <bouncycastle.version>1.70</bouncycastle.version>
-        <java.vogon.version>${mastfrog.version}.1</java.vogon.version>
+        <mastfrog.java-vogon.version>2.9.4.1</mastfrog.java-vogon.version>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <smithy.version>1.27.0</smithy.version>
@@ -89,6 +89,7 @@ limitations under the License.
         <mastfrog.graph.version>${mastfrog.version}.1</mastfrog.graph.version>
         <mastfrog.strings.version>${mastfrog.version}.1</mastfrog.strings.version>
         <antlr.version>4.11.1</antlr.version>
+
     </properties>
 
     <build>
@@ -168,6 +169,16 @@ limitations under the License.
     <dependencyManagement>
         <dependencies>
 
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>java-vogon</artifactId>
+                <version>${mastfrog.java-vogon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>range</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.netbeans.api</groupId>
                 <artifactId>org-netbeans-modules-editor-lib2</artifactId>
@@ -347,11 +358,6 @@ limitations under the License.
                 <groupId>com.mastfrog</groupId>
                 <artifactId>jackson-configuration</artifactId>
                 <version>${mastfrog.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.mastfrog</groupId>
-                <artifactId>java-vogon</artifactId>
-                <version>${java.vogon.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.mastfrog</groupId>

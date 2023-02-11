@@ -55,12 +55,12 @@ limitations under the License.
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
-            <artifactId>java-vogon</artifactId>
+            <artifactId>graph</artifactId>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
-            <artifactId>graph</artifactId>
-        </dependency>
+            <artifactId>java-vogon</artifactId>
+        </dependency>        
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>function</artifactId>
