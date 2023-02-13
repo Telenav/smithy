@@ -15,6 +15,8 @@
  */
 package com.telenav.requestids;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.time.Duration;
@@ -90,6 +92,11 @@ public final class DefaultRequestId implements Comparable<DefaultRequestId> {
         }
     }
 
+    @JsonCreator
+    public static DefaultRequestId fromStringUnsafe(String val) {
+        return fromString(val).get();
+    }
+
     /**
      * Get a null-object instance for use in logging where no request id is
      * visible in scope.
@@ -151,6 +158,7 @@ public final class DefaultRequestId implements Comparable<DefaultRequestId> {
     }
 
     @Override
+    @JsonValue
     public String toString() {
         return stringValue == null ? stringValue = stringValue() : stringValue;
     }
