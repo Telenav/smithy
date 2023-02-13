@@ -60,6 +60,10 @@ limitations under the License.
             <groupId>${project.groupId}</groupId>
             <artifactId>smithy-acteur-adapter</artifactId>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>request-id-support</artifactId>
+        </dependency>
 
     </dependencies>
 

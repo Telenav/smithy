@@ -15,69 +15,32 @@
  */
 package com.telenav.smithy.vertx.server.generator;
 
+import com.telenav.smithy.server.common.AbstractRequestIdSupport;
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.ConstructorBuilder;
-import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.telenav.smithy.generators.SmithyGenerationContext;
-import com.telenav.smithy.generators.SmithyGenerationSettings;
 import static com.telenav.smithy.validation.ValidationExceptionProvider.validationExceptions;
-import java.util.UUID;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
-import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 
 /**
  *
  * @author Tim Boudreau
  */
-public class RequestIdSupport {
-
-    public static final String SETTINGS_KEY_REQUEST_IDS_ENABLED = "useRequestIds";
-    public static final String SETTINGS_KEY_ACCEPT_INBOUND_REQUEST_IDS = "allowInboundRequestIds";
-    public static final String SETTINGS_KEY_FORWARD_CLIENT_REQUEST_IDS = "forwardClientRequestIds";
-    public static final String SETTINGS_KEY_USE_UUID = "useUuidRequestIds";
-    public static final String SETTINGS_KEY_REQUEST_ID_HEADER = "requestIdHeader";
-    public static final String DEFAULT_REQUEST_ID_HEADER = "x-tn-rid";
-    public static final String SETTINGS_KEY_CLIENT_REQUEST_ID_HEADER = "clientRequestIdHeader";
-    public static final String DEFAULT_CLIENT_REQUEST_ID_HEADER = "x-tn-crid";
-
-    private final boolean enabled;
-    private final boolean allowInbound;
-    private final boolean useUuid;
-    private final boolean forward;
-    private final SmithyGenerationContext ctx;
-    private final String requestIdHeader;
-    private final String clientRequestIdHeader;
+public class RequestIdSupport extends AbstractRequestIdSupport {
 
     RequestIdSupport(SmithyGenerationContext ctx) {
-        this.ctx = notNull("ctx", ctx);
-        SmithyGenerationSettings settings = ctx.settings();
-        enabled = settings.getBoolean(SETTINGS_KEY_REQUEST_IDS_ENABLED).orElse(true);
-        forward = settings.getBoolean(SETTINGS_KEY_FORWARD_CLIENT_REQUEST_IDS).orElse(false);
-        allowInbound = settings.getBoolean(SETTINGS_KEY_ACCEPT_INBOUND_REQUEST_IDS).orElse(false);
-        useUuid = settings.getBoolean(SETTINGS_KEY_USE_UUID).orElse(false);
-        requestIdHeader = settings.getString(SETTINGS_KEY_REQUEST_ID_HEADER).orElse(DEFAULT_REQUEST_ID_HEADER);
-        clientRequestIdHeader = settings.getString(SETTINGS_KEY_CLIENT_REQUEST_ID_HEADER).orElse(DEFAULT_CLIENT_REQUEST_ID_HEADER);
-        if (forward && clientRequestIdHeader.equals(requestIdHeader)) {
-            throw new Error("Client request id header and request id header have the same value: " + requestIdHeader);
-        }
+        super(ctx);
     }
 
-    public boolean isEnabled() {
-        return enabled;
+    @Override
+    public <B extends BlockBuilderBase<T, B, X>, T, X> void createNullCheck(String varName, ClassBuilder<?> cb, B bb) {
+        validationExceptions().createNullCheck(varName, cb, bb);
     }
 
-    public String requestIdHeader() {
-        return requestIdHeader;
-    }
-
-    public String clientRequestIdHeader() {
-        return clientRequestIdHeader;
-    }
-
-    <B extends BlockBuilderBase<T, B, X>, T, X> void decorateProbeHandlerConstructor(ClassBuilder<?> cb,
+    protected <B extends BlockBuilderBase<T, B, X>, T, X> void decorateProbeHandlerConstructor(ClassBuilder<?> cb,
             ConstructorBuilder<?> con, B bb) {
         if (!enabled) {
             return;
@@ -124,12 +87,12 @@ public class RequestIdSupport {
         }
     }
 
-    public String requestIdVar() {
-        return "requestId";
+    @Override
+    protected String scopeTypeName() {
+        return "RequestScope";
     }
 
-    <B extends BlockBuilderBase<T, B, X>, T, X> void generateRequestInjectionCode(ClassBuilder<?> cb, B bb,
-            String eventVar) {
+    public <B extends BlockBuilderBase<T, B, X>, T, X> void generateRequestInjectionCode(ClassBuilder<?> cb, B bb, String eventVar, boolean hasOtherPrecursors) {
         if (!enabled) {
             return;
         }
@@ -169,63 +132,8 @@ public class RequestIdSupport {
         }
     }
 
-    public <T> void generateModuleMethods(ClassBuilder<T> cb) {
-        if (!enabled) {
-            return;
-        }
-
-        cb.importing("com.telenav.requestids.RequestIdFactory");
-        cb.field("requestIdFactoryType").ofType("Class<? extends RequestIdFactory<?>>");
-        cb.field("requestIdType").ofType("Class<?>");
-
-        cb.innerClass("GenericRequestIdFactoryLiteral", ib -> {
-            ib.withModifier(PRIVATE, STATIC, FINAL);
-            cb.importing("com.google.inject.TypeLiteral");
-            ib.extending("TypeLiteral<RequestIdFactory<?>>");
-        });
-
-        cb.method("withRequestIdFactory", mth -> {
-            mth.withModifier(PUBLIC).withTypeParam("ID");
-            mth.addArgument("Class<? extends RequestIdFactory<ID>>", "type");
-            mth.addArgument("Class<ID>", "ridType");
-            mth.returning(cb.className());
-            mth.body(bb -> {
-                validationExceptions().createNullCheck("type", cb, bb);
-                validationExceptions().createNullCheck("ridType", cb, bb);
-                bb.assignField("requestIdFactoryType").ofThis().toExpression("type");
-                bb.assignField("requestIdType").ofThis().toExpression("ridType");
-                bb.returningThis();
-            });
-        });
+    @Override
+    protected String scopeBindTypeMethod() {
+        return "bindType";
     }
-
-    <B extends BlockBuilderBase<T, B, X>, T, X> void generateBindingCode(ClassBuilder<?> cb, B bb,
-            String binderVar, String scopeVar) {
-        if (!enabled) {
-            return;
-        }
-        ClassBuilder.IfBuilder<B> test = bb.ifNull("requestIdFactoryType");
-        test.lineComment("This will also prevent subsequent calls to set these from")
-                .lineComment("succeeding, so the setter method does not need to check initialized state.");
-        if (useUuid) {
-            cb.importing(UUID.class);
-            cb.importing("com.telenav.requestids.UUIDRequestIdFactory");
-            test.assignField("requestIdFactoryType").ofThis().toExpression("UUIDRequestIdFactory.class");
-            test.assignField("requestIdType").ofThis().toExpression("UUID.class");
-        } else {
-            cb.importing("com.telenav.requestids.DefaultRequestId");
-            cb.importing("com.telenav.requestids.DefaultRequestIdFactory");
-            test.assignField("requestIdFactoryType").ofThis().toExpression("DefaultRequestIdFactory.class");
-            test.assignField("requestIdType").ofThis().toExpression("DefaultRequestId.class");
-        }
-        cb.importing("static com.google.inject.Scopes.SINGLETON");
-
-        test.endIf();
-        bb.invoke("bindType").withArgument(binderVar).withArgument("requestIdType").on(scopeVar);
-        bb.invoke("in").withArgument("SINGLETON")
-                .onInvocationOf("to").withArgument("requestIdFactoryType")
-                .onInvocationOf("bind").withNewInstanceArgument().ofType("GenericRequestIdFactoryLiteral")
-                .on("binder");
-    }
-
 }

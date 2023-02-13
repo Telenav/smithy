@@ -299,7 +299,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                             .withArgument(opEnum)
                             .on("probe");
 
-                    requestIdSupport.generateRequestInjectionCode(cb, bb, "event");
+                    requestIdSupport.generateRequestInjectionCode(cb, bb, "event", false);
 
                     if (inputOrNull != null && inputOrNull.consumesHttpPayload()) {
                         bb.blankLine()

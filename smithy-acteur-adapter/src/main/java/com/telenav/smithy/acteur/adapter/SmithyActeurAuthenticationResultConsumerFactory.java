@@ -32,7 +32,7 @@ public final class SmithyActeurAuthenticationResultConsumerFactory extends Authe
 
     @Override
     protected <T> AuthenticationResultConsumer<T> create(CompletableFuture<T> fut, boolean optional) {
-        return new ConsumerImpl<T>(fut, optional);
+        return new ConsumerImpl<>(fut, optional);
     }
 
     private static class ConsumerImpl<T> extends AbstractAuthenticationResultConsumer<T> {

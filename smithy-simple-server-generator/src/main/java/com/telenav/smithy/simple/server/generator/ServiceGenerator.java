@@ -73,12 +73,14 @@ import software.amazon.smithy.model.traits.DocumentationTrait;
  */
 final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
 
+    private ActeurRequestIdSupport requestIdSupport;
     ServiceGenerator(ServiceShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
         super(shape, model, destSourceRoot, target, language);
     }
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
+        requestIdSupport = new ActeurRequestIdSupport(ctx, addTo);
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
                 .named(typeNameOf(shape))
                 .withModifier(FINAL, PUBLIC)
@@ -100,6 +102,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
         createInitializedCheck(cb);
         createAdditionalModulesMethodAndSet(cb);
         createExceptionEvaluationExtensions(cb);
+        requestIdSupport.generateModuleMethods(cb);
 
         operations.forEach(op -> addBindingFieldAndMethod(cb, op));
         addBindingFieldsAndMethodsForAuthenticators(operations, cb);
@@ -308,6 +311,8 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                         bb.invoke("forEach")
                                 .withMethodReference("install").on("binder")
                                 .onField("modules").ofThis();
+                        
+                        requestIdSupport.generateBindingCode(cb, bb, "binder", "scope");
 
                         bb.blankLine().lineComment("Set the initialized flag so that attempts to")
                                 .lineComment("set up bindings after server start will throw, since")
@@ -361,13 +366,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                         .addArgument("Event<?>", "inResponseTo")
                         .returning("ErrorResponse")
                         .body(bb -> {
-                            /*
-for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEvaluators) {
-    Optional<ErrorResponse> result = f.apply(thrown);
-    if (result.isPresent()) {
-        return result.get();
-    }
-}                           */
+                            bb.lineComment("First try any custom evaluators bound during startup:");
                             bb.simpleLoop("Function<? super Throwable, ? extends Optional<ErrorResponse>>", "f")
                                     .over("customEvaluators", loop -> {
                                         loop.declare("result")
@@ -379,24 +378,45 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                                                 .returningInvocationOf("get").on("result")
                                                 .endIf();
                                     });
+                            bb.blankLine().lineComment("Exception is the built-in type for validation failure.");
                             bb.iff(variable("thrown").isInstance(validationExceptions().name()))
-                                    .returningInvocationOf("create")
-                                    .withArgumentFromField("BAD_REQUEST").of("HttpResponseStatus")
+                                    .returningInvocationOf("badRequest")
                                     .withStringConcatentationArgument("Invalid input: ")
                                     .appendInvocationOf("getMessage").on("thrown")
                                     .endConcatenation()
-                                    .on("ErrorResponse")
+                                    .on("Err")
                                     .endIf();
 
-                            cb.importing("com.telenav.smithy.http.ResponseException");
-                            bb.iff(variable("thrown").isInstance("ResponseException"))
-                                    .returningInvocationOf("create")
-                                    .withArgumentFromInvoking("valueOf")
-                                    .withArgument("((ResponseException)thrown).status()")
-                                    .on("HttpResponseStatus")
-                                    .withArgumentFromInvoking("getMessage").on("thrown")
-                                    .on("ErrorResponse")
-                                    .endIf();
+                            cb.importing("com.telenav.smithy.http.ResponseException", "com.mastfrog.acteur.errors.Err");
+
+                            bb.blankLine().lineComment("Exception is the built-in generic status code + error message exception.");
+                            ClassBuilder.IfBuilder<?> reTest = bb.iff(variable("thrown").isInstance("ResponseException"));
+                            reTest.declare("re")
+                                    .initializedTo().castTo("ResponseException").expression("thrown").as("ResponseException");
+                            reTest.declare("result")
+                                    .initializedByInvoking("withCode")
+                                    .withArgumentFromInvoking("status").on("re")
+                                    .withArgumentFromInvoking("getMessage").on("re")
+                                    .on("Err")
+                                    .as("Err");
+                            reTest.blankLine().lineComment("ResponseException can propagate the WWW-Authenticate header, which is")
+                                    .lineComment("critical for authentication to work properly.");
+                            reTest.invoke("withHeaderNameAndValue")
+                                    .withLambdaArgument(lam -> {
+                                        lam.withArgument("headerName")
+                                                .withArgument("headerValue");
+                                        lam.body().invoke("withHeader")
+                                                .withArgument("headerName")
+                                                .withArgument("headerValue")
+                                                .on("result")
+                                                .endBlock();
+                                    })
+                                    .on("re");
+                            reTest.returning("result").endIf();
+
+                            bb.blankLine().lineComment("UnsupportedOperationException is thrown by the mock implementations")
+                                    .lineComment("of the generated service interfaces, and is appropriately translated")
+                                    .lineComment("as the 501 Not Implemented HTTP response code");
 
                             bb.iff(variable("thrown").isInstance("UnsupportedOperationException"))
                                     .returningInvocationOf("create")
@@ -406,6 +426,7 @@ for (Function<? super Throwable, ? extends Optional<ErrorResponse>> f : customEv
                                     .endConcatenation()
                                     .on("ErrorResponse")
                                     .endIf();
+                            bb.blankLine().lineComment("Unrecognized - let the framework's default error reporting take over.");
                             bb.returningNull();
                         });
             });

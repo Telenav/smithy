@@ -100,8 +100,10 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
     static boolean graphsBuilt;
     private final ResourceGraph graph;
+    private ActeurRequestIdSupport requestIdSupport;
 
-    OperationGenerator(OperationShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
+    OperationGenerator(OperationShape shape, Model model, Path destSourceRoot,
+            GenerationTarget target, LanguageWithVersion language) {
         super(shape, model, destSourceRoot, target, language);
         graph = ensureGraphs(model);
     }
@@ -232,21 +234,24 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
         void authInfo(Shape payload, String mechanism, String pkg, String payloadType, boolean optional);
     }
 
-    private void withAuthInfo(AuthInfoConsumer c) {
-        withAuthInfo(shape, model, names(), c);
+    private boolean withAuthInfo(AuthInfoConsumer c) {
+        return withAuthInfo(shape, model, names(), c);
     }
 
-    public static void withAuthInfo(OperationShape shape, Model model, TypeNames names, AuthInfoConsumer c) {
-        shape.getTrait(AuthenticatedTrait.class).ifPresent(auth -> {
+    public static boolean withAuthInfo(OperationShape shape, Model model, TypeNames names, AuthInfoConsumer c) {
+        Optional<AuthenticatedTrait> tr = shape.getTrait(AuthenticatedTrait.class);
+        tr.ifPresent(auth -> {
             Shape payload = model.expectShape(auth.getPayload());
             String pkg = names.packageOf(payload);
             String nm = typeNameOf(payload);
             c.authInfo(payload, auth.getMechanism(), pkg, nm, auth.isOptional());
         });
+        return tr.isPresent();
     }
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
+        requestIdSupport = new ActeurRequestIdSupport(ctx, addTo);
         ClassBuilder<String> cb = ClassBuilder.forPackage(implPackage())
                 .named(typeNameOf(shape))
                 .withModifier(FINAL);
@@ -258,7 +263,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
         ConstructorBuilder<ClassBuilder<String>> con = cb.constructor()
                 .annotatedWith("Inject").closeAnnotation();
-        
+
         if (!shape.getInput().isPresent()) {
             con.addArgument(operationInterfaceName(shape), "operationImplementation");
             cb.importing(operationInterfaceFqn(model, shape));
@@ -278,7 +283,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
             });
         });
 
-        withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
+        boolean hasAuth = withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
             String[] fqns = new String[]{pkg + "." + payloadType};
             maybeImport(cb, fqns);
             if (optional) {
@@ -293,6 +298,8 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                 ab.addClassArgument("value", authActeur);
             });
         });
+
+        requestIdSupport.generateRequestInjectionCode(cb, null, "--x--", hasAuth);
 
         BlockBuilder<ClassBuilder<String>> conBody = con.body();
 
