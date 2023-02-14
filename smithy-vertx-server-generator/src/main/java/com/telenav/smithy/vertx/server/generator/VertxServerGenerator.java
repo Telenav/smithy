@@ -77,6 +77,7 @@ import static com.telenav.smithy.names.operation.OperationNames.authenticateWith
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
 import static com.telenav.smithy.names.operation.OperationNames.serviceAuthenticatedOperationsEnumName;
+import com.telenav.smithy.server.common.OperationEnumBindingGenerator;
 import com.telenav.smithy.utils.ResourceGraph;
 import com.telenav.smithy.utils.ResourceGraphs;
 import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
@@ -136,6 +137,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     private final Set<? extends OperationShape> ops;
     private final ResourceGraph graph;
     private RequestIdSupport requestIdSupport;
+    private OperationEnumBindingGenerator operationEnumSupport;
 
     VertxServerGenerator(ServiceShape shape, Model model, Path destSourceRoot,
             GenerationTarget target, LanguageWithVersion language,
@@ -167,6 +169,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
         requestIdSupport = new RequestIdSupport(ctx);
+        operationEnumSupport = new OperationEnumBindingGenerator(shape, addTo, names());
         // Pending - need to sort ops by path to avoid collisions?
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
                 .named(escape(shape.getId().getName(shape)));
@@ -189,6 +192,9 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         initDebug(cb);
 
         generateStartMethod(cb);
+
+        scope.bindDirect(operationEnumSupport.operationEnumTypeFqn(),
+                "Binds the operations enum type in scope.");
 
         requestIdSupport.generateModuleMethods(cb);
 
@@ -470,6 +476,10 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
                 generateModuleAdditionMethod(moduleVar, bb, cb);
 
+                operationEnumSupport.generateEnumBinding(cb, bb, binderVar);
+                ClassBuilder<String> opEnum = operationEnumSupport.createOperationsEnum();
+                applyGeneratedAnnotation(OperationEnumBindingGenerator.class, opEnum);
+
                 if (hasMarkup()) {
                     generateMarkupUnzipper(bb, cb, con);
                 }
@@ -737,43 +747,11 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     }
 
     private String operationEnumConstant(OperationShape op) {
-        return Strings.camelCaseToDelimited(op.getId().getName(), '_').toUpperCase();
+        return operationEnumSupport.operationEnumConstant(op);
     }
 
     private String operationEnumTypeName() {
-        return escape(shape.getId().getName() + "Operations");
-    }
-
-    public String createOperationsEnum(Consumer<ClassBuilder<String>> addTo) {
-        String nm = operationEnumTypeName();
-        ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
-                .named(nm)
-                .withModifier(PUBLIC)
-                .toEnum();
-        cb.field("operationId")
-                .withModifier(FINAL)
-                .ofType("String");
-        cb.constructor(con -> {
-            con.addArgument("String", "opId");
-            con.body(bb -> {
-                bb.assignField("operationId")
-                        .ofThis().toExpression("opId");
-            });
-        });
-        cb.overridePublic("toString")
-                .returning("String")
-                .bodyReturning("operationId");
-        cb.docComment("Enum of smithy operations in " + shape.getId().getName() + " used "
-                + "by the body handler factory provided to the " + shape.getId().getName()
-                + "guice module, and optionally also for logging.");
-        cb.enumConstants(ecb -> {
-            for (OperationShape op : ops) {
-                String s = operationEnumConstant(op);
-                ecb.addWithArgs(s).withStringLiteral(op.getId().toString()).inScope();
-            }
-        });
-        addTo.accept(cb);
-        return nm;
+        return operationEnumSupport.operationEnumTypeName();
     }
 
     public void generateBodyHandlerSupport(ClassBuilder<String> routerBuilder, String operationsEnumName) {
@@ -861,7 +839,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     public void generateCreateVertxModuleMethod(ClassBuilder<String> routerBuilder,
             ResourceGraph graph, Consumer<ClassBuilder<String>> addTo) {
-        String operationsEnumName = createOperationsEnum(addTo);
+        String operationsEnumName = operationEnumSupport.operationEnumTypeName();
         generateBodyHandlerSupport(routerBuilder, operationsEnumName);
 
         generateScopeBodyWrapper(routerBuilder);
@@ -944,6 +922,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             B configureBody, ClassBuilder<String> cb, Consumer<ClassBuilder<String>> addTo) {
         ClassBuilder<String> markup = ClassBuilder.forPackage(names().packageOf(shape))
                 .named("Markup");
+        applyGeneratedAnnotation(getClass(), markup);
         new MarkupClassGenerator("RoutingContext").accept(shape.getId().getName(), markup);
         addTo.accept(markup);
 

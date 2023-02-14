@@ -36,6 +36,7 @@ import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import static com.telenav.smithy.names.operation.OperationNames.authPackage;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
+import com.telenav.smithy.server.common.OperationEnumBindingGenerator;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.ensureGraphs;
 import com.telenav.smithy.utils.ResourceGraph;
 import static com.telenav.smithy.utils.ResourceGraphs.graph;
@@ -74,6 +75,8 @@ import software.amazon.smithy.model.traits.DocumentationTrait;
 final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     private ActeurRequestIdSupport requestIdSupport;
+    private OperationEnumBindingGenerator operationEnumSupport;
+
     ServiceGenerator(ServiceShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
         super(shape, model, destSourceRoot, target, language);
     }
@@ -81,6 +84,7 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
         requestIdSupport = new ActeurRequestIdSupport(ctx, addTo);
+        operationEnumSupport = new OperationEnumBindingGenerator(shape, addTo, names());
         ClassBuilder<String> cb = ClassBuilder.forPackage(names().packageOf(shape))
                 .named(typeNameOf(shape))
                 .withModifier(FINAL, PUBLIC)
@@ -311,8 +315,12 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                         bb.invoke("forEach")
                                 .withMethodReference("install").on("binder")
                                 .onField("modules").ofThis();
-                        
+
                         requestIdSupport.generateBindingCode(cb, bb, "binder", "scope");
+
+                        ClassBuilder<String> opEnum = operationEnumSupport.createOperationsEnum();
+                        applyGeneratedAnnotation(OperationEnumBindingGenerator.class, opEnum);
+                        operationEnumSupport.generateEnumBinding(cb, bb, "binder");
 
                         bb.blankLine().lineComment("Set the initialized flag so that attempts to")
                                 .lineComment("set up bindings after server start will throw, since")
