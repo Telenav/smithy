@@ -34,6 +34,8 @@ import static javax.lang.model.element.Modifier.STATIC;
  */
 public abstract class AbstractRequestIdSupport {
 
+    protected static final String BINDINGS_HOLDER_TYPE_NAME = "RequestIdTypes";
+    protected static final String GUICE_BINDING_STATIC_VAR_NAME = "GUICE_BINDING_REQUEST_ID";
     public static final String SETTINGS_KEY_REQUEST_IDS_ENABLED = "useRequestIds";
     public static final String SETTINGS_KEY_ACCEPT_INBOUND_REQUEST_IDS = "allowInboundRequestIds";
     public static final String SETTINGS_KEY_FORWARD_CLIENT_REQUEST_IDS = "forwardClientRequestIds";
@@ -121,15 +123,12 @@ public abstract class AbstractRequestIdSupport {
         });
     }
 
-    protected static final String BINDINGS_HOLDER_TYPE_NAME = "RequestIdTypes";
-    protected static final String GUICE_BINDING_STATIC_VAR_NAME = "GUICE_BINDING_REQUEST_ID";
-
     public <T> void generateRequestIdBindingsHolderType(ClassBuilder<T> cb) {
         cb.importing("com.telenav.requestids.RequestIdFactory");
         cb.field(GUICE_BINDING_STATIC_VAR_NAME)
                 .docComment("&#064;Named guice binding which can be used to obtain the current request id.")
                 .withModifier(PUBLIC, STATIC, FINAL)
-                .initializedWith("__requestId");
+                .initializedWith("smithyRequestId");
         cb.innerClass(BINDINGS_HOLDER_TYPE_NAME, ib -> {
             ib.withModifier(PRIVATE, STATIC, FINAL);
             ib.withTypeParameters("T", "R extends RequestIdFactory<T>");
@@ -164,15 +163,79 @@ public abstract class AbstractRequestIdSupport {
                             .ofType("GenericRequestIdFactoryLiteral")
                             .on("binder");
 
-                    decorateApplyBindings(ib, bb, "binder", "scope");
+                    doDecorateApplyBindings(ib, bb, "binder", "scope");
+                });
+            });
+        });
+    }
+    private void generateGenericRequestIdProviderBinding(ClassBuilder<?> cb) {
+        cb.innerClass("RIDAsObjectProvider", ib -> {
+            ib.withModifier(PRIVATE, STATIC, FINAL);
+            ib.withTypeParameters("T", "R extends RequestIdFactory<T>");
+            ib.implementing("Provider<Object>");
+
+            ib.field("factoryProvider", fld -> {
+                fld.withModifier(PRIVATE, FINAL)
+                        .ofType("Provider<? extends RequestIdFactory<T>>");
+            });
+            ib.field("existingIdProvider", fld -> {
+                fld.withModifier(PRIVATE, FINAL)
+                        .ofType("Provider<T>");
+            });
+            ib.constructor(con -> {
+                con.addArgument("Provider<? extends RequestIdFactory<T>>", "factoryProvider");
+                con.addArgument("Provider<T>", "existingIdProvider");
+                con.body(cbb -> {
+                    cbb.assignField("factoryProvider").ofThis().toExpression("factoryProvider");
+                    cbb.assignField("existingIdProvider").ofThis().toExpression("existingIdProvider");
+                });
+            });
+            ib.overridePublic("get", mth -> {
+                mth.returning("Object");
+                mth.body(gbb -> {
+                    gbb.declare("result").initializedByInvoking("get")
+                            .on("existingIdProvider").as("Object");
+                    gbb.ifNull("result").statement("result = factoryProvider.get().nextId()").endIf();
+                    gbb.returning("result");
                 });
             });
         });
     }
 
+
+    protected <B extends BlockBuilderBase<T, B, X>, T, X>
+            void doDecorateApplyBindings(ClassBuilder<?> cb, B bb, String binderVar, String scopeVar) {
+        bb.declare("factoryProvider").initializedByInvoking("getProvider")
+                .withArgument("requestIdFactoryType")
+                .on(binderVar).as("Provider<R>");
+
+        bb.declare("idProvider")
+                .initializedByInvoking("getProvider")
+                .withArgument("requestIdType")
+                .on(binderVar)
+                .as("Provider<T>");
+
+        cb.importing("com.google.inject.name.Names");
+
+        bb.invoke("toProvider")
+                .withArgumentFromNew(nb -> {
+                    nb.withArgument("factoryProvider")
+                            .withArgument("idProvider")
+                            .ofType("RIDAsObjectProvider<>");
+                })
+                .onInvocationOf("annotatedWith")
+                .withArgumentFromInvoking("named")
+                .withArgument(GUICE_BINDING_STATIC_VAR_NAME)
+                .on("Names")
+                .onInvocationOf("bind").withClassArgument("Object")
+                .on(binderVar);
+        decorateApplyBindings(cb, bb, binderVar, scopeVar);
+    }
+
     protected <B extends BlockBuilderBase<T, B, X>, T, X>
             void decorateApplyBindings(ClassBuilder<?> cb, B bb, String binderVar, String scopeVar) {
         // do nothing - acteur support will
+
     }
 
     public <B extends BlockBuilderBase<T, B, X>, T, X>
@@ -180,6 +243,7 @@ public abstract class AbstractRequestIdSupport {
         if (!enabled) {
             return;
         }
+        generateGenericRequestIdProviderBinding(cb);
         IfBuilder<B> test = bb.ifNull("this.requestIds");
         test.lineComment("This will also prevent subsequent calls to set these from")
                 .lineComment("succeeding, so the setter method does not need to check initialized state.");

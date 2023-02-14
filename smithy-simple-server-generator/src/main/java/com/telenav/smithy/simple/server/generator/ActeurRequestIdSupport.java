@@ -58,44 +58,8 @@ final class ActeurRequestIdSupport extends AbstractRequestIdSupport {
         bb.invoke("to").withClassArgument(ON_BEFORE_IMPL_NAME)
                 .onInvocationOf("bind").withClassArgument("OnBeforeEvent")
                 .on(binderVar);
-
-        generateGenericRequestIdProviderBinding(cb);
         generateResponseDecorator(cb);
         generateIdInjector(cb);
-    }
-
-    private void generateGenericRequestIdProviderBinding(ClassBuilder<?> cb) {
-        cb.innerClass("RIDAsObjectProvider", ib -> {
-            ib.withModifier(PRIVATE, STATIC, FINAL);
-            ib.withTypeParameters("T", "R extends RequestIdFactory<T>");
-            ib.implementing("Provider<Object>");
-
-            ib.field("factoryProvider", fld -> {
-                fld.withModifier(PRIVATE, FINAL)
-                        .ofType("Provider<? extends RequestIdFactory<T>>");
-            });
-            ib.field("existingIdProvider", fld -> {
-                fld.withModifier(PRIVATE, FINAL)
-                        .ofType("Provider<T>");
-            });
-            ib.constructor(con -> {
-                con.addArgument("Provider<? extends RequestIdFactory<T>>", "factoryProvider");
-                con.addArgument("Provider<T>", "existingIdProvider");
-                con.body(cbb -> {
-                    cbb.assignField("factoryProvider").ofThis().toExpression("factoryProvider");
-                    cbb.assignField("existingIdProvider").ofThis().toExpression("existingIdProvider");
-                });
-            });
-            ib.overridePublic("get", mth -> {
-                mth.returning("Object");
-                mth.body(gbb -> {
-                    gbb.declare("result").initializedByInvoking("get")
-                            .on("existingIdProvider").as("Object");
-                    gbb.ifNull("result").statement("result = factoryProvider.get().nextId()").endIf();
-                    gbb.returning("result");
-                });
-            });
-        });
     }
 
     private void generateResponseDecorator(ClassBuilder<?> cb) {
@@ -186,32 +150,9 @@ final class ActeurRequestIdSupport extends AbstractRequestIdSupport {
     @Override
     protected <B extends ClassBuilder.BlockBuilderBase<T, B, X>, T, X> void decorateApplyBindings(
             ClassBuilder<?> cb, B bb, String binderVar, String scopeVar) {
+
         cb.importing("com.mastfrog.acteur.ResponseDecorator");
-        bb.declare("factoryProvider").initializedByInvoking("getProvider")
-                .withArgument("requestIdFactoryType")
-                .on(binderVar).as("Provider<R>");
-
-        bb.declare("idProvider")
-                .initializedByInvoking("getProvider")
-                .withArgument("requestIdType")
-                .on(binderVar)
-                .as("Provider<T>");
-
-        cb.importing("com.google.inject.name.Names");
-
-        bb.invoke("toProvider")
-                .withArgumentFromNew(nb -> {
-                    nb.withArgument("factoryProvider")
-                            .withArgument("idProvider")
-                            .ofType("RIDAsObjectProvider<>");
-                })
-                .onInvocationOf("annotatedWith")
-                .withArgumentFromInvoking("named")
-                .withArgument(GUICE_BINDING_STATIC_VAR_NAME)
-                .on("Names")
-                .onInvocationOf("bind").withClassArgument("Object")
-                .on(binderVar);
-
+        
         bb.invoke("in").withArgument("SINGLETON")
                 .onInvocationOf("to")
                 .withClassArgument("RequestIdResponseDecorator")
