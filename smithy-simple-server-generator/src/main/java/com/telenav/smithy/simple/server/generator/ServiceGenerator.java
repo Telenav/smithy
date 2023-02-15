@@ -17,6 +17,7 @@ package com.telenav.smithy.simple.server.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.BlockBuilder;
+import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.java.vogon.ClassBuilder.InvocationBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.Value;
 import com.mastfrog.java.vogon.ClassBuilder.Variable;
@@ -32,6 +33,8 @@ import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.telenav.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import com.telenav.smithy.extensions.AuthenticatedTrait;
 import static com.mastfrog.util.strings.Strings.decapitalize;
+import static com.telenav.smithy.generators.FeatureBridge.MARKUP_GENERATION_PRESENT;
+import static com.telenav.smithy.names.TypeNames.packageOf;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import static com.telenav.smithy.names.operation.OperationNames.authPackage;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
@@ -113,6 +116,8 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         createExceptionEvaluatorImplementations(cb);
         registerZipMarkupTask();
+
+        generateMarkupSupport(addTo);
 
         addTo.accept(cb);
     }
@@ -222,7 +227,75 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                         generateTypeFieldAssignment(bb, ifaceName, cb, fieldName);
                     });
         });
+    }
 
+    private boolean hasMarkup() {
+        return ctx.get(MARKUP_GENERATION_PRESENT).orElse(false);
+    }
+
+    private void generateMarkupSupport(Consumer<ClassBuilder<String>> addTo) {
+        if (!hasMarkup()) {
+            return;
+        }
+        ClassBuilder<String> markup = ClassBuilder.forPackage(packageOf(shape))
+                .named("Markup");
+        applyGeneratedAnnotation(ActeurMarkupClassGenerator.class, markup);
+        new ActeurMarkupClassGenerator().accept(shape.getId().getName(), markup);
+        addTo.accept(markup);
+
+        ClassBuilder<String> cb = ClassBuilder.forPackage(packageOf(shape) + ".serverimpl")
+                .named("MarkupPage")
+                .importing(packageOf(shape) + ".Markup")
+                .withModifier(PUBLIC, FINAL)
+                .extending("ResourcesPage")
+                .docComment("Serves markup files from the bundled zip file, which is unpacked by "
+                        + "the <code>Markup</code> class.");
+
+        cb.importing("com.mastfrog.acteur.ActeurFactory",
+                "com.mastfrog.acteur.annotations.HttpCall",
+                "com.mastfrog.acteur.resources.Resource",
+                "com.mastfrog.acteur.resources.ResourcesPage",
+                "com.mastfrog.acteur.resources.StaticResources",
+                "com.mastfrog.settings.Settings",
+                "javax.inject.Inject");
+        cb.annotatedWith("HttpCall", ab -> {
+            ab.addArgument("order", 10000);
+            ab.addClassArgument("scopeTypes", "Resource");
+        });
+
+        cb.constructor(con -> {
+            con.annotatedWith("Inject").closeAnnotation();
+            con.addArgument("ActeurFactory", "acteurFactory")
+                    .addArgument("StaticResources", "resources")
+                    .addArgument("Settings", "settings")
+                    .body(bb -> {
+                        bb.lineComment("All we really need to do here is call super - the point of")
+                                .lineComment("this class is to register the page with the framework; by")
+                                .lineComment("giving it a high order in the annotation above, it will only be")
+                                .lineComment("called if all of the web api calls have failed to match the request.")
+                                .blankLine()
+                                .lineComment("ResourcesPage automatically handles HTTP cache headers correctly.");
+                        bb.invoke("super")
+                                .withArgument("acteurFactory")
+                                .withArgument("resources")
+                                .withArgument("settings")
+                                .inScope();
+                    });
+        });
+        applyGeneratedAnnotation(getClass(), cb);
+        addTo.accept(cb);
+    }
+
+    private <B extends BlockBuilderBase<T, B, X>, T, X> void generateMarkupBindings(ClassBuilder<String> cb, B bb, String binderVar) {
+        if (!hasMarkup()) {
+            return;
+        }
+        cb.importing("java.io.File", "com.mastfrog.acteur.resources.StaticResources",
+                "com.mastfrog.acteur.resources.FileResources");
+        bb.invoke("toProvider").withClassArgument("Markup").onInvocationOf("bind")
+                .withClassArgument("File").on(binderVar);
+        bb.invoke("to").withClassArgument("FileResources").onInvocationOf("bind")
+                .withClassArgument("StaticResources").on(binderVar);
     }
 
     private void generateTypeFieldAssignment(ClassBuilder.BlockBuilder<?> bb, String ifaceName, ClassBuilder<String> cb, String fieldName) {
@@ -324,6 +397,8 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .on("scope");
 
                         operationEnumSupport.generateEnumBinding(cb, bb, "binder");
+
+                        generateMarkupBindings(cb, bb, "binder");
 
                         bb.blankLine().lineComment("Set the initialized flag so that attempts to")
                                 .lineComment("set up bindings after server start will throw, since")

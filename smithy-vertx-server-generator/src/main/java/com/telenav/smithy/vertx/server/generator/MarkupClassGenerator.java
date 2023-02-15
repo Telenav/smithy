@@ -66,6 +66,5 @@ public final class MarkupClassGenerator extends AbstractMarkupClassGenerator {
                 .of("HttpHeaderNames")
                 .onInvocationOf("request")
                 .on("event").as("String");
-
     }
 }

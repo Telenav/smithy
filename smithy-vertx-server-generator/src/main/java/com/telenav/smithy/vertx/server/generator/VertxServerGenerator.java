@@ -831,7 +831,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .onField("delegate").ofThis()
                                 .onField("scope").ofThis();
                     });
-            ;
         });
     }
 

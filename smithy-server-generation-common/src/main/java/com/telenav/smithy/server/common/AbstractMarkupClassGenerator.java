@@ -323,7 +323,9 @@ public abstract class AbstractMarkupClassGenerator implements BiConsumer<String,
                             .on("names");
                 });
 
-        generateIsCacheHeaderMatchMethod(markup);
+        if (shouldGenerateMatchMethods()) {
+            generateIsCacheHeaderMatchMethod(markup);
+        }
 
         markup.overridePublic("toString")
                 .returning("String")
@@ -334,7 +336,10 @@ public abstract class AbstractMarkupClassGenerator implements BiConsumer<String,
                 .returning("Path")
                 .withModifier(PUBLIC)
                 .bodyReturning("tmp");
+    }
 
+    protected boolean shouldGenerateMatchMethods() {
+        return true;
     }
 
     protected void generateIsCacheHeaderMatchMethod(ClassBuilder<String> markup) {

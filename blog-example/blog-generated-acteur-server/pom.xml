@@ -37,6 +37,10 @@ limitations under the License.
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
+            <artifactId>acteur-resources</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
             <artifactId>acteur-annotation-processors</artifactId>
             <scope>provided</scope>
         </dependency>
