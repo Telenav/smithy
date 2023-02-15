@@ -79,7 +79,7 @@ limitations under the License.
         <mastfrog.java-vogon.version>${mastfrog.version}</mastfrog.java-vogon.version>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
-        <smithy.version>1.27.1</smithy.version>
+        <smithy.version>1.27.2</smithy.version>
         <nemesis.version>2.0.114</nemesis.version>
         <wordy.version>1.5.49</wordy.version>
         <netty.version>4.1.87.Final</netty.version>
