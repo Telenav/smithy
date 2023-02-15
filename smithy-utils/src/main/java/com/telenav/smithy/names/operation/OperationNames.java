@@ -32,6 +32,10 @@ public class OperationNames {
         throw new AssertionError();
     }
 
+    public static String operationInterfacePackageFor(ServiceShape sh) {
+        return TypeNames.packageOf(sh) + ".spi";
+    }
+
     public static String operationInterfaceName(OperationShape shape) {
         return TypeNames.typeNameOf(shape) + "Responder";
     }

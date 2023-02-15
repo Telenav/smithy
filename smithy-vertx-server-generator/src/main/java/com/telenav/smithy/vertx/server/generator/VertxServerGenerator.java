@@ -67,7 +67,7 @@ import com.mastfrog.util.strings.Strings;
 import static com.mastfrog.util.strings.Strings.capitalize;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.telenav.smithy.names.TypeNames;
-import static com.telenav.smithy.names.TypeNames.packageOf;
+import static com.telenav.smithy.names.TypeNames.operationPackage;
 import static com.telenav.smithy.names.TypeNames.rawTypeName;
 import static com.telenav.smithy.names.TypeNames.simpleNameOf;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
@@ -432,7 +432,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
             ConstructorBuilder<?> con, BlockBuilder<?> conBody) {
         ifProbe(() -> {
             cb.importing("com.telenav.smithy.vertx.probe.Probe");
-            maybeImport(cb, names().packageOf(shape) + "." + operationEnumTypeName());
+            maybeImport(cb, operationEnumSupport.operationEnumTypeFqn());
             cb.field("probe", fld -> {
                 fld.withModifier(PRIVATE, FINAL)
                         .ofType("Probe<" + operationEnumTypeName() + ">");
@@ -477,8 +477,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 generateModuleAdditionMethod(moduleVar, bb, cb);
 
                 operationEnumSupport.generateEnumBinding(cb, bb, binderVar);
-                ClassBuilder<String> opEnum = operationEnumSupport.createOperationsEnum();
-                applyGeneratedAnnotation(OperationEnumBindingGenerator.class, opEnum);
 
                 if (hasMarkup()) {
                     generateMarkupUnzipper(bb, cb, con);
@@ -1291,10 +1289,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                         .endIf();
             });
         });
-    }
-
-    private String operationPackage(OperationShape op) {
-        return packageOf(names().packageOf(op)) + ".impl";
     }
 
     private String probeHandlerPackage() {

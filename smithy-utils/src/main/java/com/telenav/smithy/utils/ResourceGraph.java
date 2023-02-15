@@ -108,6 +108,18 @@ public final class ResourceGraph {
         });
         return result;
     }
+    
+    public <T> Set<T> transformedReverseClosure(Shape shape, Function<Shape, T> xform) {
+        Set<T> result = new HashSet<>();
+        reverseClosure(shape).forEach(sh -> {
+            T obj = xform.apply(sh);
+            if (obj != null) {
+                result.add(obj);
+            }
+        });
+        return result;
+    }
+    
 
     public Set<Shape> filteredReverseClosure(Shape shape, Predicate<Shape> test) {
         Set<Shape> result = new HashSet<>();

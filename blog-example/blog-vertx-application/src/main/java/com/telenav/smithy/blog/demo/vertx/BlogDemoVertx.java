@@ -22,7 +22,7 @@ import com.telenav.smithy.blog.server.spi.impl.ReadBlogResponderImpl;
 import com.google.inject.name.Names;
 import com.mastfrog.util.strings.Strings;
 import com.telenav.blog.BlogService;
-import com.telenav.blog.BlogServiceOperations;
+import com.telenav.blog.spi.BlogServiceOperations;
 import com.telenav.smithy.blog.server.spi.impl.HealthResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.LoginResponderImpl;
 import com.telenav.smithy.blog.server.spi.impl.NewBlogResponderImpl;

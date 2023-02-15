@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.ListShape;
+import software.amazon.smithy.model.shapes.OperationShape;
 import software.amazon.smithy.model.shapes.Shape;
 import software.amazon.smithy.model.shapes.ShapeId;
 import software.amazon.smithy.model.traits.UniqueItemsTrait;
@@ -43,8 +44,8 @@ public final class TypeNames {
     public Model model() {
         return model;
     }
-
-    public String packageOf(Shape shape) {
+    
+    public static String packageOf(Shape shape) {
         String result = packageOf(shape.getId());
         if (result.startsWith("java")
                 || result.startsWith("software") || result.startsWith("smithy")) {
@@ -187,4 +188,7 @@ public final class TypeNames {
         return typeName;
     }
 
+    public static String operationPackage(OperationShape op) {
+        return packageOf(packageOf(op)) + ".impl";
+    }
 }

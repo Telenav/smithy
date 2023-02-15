@@ -318,8 +318,11 @@ final class ServiceGenerator extends AbstractJavaGenerator<ServiceShape> {
 
                         requestIdSupport.generateBindingCode(cb, bb, "binder", "scope");
 
-                        ClassBuilder<String> opEnum = operationEnumSupport.createOperationsEnum();
-                        applyGeneratedAnnotation(OperationEnumBindingGenerator.class, opEnum);
+                        bb.invoke("bindTypesAllowingNulls")
+                                .withArgument("binder")
+                                .withClassArgument(operationEnumSupport.operationEnumTypeName())
+                                .on("scope");
+
                         operationEnumSupport.generateEnumBinding(cb, bb, "binder");
 
                         bb.blankLine().lineComment("Set the initialized flag so that attempts to")

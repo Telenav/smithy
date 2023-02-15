@@ -20,6 +20,7 @@ import com.mastfrog.java.vogon.ClassBuilder.BlockBuilderBase;
 import com.mastfrog.util.strings.Strings;
 import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.telenav.smithy.names.TypeNames;
+import static com.telenav.smithy.names.operation.OperationNames.operationInterfacePackageFor;
 import com.telenav.smithy.utils.ResourceGraphs;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -51,13 +52,18 @@ public class OperationEnumBindingGenerator {
         this.names = names;
     }
 
+    public String operationEnumPackage() {
+        return operationInterfacePackageFor(shape);
+    }
+
     public String operationEnumTypeFqn() {
-        return names.packageOf(shape) + "." + operationEnumTypeName();
+        return operationEnumPackage() + "." + operationEnumTypeName();
     }
 
     public <B extends BlockBuilderBase<T, B, X>, T, X> void generateEnumBinding(ClassBuilder<?> cb,
             B bb, String binderVar) {
 
+        cb.importing(operationEnumTypeFqn());
         cb.field(OPERATION_ENUM_BINDING_STATIC_FIELD_NAME).withModifier(PUBLIC, STATIC, FINAL)
                 .initializedWith(OPERATION_ENUM_BINDING_GUICE_BINDING);
 
@@ -100,8 +106,17 @@ public class OperationEnumBindingGenerator {
                 .withArgumentFromInvoking("named")
                 .withArgument(OPERATION_ENUM_BINDING_STATIC_FIELD_NAME)
                 .on("Names")
-                .onInvocationOf("bind").withClassArgument("Object")
+                .onInvocationOf("bind").withNewInstanceArgument(nb -> nb.ofType("GenericEnumTypeLiteral"))
                 .on(binderVar);
+
+        cb.innerClass("GenericEnumTypeLiteral", ib -> {
+            ib.docComment("Used to bind <code>" + operationEnumTypeName() + "</code> as an "
+                    + "injectable Enum&lt;?&gt; so code that does not know about the enum "
+                    + "(such as logging code) can request Enum<?> be injected in order to "
+                    + "reference the current operation).");
+            ib.importing("com.google.inject.TypeLiteral");
+            ib.withModifier(PRIVATE, STATIC, FINAL).extending("TypeLiteral<Enum<?>>");
+        });
     }
 
     public String operationEnumTypeName() {
@@ -110,7 +125,7 @@ public class OperationEnumBindingGenerator {
 
     public ClassBuilder<String> createOperationsEnum() {
         String nm = operationEnumTypeName();
-        ClassBuilder<String> cb = ClassBuilder.forPackage(names.packageOf(shape))
+        ClassBuilder<String> cb = ClassBuilder.forPackage(operationEnumPackage())
                 .named(nm)
                 .docComment("Enumerates all operations defined in the Smithy model for "
                         + shape.getId().getName() + ".")

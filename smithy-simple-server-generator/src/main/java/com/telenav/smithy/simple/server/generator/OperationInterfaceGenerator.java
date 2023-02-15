@@ -19,21 +19,29 @@ import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
+import com.telenav.smithy.generators.SettingsKey;
 import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.telenav.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import static com.telenav.smithy.names.TypeNames.packageOf;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
+import com.telenav.smithy.server.common.OperationEnumBindingGenerator;
 import static com.telenav.smithy.simple.server.generator.OperationGenerator.withAuthInfo;
+import com.telenav.smithy.utils.ResourceGraph;
+import com.telenav.smithy.utils.ResourceGraphs;
 import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import software.amazon.smithy.model.Model;
 import software.amazon.smithy.model.shapes.OperationShape;
+import software.amazon.smithy.model.shapes.ServiceShape;
 import software.amazon.smithy.model.shapes.Shape;
+import software.amazon.smithy.model.shapes.ShapeId;
 
 /**
  *
@@ -41,12 +49,37 @@ import software.amazon.smithy.model.shapes.Shape;
  */
 final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationShape> {
 
+    private static final SettingsKey<Set<ShapeId>> OP_ENUM_GENERATED_KEY = SettingsKey.key(Set.class, "opEnums");
     OperationInterfaceGenerator(OperationShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
         super(shape, model, destSourceRoot, target, language);
+    }
+    
+    private void maybeGenerateOpEnum(Consumer<ClassBuilder<String>> addTo) {
+        // We generate an enum of all operation classes into the SPI package
+        // so they can be referenced from operation interface implementations
+        ResourceGraph graph = ResourceGraphs.graphContaining(model, shape);
+        Set<ServiceShape> svcs = graph.transformedReverseClosure(shape, sh -> {
+            if (sh.isServiceShape()) {
+                return sh.asServiceShape().get();
+            }
+            return null;
+        });
+        if (svcs.isEmpty()) {
+            log().error("No service in reverse closure of {0}", shape.getId());
+            return;
+        }
+        ServiceShape svc = svcs.iterator().next();
+        if (ctx.computeIfAbsent(OP_ENUM_GENERATED_KEY, HashSet::new).add(svc.getId())) {
+            OperationEnumBindingGenerator opEnumHelper = 
+                    new OperationEnumBindingGenerator(svc, addTo, names());
+            ClassBuilder<String> result = opEnumHelper.createOperationsEnum();
+            applyGeneratedAnnotation(OperationEnumBindingGenerator.class, result);
+        }
     }
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
+        maybeGenerateOpEnum(addTo);
         String pkg = packageOf(operationInterfaceFqn(model, shape));
         String name = operationInterfaceName(shape);
 
@@ -62,8 +95,6 @@ final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationS
 //        THIS SHOULD NOT USE getInputShape and must handle no input and/or no output
         Optional<Shape> in = shape.getInput().map(model::expectShape);
 
-//        Shape in = model.expectShape(shape.getInputShape());
-//        Shape out = model.expectShape(shape.getOutputShape());
         Optional<Shape> out = shape.getOutput().map(model::expectShape);
 
         boolean hasInput = in.isPresent();
