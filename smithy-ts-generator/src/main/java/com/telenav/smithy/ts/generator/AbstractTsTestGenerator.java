@@ -2184,6 +2184,7 @@ abstract class AbstractTsTestGenerator<S extends Shape> extends AbstractTypescri
         }
 
         private RandomInstance<MapShape> invalidKeyMap(TestContext ctx) {
+            
             int sz = validTargetSize();
             int culprit = sz == 1 ? 0 : ctx.rnd().nextInt(sz);
             List<MapPair> pairs = new ArrayList<>(sz);
