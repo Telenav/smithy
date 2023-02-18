@@ -41,9 +41,8 @@ final class EndRequestResponseCycleHandler<Ops extends Enum<Ops>> implements Han
         Probe.fixAge(ctx);
         if (event.cause() != null) {
             probe.onFailure(operation, ctx, event.cause());
-        } else {
-            probe.onResponseCompleted(operation, ctx, ctx.response().getStatusCode());
         }
+        probe.onResponseCompleted(operation, ctx, ctx.response().getStatusCode());
     }
 
 }

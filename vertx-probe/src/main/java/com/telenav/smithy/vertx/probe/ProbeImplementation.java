@@ -21,6 +21,7 @@ import io.vertx.core.Verticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Callback interface which can be used for logging or detailed debug info. A
@@ -119,5 +120,30 @@ public interface ProbeImplementation<Ops extends Enum<Ops>> extends Comparable<P
     @Override
     default int compareTo(ProbeImplementation<?> o) {
         return Integer.compare(ordinal(), o.ordinal());
+    }
+
+    /**
+     * Vertx has a race in SparseArray.put(), resulting in a stack like
+     * <pre>
+     * java.lang.ArrayIndexOutOfBoundsException: Index 3 out of bounds for length 3
+     *  at io.vertx.ext.web.impl.SparseArray.put(SparseArray.java:54)
+     *  at io.vertx.ext.web.impl.RoutingContextImpl.addEndHandler(RoutingContextImpl.java:399)
+     *  at io.vertx.ext.web.RoutingContext.addEndHandler(RoutingContext.java:510)
+     *  at com.telenav.smithy.safety.service.vertx.launcher.logging.LoggingProbe.onStartRequest(LoggingProbe.java:202)
+     * </pre>
+     * <p>
+     * We attempt a dirty workaround, yielding the current thread, then
+     * synchronizing on the context to create a memory barrier, retrying, and if
+     * that fails, pushing one subsequent retry onto the netty event loop.
+     * </p>
+     *
+     * @param <T> The handler's target type
+     * @param c A handle to the method that accepts a handler
+     * @param handler A handler
+     * @param lockable The context
+     * @return True if adding the handler succeeded in the current thread
+     */
+    static <T> boolean aioobeWorkaroundAddHandler(Consumer<Handler<T>> c, Handler<T> handler, RoutingContext lockable) {
+        return Probe.aioobeWorkaroundAddHandler(c, handler, lockable);
     }
 }

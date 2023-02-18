@@ -21,7 +21,6 @@ import io.vertx.core.Handler;
 import io.vertx.core.Verticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
-import static java.util.Arrays.asList;
 
 import java.util.Collections;
 import java.util.LinkedList;

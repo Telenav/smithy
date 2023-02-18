@@ -16,11 +16,13 @@
 package com.telenav.smithy.vertx.probe;
 
 import io.vertx.core.Future;
+import io.vertx.core.Handler;
 import io.vertx.ext.web.RoutingContext;
 import static java.lang.System.currentTimeMillis;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
 
 /**
  * Delegating ProbeImplementation, which may have a collection of
@@ -117,9 +119,17 @@ public class Probe<Ops extends Enum<Ops>> implements ProbeImplementation<Ops> {
     public final void attachTo(RoutingContext ctx, Ops operation) {
         long start = currentTimeMillis();
         ctx.put(START_KEY, start);
-        onStartRequest(operation, ctx);
-        ctx.addBodyEndHandler(new ResponseWrittenHandler<>(operation, this, ctx));
-        ctx.addEndHandler(new EndRequestResponseCycleHandler<>(operation, this, ctx));
+        try {
+            onStartRequest(operation, ctx);
+        } finally {
+            /*  Some sort of race bug in vertx:
+              java.lang.ArrayIndexOutOfBoundsException: Index 3 out of bounds for length 2
+                at io.vertx.ext.web.impl.SparseArray.put(SparseArray.java:54)
+                at io.vertx.ext.web.impl.RoutingContextImpl.addEndHandler(RoutingContextImpl.java:399)
+                at com.telenav.smithy.vertx.probe.Probe.attachTo(Probe.java:122) */
+            aioobeWorkaroundAddHandler(ctx::addBodyEndHandler, new ResponseWrittenHandler<>(operation, this, ctx), ctx);
+            aioobeWorkaroundAddHandler(ctx::addEndHandler, new EndRequestResponseCycleHandler<>(operation, this, ctx), ctx);
+        }
     }
 
     public <T> Future<T> listen(String failureMessage, Future<T> fut) {
@@ -146,6 +156,36 @@ public class Probe<Ops extends Enum<Ops>> implements ProbeImplementation<Ops> {
      * @throws InterruptedException
      */
     public boolean shutdown() throws InterruptedException {
+        return false;
+    }
+
+    // Workaround for a race condition in vertx
+    static <T> boolean aioobeWorkaroundAddHandler(Consumer<Handler<T>> c, Handler<T> handler, RoutingContext lockable) {
+        return aioobeWorkaroundAddHandler(c, handler, lockable, false);
+    }
+
+    @SuppressWarnings("CallToThreadYield")
+    private static <T> boolean aioobeWorkaroundAddHandler(Consumer<Handler<T>> c, Handler<T> handler, RoutingContext lockable, boolean recursing) {
+        try {
+            c.accept(handler);
+            return true;
+        } catch (ArrayIndexOutOfBoundsException aioobe) {
+            try {
+                Thread.yield();
+                synchronized (lockable) {
+                    c.accept(handler);
+                    return true;
+                }
+            } catch (ArrayIndexOutOfBoundsException aioobe2) {
+                aioobe2.addSuppressed(aioobe);
+                aioobe2.printStackTrace(System.err);
+                if (!recursing) {
+                    lockable.vertx().nettyEventLoopGroup().submit(() -> {
+                        aioobeWorkaroundAddHandler(c, handler, lockable, true);
+                    });
+                }
+            }
+        }
         return false;
     }
 }
