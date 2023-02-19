@@ -90,8 +90,8 @@ final class DelegatingProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
     }
 
     @Override
-    public void onEvent(Ops op, String event) {
-        eachDelegate(del -> del.onEvent(op, event));
+    public void onEvent(Ops op, String event, Object payload) {
+        eachDelegate(del -> del.onEvent(op, event, payload));
     }
 
     @Override

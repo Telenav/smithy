@@ -458,23 +458,25 @@ final class AsyncProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
     }
 
     @Override
-    public void onEvent(Ops op, String event) {
-        push(new EventRecord<>(op, event));
+    public void onEvent(Ops op, String event, Object payload) {
+        push(new EventRecord<>(op, event, payload));
     }
 
     private static final class EventRecord<Ops extends Enum<Ops>> extends OpRecord<Ops> {
 
         private final Ops op;
         private final String event;
+        private final Object payload;
 
-        public EventRecord(Ops op, String event) {
+        public EventRecord(Ops op, String event, Object payload) {
             this.op = op;
             this.event = event;
+            this.payload = payload;
         }
 
         @Override
         public void accept(ProbeImplementation<? super Ops> t) {
-            t.onEvent(op, event);
+            t.onEvent(op, event, payload);
         }
     }
 

@@ -181,8 +181,8 @@ final class SystemErrProbe<O extends Enum<O>> implements ProbeImplementation<O> 
     }
 
     @Override
-    public void onEvent(O op, String event) {
-        emit("event\t" + op.name() + "\t" + event);
+    public void onEvent(O op, String event, Object payload) {
+        emit("event\t" + op.name() + "\t" + event + "\t" + payload);
     }
 
     @Override

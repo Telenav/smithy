@@ -105,10 +105,39 @@ public interface ProbeImplementation<Ops extends Enum<Ops>> extends Comparable<P
         // do nothing
     }
 
-    default void onEvent(Ops op, String event) {
+    /**
+     * Pass some adhoc information to the probe - typically something that
+     * should be logged, without forcing a dependency on a particular logging
+     * framework.
+     *
+     * @param op An optional operation - may be null
+     * @param event The name of the event
+     * @param payload The event payload or null
+     */
+    default void onEvent(String event, Object payload) {
+        onEvent(null, event, payload);
+    }
+
+    /**
+     * Pass some adhoc information to the probe - typically something that
+     * should be logged, without forcing a dependency on a particular logging
+     * framework.
+     *
+     * @param op An optional operation - may be null
+     * @param event The name of the event
+     * @param payload The event payload or null
+     */
+    default void onEvent(Ops op, String event, Object payload) {
         // do nothing
     }
 
+    /**
+     * Call with failures during startup or background jobs, outside the event
+     * loop.
+     *
+     * @param message A message
+     * @param thrown A throwable
+     */
     default void onNonOperationFailure(String message, Throwable thrown) {
         // do nothing
     }
