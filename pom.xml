@@ -512,7 +512,7 @@ limitations under the License.
             <dependency>
                 <groupId>com.telenav</groupId>
                 <artifactId>vertx-periodic-metrics</artifactId>
-                <version>${verx.guice.version}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.telenav.cactus</groupId>

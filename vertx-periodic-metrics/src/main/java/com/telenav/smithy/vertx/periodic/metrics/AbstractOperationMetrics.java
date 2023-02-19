@@ -67,6 +67,78 @@ public abstract class AbstractOperationMetrics<Op extends Enum<Op>> extends Metr
         this.probe = probe;
     }
 
+    /**
+     * Determine the multiplier to use when computing the number of metrics
+     * buckets (an AtomicLongArray) to allocate for each operation in order to
+     * collect timing metrics.
+     * <p>
+     * The number of buckets allocated is
+     * <code>targetRequestsPerSecond * samplingInterval.toSeconds() * operationWeight(op)</code>
+     * so, if you expect (or are configuring a load balancer to limit you to)
+     * 1000 requests per second, then you need 600,000 stats buckets to collect
+     * one minute's worth of data at maximum load (and this will be used for the
+     * <i>all</i>
+     * bucket which aggregates across all HTTP). But if the operation is only
+     * likely to be 1/3 of your operations, then the number of buckets actually
+     * alloacted can be reduced to <i>1000 req * 60 seconds * 0.33 = 198,000</i>
+     * buckets.
+     * </p>
+     * <p>
+     * Buckets are allocated once on startup and reused, in pairs of sets of
+     * buckets, plus an array used for statistical calculations against a
+     * snapshot, so the actual memory requirements for one mintue's worth of
+     * complete metrics at 1000 requests per second is <i>198,000 buckets * 8
+     * bytes = 4,752,000 bytes</i> (subject to reduction via pending
+     * optimization).
+     * </p>
+     * <p>
+     * If more requests occur in a period than there are buckets, then writes
+     * will wrap around and early requests for the target period are lost.
+     * </p>
+     * <p>
+     * If the required number of buckets exceeds the hard maximum number of
+     * stats buckets, then stats capturing, then a only random sample of timings
+     * will be collected, such that the percentage of requests sampled fits
+     * within the available buckets, but this means that statistics are
+     * approximate.
+     * </p>
+     * <p>
+     * The default implementation simply returns <code>1D</code> for null, and
+     * <code>1D / Op.getEnumConstants().length</code> for an even distributions
+     * of buckets across operations (which will never be the case in real life).
+     * </p>
+     * <p>
+     * A hard maximum number of stats buckets can be set with the setting
+     * <code>max.stats.buckets</code>, and will not be exceeded; the expected
+     * overall requests per second can be set with the setting
+     * <code>req.per.second.target</code>. Bear in mind that vertx-based servers
+     * are capable of handling hundreds of thousands of requests per second, so
+     * practical values for these should be large unless there is a known cap.
+     * The default is an expectation of handling <i>84,000</i> requests per
+     * second.
+     * </p>
+     *
+     * @param op The operation, or null for all operations
+     * @return A positive double greater than zero and less or equal to than
+     * one.
+     */
+    protected double operationWeight(Op op) {
+        if (op == null) {
+            return 1;
+        }
+        return 1D / opType.getEnumConstants().length;
+    }
+
+    public static void main(String[] args) {
+        long seconds = Duration.ofHours(1).toSeconds() * 84000;
+        long mv = Integer.MAX_VALUE;
+        System.out.println("One hour in seconds " + seconds);
+        System.out.println("MV " + mv);
+        System.out.println(mv - seconds);
+        double maxRequestsInIntPerHour = (mv / 84000) / (double) Duration.ofHours(1).toSeconds();
+        System.out.println("MAX = " + maxRequestsInIntPerHour);
+    }
+
     public final void addTime(Op op, Duration dur) {
         addTime(op, dur.toMillis());
     }
@@ -146,8 +218,6 @@ public abstract class AbstractOperationMetrics<Op extends Enum<Op>> extends Metr
         int weightedBuckets = (int) max(MIN_BUCKETS, round(buckets * operationWeight(op)));
         c.accept(weightedBuckets, probability, method);
     }
-
-    protected abstract double operationWeight(Op op);
 
     /**
      * A placeholder enum for aggregate metrics over *all* operations.
