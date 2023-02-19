@@ -52,7 +52,7 @@ limitations under the License.
             <artifactId>blog-spi-over-demo-backend</artifactId>
         </dependency>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.telenav</groupId>
             <artifactId>vertx-probe</artifactId>
         </dependency>
         <dependency>

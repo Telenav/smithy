@@ -14,7 +14,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
@@ -28,11 +27,9 @@ limitations under the License.
     <version>1.0.0</version>
 
     <properties>
-        <vertx.version>4.3.4</vertx.version>
         <guice.version>5.1.0</guice.version>
-        <netty.version>4.1.85.Final</netty.version>
+        <netty.version>4.1.87.Final</netty.version>
         <http-test-harness.version>0.9.9-dev</http-test-harness.version>
-        <enforcer.skip>true</enforcer.skip>
     </properties>
 
     <dependencies>

@@ -69,6 +69,8 @@ limitations under the License.
         <module>smithy-maven-archetype</module>
         <module>xeger</module>
         <module>request-id-support</module>
+        <module>periodic-metrics</module>
+        <module>vertx-periodic-metrics</module>
     </modules>
 
     <properties>
@@ -297,11 +299,6 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>vertx-probe</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
                 <artifactId>xeger</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -499,7 +496,22 @@ limitations under the License.
             </dependency>
             <dependency>
                 <groupId>com.telenav</groupId>
+                <artifactId>periodic-metrics</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.telenav</groupId>
                 <artifactId>vertx-guice</artifactId>
+                <version>${verx.guice.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.telenav</groupId>
+                <artifactId>vertx-probe</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.telenav</groupId>
+                <artifactId>vertx-periodic-metrics</artifactId>
                 <version>${verx.guice.version}</version>
             </dependency>
             <dependency>

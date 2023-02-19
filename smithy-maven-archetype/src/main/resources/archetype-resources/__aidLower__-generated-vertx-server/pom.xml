@@ -68,7 +68,7 @@ limitations under the License.
             <artifactId>smithy-vertx-adapter</artifactId>
         </dependency>
         <dependency>
-            <groupId>${project.groupId}</groupId>
+            <groupId>com.telenav</groupId>
             <artifactId>vertx-probe</artifactId>
         </dependency>
     </dependencies>
