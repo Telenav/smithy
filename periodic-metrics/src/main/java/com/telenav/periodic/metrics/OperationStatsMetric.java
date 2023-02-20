@@ -15,21 +15,20 @@
  */
 package com.telenav.periodic.metrics;
 
+import com.mastfrog.concurrent.FlipFlop;
 import com.mastfrog.concurrent.stats.LongStatisticCollector;
 import static com.mastfrog.util.collections.CollectionUtils.immutableSetOf;
 import com.mastfrog.util.collections.LongList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 /**
  * MultiMetric which collects request timings and emits computed statistics from
- * all of the timings taken for a period.  Emits standard statistical metrics
+ * all of the timings taken for a period. Emits standard statistical metrics
  * such as p10, median, p90, p99, min, max, mean, count.
  *
  * @author Tim Boudreau
@@ -49,7 +48,7 @@ public final class OperationStatsMetric<Op extends Enum<Op>> implements MultiMet
     private final Metric p99;
     private final Metric count;
     private final PercentileMethod percentileMethod;
-    private final FlipFlop<LongList> lists;
+    private final LongList list;
 
     /**
      * Create a metric using DEFAULT_SAMPLES samples.
@@ -83,7 +82,7 @@ public final class OperationStatsMetric<Op extends Enum<Op>> implements MultiMet
         this.samples = samples;
         this.percentileMethod = percentileCalculation == null ? PercentileMethod.INTERPOLATED : percentileCalculation;
         collector = statisticCollectorFlipFlop(samples, probability);
-        lists = new FlipFlop<>(LongList.create(samples), LongList.create(samples), LongList::clear);
+        list = LongList.create(samples);
         median = Metric.operationMetric(operation, StatisticalMetrics.MEDIAN);
         min = Metric.operationMetric(operation, StatisticalMetrics.MIN);
         max = Metric.operationMetric(operation, StatisticalMetrics.MAX);
@@ -119,7 +118,8 @@ public final class OperationStatsMetric<Op extends Enum<Op>> implements MultiMet
     @Override
     public boolean get(BiConsumer<Metric, Long> c) {
         LongStatisticCollector stats = collector.flip();
-        LongList values = lists.flip();
+        LongList values = list;
+        list.clear();
         boolean result = result = stats.withStatsAndValues(values::add, (minimum, maximum, sum, count) -> {
             c.accept(min, minimum);
             c.accept(max, maximum);
@@ -231,8 +231,8 @@ public final class OperationStatsMetric<Op extends Enum<Op>> implements MultiMet
      */
     private static FlipFlop<LongStatisticCollector> statisticCollectorFlipFlop(int size,
             @Nullable SampleProbability probability) {
-        LongStatisticCollector aa = LongStatisticCollector.create(size);
-        LongStatisticCollector bb = LongStatisticCollector.create(size);
+        LongStatisticCollector aa = LongStatisticCollector.ofUnsignedInts(size);
+        LongStatisticCollector bb = LongStatisticCollector.ofUnsignedInts(size);
         if (probability != null) {
             BooleanSupplier supp = probability.supplier(size);
             aa = aa.intermittentlySampling(supp);
@@ -244,72 +244,5 @@ public final class OperationStatsMetric<Op extends Enum<Op>> implements MultiMet
     @Override
     public String toString() {
         return "OpStats(" + operation + " " + samples + ")";
-    }
-
-    static class FlipFlop<T> {
-        // Pending - replace with com.mastfrog.concurrent.FlipFlop once 2.9.6
-        // is on central
-
-        private final T a;
-        private final T b;
-        private final Consumer<T> resetter;
-        private final AtomicInteger flipFlop = new AtomicInteger();
-
-        public FlipFlop(T a, T b, Consumer<T> resetter) {
-            this.a = a;
-            this.b = b;
-            this.resetter = resetter;
-        }
-
-        T get() {
-            return get(flipFlop.get());
-        }
-
-        /**
-         * Get the currently in use collector.
-         *
-         * @param val The index - must be one or 0
-         * @return A collector
-         */
-        private T get(int val) {
-            switch (val) {
-                case 0:
-                    return a;
-                case 1:
-                    return b;
-                default:
-                    throw new AssertionError(val);
-            }
-        }
-
-        T flip() {
-            // Flip the int value
-            int prev = flipFlop.getAndUpdate(old -> {
-                switch (old) {
-                    case 0:
-                        return 1;
-                    case 1:
-                        return 0;
-                    default:
-                        throw new AssertionError(old);
-                }
-            });
-            // get the (now) opposite collector
-            T old = get(prev);
-            // reset the other collector
-            switch (prev) {
-                case 0:
-                    assert old != b;
-                    resetter.accept(b);
-                    break;
-                case 1:
-                    assert old != a;
-                    resetter.accept(a);
-                    break;
-                default:
-                    throw new AssertionError();
-            }
-            return old;
-        }
     }
 }

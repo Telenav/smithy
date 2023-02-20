@@ -18,11 +18,15 @@ package com.telenav.smithy.vertx.periodic.metrics;
 import com.mastfrog.function.TriConsumer;
 import com.mastfrog.settings.Settings;
 import static com.mastfrog.util.collections.CollectionUtils.map;
+import com.mastfrog.util.preconditions.ConfigurationError;
 import com.telenav.periodic.metrics.MetricsRegistry;
 import com.telenav.periodic.metrics.MultiMetric;
 import com.telenav.periodic.metrics.OperationStatsMetric;
 import com.telenav.periodic.metrics.PercentileMethod;
 import com.telenav.periodic.metrics.SampleProbability;
+import static com.telenav.smithy.vertx.periodic.metrics.VertxMetricsSupport.SETTINGS_KEY_MAX_STATS_BUCKETS;
+import static com.telenav.smithy.vertx.periodic.metrics.VertxMetricsSupport.SETTINGS_KEY_REQUESTS_PER_SECOND;
+import static com.telenav.smithy.vertx.periodic.metrics.VertxPeriodicMetricsModule.GUICE_BINDING_OP_TYPE;
 import com.telenav.smithy.vertx.probe.Probe;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -35,6 +39,8 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Provider;
 
 /**
@@ -43,41 +49,56 @@ import javax.inject.Provider;
  * @author Tim Boudreau
  * @param <Op> The operation type for the service
  */
-public abstract class AbstractOperationMetrics<Op extends Enum<Op>> extends MetricsRegistry {
+final class SimpleOperationMetrics<Op extends Enum<Op>> extends MetricsRegistry {
 
     protected static final int DEFAULT_HARD_STATS_BUCKET_LIMIT = 5050000;
     protected static final int DEFAULT_REQ_PER_SECOND = 84000;
-    public static final String SETTINGS_KEY_REQUESTS_PER_SECOND = "req.per.second.target";
-    public static final String SETTINGS_KEY_MAX_STATS_BUCKETS = "max.stats.buckets";
     protected static final int MIN_BUCKETS = 32;
     protected final Map<Op, List<OperationStatsMetric<Op>>> operationSinks;
     protected final List<OperationStatsMetric<All>> overall = new ArrayList<>();
-    protected final int targetRequestsPerSecond;
-    protected final int maxStatsBuckets;
     protected final Provider<Probe<Op>> probe;
     protected final Class<Op> opType;
+    private final Provider<Settings> settings;
+    private final Provider<OperationWeights> weights;
 
-    protected AbstractOperationMetrics(MetricsRegistrar registrar, Class<Op> opType, Settings settings,
-            Provider<Probe<Op>> probe) {
+    @Inject
+    @SuppressWarnings("unchecked")
+    SimpleOperationMetrics(@Named(GUICE_BINDING_OP_TYPE) Class<?> opType, MetricsRegistrar registrar, Provider<Settings> settings,
+            Provider<Probe<?>> probe, Provider<OperationWeights> weights) {
         super(registrar);
-        this.opType = opType;
-        operationSinks = new EnumMap<>(opType);
-        targetRequestsPerSecond = settings.getInt(SETTINGS_KEY_REQUESTS_PER_SECOND, DEFAULT_REQ_PER_SECOND);
-        maxStatsBuckets = max(MIN_BUCKETS, settings.getInt(SETTINGS_KEY_MAX_STATS_BUCKETS, DEFAULT_HARD_STATS_BUCKET_LIMIT));
-        this.probe = probe;
+        this.settings = settings;
+        if (!opType.isEnum()) {
+            throw new ConfigurationError("Not a enum type: " + opType);
+        }
+        // Guice cannot handle incompletely specified types, so we have to use ? and cast
+        this.opType = (Class<Op>) opType;
+        this.probe = (Provider<Probe<Op>>) (Provider) probe;
+        this.weights = weights;
+        operationSinks = new EnumMap<>(this.opType);
+    }
+
+    private int targetRequestsPerSecond() {
+        return settings.get().getInt(SETTINGS_KEY_REQUESTS_PER_SECOND, DEFAULT_REQ_PER_SECOND);
+    }
+
+    private int maxStatsBuckets() {
+        return max(MIN_BUCKETS, settings.get().getInt(SETTINGS_KEY_MAX_STATS_BUCKETS, DEFAULT_HARD_STATS_BUCKET_LIMIT));
     }
 
     /**
      * Determine the multiplier to use when computing the number of metrics
-     * buckets (an AtomicLongArray) to allocate for each operation in order to
-     * collect timing metrics.
+     * buckets (an AtomicIntegerArray) to allocate for each operation in order
+     * to collect timing metrics. The timings are typically request duration
+     * from initiation to flushing the last byte of the response. These are
+     * stored as unsigned ints (so requests longer than 14 hours in duration
+     * will be ignored).
      * <p>
      * The number of buckets allocated is
      * <code>targetRequestsPerSecond * samplingInterval.toSeconds() * operationWeight(op)</code>
      * so, if you expect (or are configuring a load balancer to limit you to)
      * 1000 requests per second, then you need 600,000 stats buckets to collect
-     * one minute's worth of data at maximum load (and this will be used for the
-     * <i>all</i>
+     * one minute's worth of data for all operations at maximum load (and this
+     * will be really be the number used for the <i>all</i>
      * bucket which aggregates across all HTTP). But if the operation is only
      * likely to be 1/3 of your operations, then the number of buckets actually
      * alloacted can be reduced to <i>1000 req * 60 seconds * 0.33 = 198,000</i>
@@ -123,20 +144,7 @@ public abstract class AbstractOperationMetrics<Op extends Enum<Op>> extends Metr
      * one.
      */
     protected double operationWeight(Op op) {
-        if (op == null) {
-            return 1;
-        }
-        return 1D / opType.getEnumConstants().length;
-    }
-
-    public static void main(String[] args) {
-        long seconds = Duration.ofHours(1).toSeconds() * 84000;
-        long mv = Integer.MAX_VALUE;
-        System.out.println("One hour in seconds " + seconds);
-        System.out.println("MV " + mv);
-        System.out.println(mv - seconds);
-        double maxRequestsInIntPerHour = (mv / 84000) / (double) Duration.ofHours(1).toSeconds();
-        System.out.println("MAX = " + maxRequestsInIntPerHour);
+        return weights.get().operationWeight(op);
     }
 
     public final void addTime(Op op, Duration dur) {
@@ -168,8 +176,8 @@ public abstract class AbstractOperationMetrics<Op extends Enum<Op>> extends Metr
         // depending on a particular logging framework
         Map<String, Object> logRecord = new LinkedHashMap<>();
         logRecord.put("samplingInterval", samplingInterval);
-        logRecord.put("targetRequestsPerSecond", targetRequestsPerSecond);
-        logRecord.put("maxStatsBuckets", maxStatsBuckets);
+        logRecord.put("targetRequestsPerSecond", targetRequestsPerSecond());
+        logRecord.put("maxStatsBuckets", maxStatsBuckets());
         logRecord.put("minBuckets", MIN_BUCKETS);
         logRecord.put("opType", opType);
         for (Op op : opType.getEnumConstants()) {
@@ -201,7 +209,9 @@ public abstract class AbstractOperationMetrics<Op extends Enum<Op>> extends Metr
 
     private void withPercentileAndSampleCount(Op op, Duration dur, TriConsumer<Integer, SampleProbability, PercentileMethod> c) {
         long seconds = dur.toSeconds();
-        int targetSamples = (int) min(Integer.MAX_VALUE, targetRequestsPerSecond * seconds);
+        int targetRequestsPerSecond = targetRequestsPerSecond();
+        int maxStatsBuckets = maxStatsBuckets();
+        int targetSamples = (int) min(Integer.MAX_VALUE, targetRequestsPerSecond() * seconds);
         PercentileMethod method;
         SampleProbability probability;
         int buckets;

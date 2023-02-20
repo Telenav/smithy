@@ -41,7 +41,7 @@ import io.vertx.core.spi.observability.HttpResponse;
  *
  * @author Tim Boudreau
  */
-public class PeriodicVertxMetrics implements VertxMetricsFactory {
+final class PeriodicVertxMetrics implements VertxMetricsFactory {
 
     private final Settings settings;
     private final MetricsSink sink;
