@@ -52,7 +52,7 @@ import javax.inject.Provider;
 final class SimpleOperationMetrics<Op extends Enum<Op>> extends MetricsRegistry {
 
     protected static final int DEFAULT_HARD_STATS_BUCKET_LIMIT = 5050000;
-    protected static final int DEFAULT_REQ_PER_SECOND = 84000;
+    protected static final int DEFAULT_REQ_PER_SECOND = 2000;
     protected static final int MIN_BUCKETS = 32;
     protected final Map<Op, List<OperationStatsMetric<Op>>> operationSinks;
     protected final List<OperationStatsMetric<All>> overall = new ArrayList<>();

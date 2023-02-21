@@ -24,5 +24,11 @@
             <groupId>${project.groupId}</groupId>
             <artifactId>vertx-probe</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>giulius-annotation-processors</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        
     </dependencies>
 </project>

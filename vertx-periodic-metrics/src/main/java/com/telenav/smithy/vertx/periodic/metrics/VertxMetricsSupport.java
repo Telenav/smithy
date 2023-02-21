@@ -15,6 +15,9 @@
  */
 package com.telenav.smithy.vertx.periodic.metrics;
 
+import com.mastfrog.giulius.annotations.Setting;
+import static com.mastfrog.giulius.annotations.Setting.Tier.PRIMARY;
+import static com.mastfrog.giulius.annotations.Setting.ValueType.INTEGER;
 import com.telenav.periodic.metrics.OutboundMetricsSink;
 import com.telenav.vertx.guice.VertxGuiceModule;
 
@@ -25,7 +28,16 @@ import com.telenav.vertx.guice.VertxGuiceModule;
  */
 public final class VertxMetricsSupport<Op extends Enum<Op>> {
 
+    @Setting(value = "Expected maximum number of requests per second this server can be expected "
+            + "to handle (set it generously). This number is used to calculate the number of "
+            + "timing metrics buckets (an AtomicIntegerArray) to hold at least a minute's worth "
+            + "of timings in order to emit accurate metrics.", type = INTEGER, defaultValue = "2000",
+            tier = PRIMARY)
     public static final String SETTINGS_KEY_REQUESTS_PER_SECOND = "req.per.second.target";
+    @Setting(value = "Hard maximum number of statistics buckets to allocate per operation; if the "
+            + "value of " + SETTINGS_KEY_REQUESTS_PER_SECOND + " results in an insufficient number "
+            + "of buckets, metrics will use random sampling of request timings.", type = INTEGER,
+            defaultValue = "5050000")
     public static final String SETTINGS_KEY_MAX_STATS_BUCKETS = "max.stats.buckets";
 
     private final Class<Op> opType;
@@ -36,9 +48,9 @@ public final class VertxMetricsSupport<Op extends Enum<Op>> {
         this.opType = opType;
         this.sinkType = sinkType;
     }
-    
+
     public VertxMetricsSupport<Op> withOperationWeights(Class<? extends OperationWeights> weights) {
-        this.opWeights= weights;
+        this.opWeights = weights;
         return this;
     }
 
