@@ -197,6 +197,7 @@ final class VertxPeriodicMetricsModule<Op extends Enum<Op>> implements Module {
         private BiConsumer<Enum<?>, Duration> consumer;
 
         @SuppressWarnings("rawType")
+        @Inject
         UntypedMetricsConsumer(Provider<SimpleOperationMetrics> rawProvider) {
             this.rawProvider = rawProvider;
         }
