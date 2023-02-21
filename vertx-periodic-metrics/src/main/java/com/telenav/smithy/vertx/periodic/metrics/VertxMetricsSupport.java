@@ -15,11 +15,14 @@
  */
 package com.telenav.smithy.vertx.periodic.metrics;
 
+import com.google.inject.Module;
 import com.mastfrog.giulius.annotations.Setting;
 import static com.mastfrog.giulius.annotations.Setting.Tier.PRIMARY;
 import static com.mastfrog.giulius.annotations.Setting.ValueType.INTEGER;
 import com.telenav.periodic.metrics.OutboundMetricsSink;
 import com.telenav.vertx.guice.VertxGuiceModule;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * Binds metrics support and configures a VertxGuiceModule to use it.
@@ -40,8 +43,14 @@ public final class VertxMetricsSupport<Op extends Enum<Op>> {
             defaultValue = "5050000")
     public static final String SETTINGS_KEY_MAX_STATS_BUCKETS = "max.stats.buckets";
 
+    /**
+     * The operation class, which is bound as named under this value.
+     */
+    public static final String GUICE_BINDING_OP_TYPE = "opType";
+
     private final Class<Op> opType;
     private final Class<? extends OutboundMetricsSink> sinkType;
+    private final Set<Module> additionalModules = new LinkedHashSet<>();
     private Class<? extends OperationWeights> opWeights;
 
     public VertxMetricsSupport(Class<Op> opType, Class<? extends OutboundMetricsSink> sinkType) {
@@ -54,14 +63,29 @@ public final class VertxMetricsSupport<Op extends Enum<Op>> {
         return this;
     }
 
+    public VertxMetricsSupport<Op> withModule(Module m) {
+        additionalModules.add(m);
+        return this;
+    }
+
     public static <Op extends Enum<Op>> VertxMetricsSupport<Op> vertxMetricsSupport(Class<Op> opType,
             Class<? extends OutboundMetricsSink> sinkType) {
         return new VertxMetricsSupport<>(opType, sinkType);
     }
 
+    /**
+     * Attach this support to a VertxGuiceModule, adding the necessary modules
+     * and bindings to support periodic metrics.
+     *
+     * @param module A module
+     * @return
+     */
     public VertxGuiceModule attachTo(VertxGuiceModule module) {
         module.withVertxOptionsCustomizer(VertxMetricsCustomizer.class);
         module.withModule(new VertxPeriodicMetricsModule<>(opType, sinkType, opWeights));
+        additionalModules.forEach(mod -> {
+            module.withModule(mod);
+        });
         return module;
     }
 }

@@ -27,6 +27,13 @@ import javax.inject.Singleton;
 /**
  * Allows additional metrics to be registered into the metrics reporting system.
  * Simply implement and bind as an eager singleton.
+ * <p>
+ * This uses a simple guice pattern for registries of objects, far more
+ * effective and with less conceptual overhead than assisted inject or
+ * multibindings: Simply declare a singleton registry type, and an abstract type
+ * to be registered, which takes the registry as a constructor argument, and
+ * have the type to be registered register itself in its super constructor.
+ * </p>
  *
  * @author Tim Boudreau
  */

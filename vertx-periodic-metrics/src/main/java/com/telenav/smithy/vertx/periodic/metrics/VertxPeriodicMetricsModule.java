@@ -18,10 +18,12 @@ package com.telenav.smithy.vertx.periodic.metrics;
 import com.google.inject.Binder;
 import com.google.inject.Key;
 import com.google.inject.Module;
+import com.google.inject.Scopes;
 import com.google.inject.TypeLiteral;
 import com.google.inject.name.Names;
 import com.telenav.periodic.metrics.MetricsModule;
 import com.telenav.periodic.metrics.OutboundMetricsSink;
+import static com.telenav.smithy.vertx.periodic.metrics.VertxMetricsSupport.GUICE_BINDING_OP_TYPE;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.time.Duration;
@@ -35,7 +37,6 @@ import javax.inject.Provider;
  */
 final class VertxPeriodicMetricsModule<Op extends Enum<Op>> implements Module {
 
-    public static final String GUICE_BINDING_OP_TYPE = "opType";
     private final Class<Op> opType;
     private final Class<? extends OutboundMetricsSink> sinkType;
     private final Class<? extends OperationWeights> weights;
@@ -50,10 +51,21 @@ final class VertxPeriodicMetricsModule<Op extends Enum<Op>> implements Module {
     @Override
     @SuppressWarnings("unchecked")
     public void configure(Binder binder) {
+        // Bind the operation class so that generic implementations like LoggingProbe
+        // can find it
         binder.bind(new TypeLiteral<Class<?>>() {
         }).annotatedWith(Names.named(GUICE_BINDING_OP_TYPE)).toInstance(opType);
+
+        // Bind the raw SimpleOperationMetrics as an eager singleton, so its set of
+        // metrics are pulled in the first time something requests injection of an
+        // instance of MetricsRegistrar
         binder.bind(SimpleOperationMetrics.class).asEagerSingleton();
-        // The things we do for generic bindings
+
+        // The things we do for generic bindings...
+        //
+        // This ensures that anything that wants one in application code is able to
+        // request injection of SimpleOperationMetrics<Op>, rather than the untyped
+        // version
         Key<SimpleOperationMetrics<Op>> key
                 = (Key<SimpleOperationMetrics<Op>>) Key.get(
                         new OneGenericFakeType<>(SimpleOperationMetrics.class, opType));
@@ -63,6 +75,11 @@ final class VertxPeriodicMetricsModule<Op extends Enum<Op>> implements Module {
         Key<BiConsumer<Op, Duration>> key2
                 = (Key<BiConsumer<Op, Duration>>) Key.get(new TwoGenericFakeType<>(BiConsumer.class, opType, Duration.class));
         binder.bind(key2).toInstance(new TimingMetricsConsumer<>(binder.getProvider(SimpleOperationMetrics.class), opType));
+
+        // So that untyped implementations like the general-purpose LoggingProbe can work,
+        // also bind as untyped
+        binder.bind(new TypeLiteral<BiConsumer<Enum<?>, Duration>>() {
+        }).toProvider(UntypedMetricsConsumer.class).in(Scopes.SINGLETON);
 
         binder.install(new MetricsModule()
                 .withMetricsRegistry(SimpleOperationMetrics.class)
@@ -170,6 +187,24 @@ final class VertxPeriodicMetricsModule<Op extends Enum<Op>> implements Module {
         public void accept(Op op, Duration u) {
             assert opType.isInstance(op);
             mx.get().addTime(op, u);
+        }
+    }
+
+    static class UntypedMetricsConsumer implements Provider<BiConsumer<Enum<?>, Duration>> {
+
+        @SuppressWarnings("rawType")
+        private final Provider<SimpleOperationMetrics> rawProvider;
+        private BiConsumer<Enum<?>, Duration> consumer;
+
+        @SuppressWarnings("rawType")
+        UntypedMetricsConsumer(Provider<SimpleOperationMetrics> rawProvider) {
+            this.rawProvider = rawProvider;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public BiConsumer<Enum<?>, Duration> get() {
+            return consumer == null ? consumer = rawProvider.get()::addTime : consumer;
         }
     }
 
