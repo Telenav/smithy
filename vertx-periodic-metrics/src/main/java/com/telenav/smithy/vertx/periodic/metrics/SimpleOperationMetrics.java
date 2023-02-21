@@ -15,7 +15,7 @@
  */
 package com.telenav.smithy.vertx.periodic.metrics;
 
-import com.mastfrog.function.TriConsumer;
+import com.mastfrog.function.QuadConsumer;
 import com.mastfrog.settings.Settings;
 import static com.mastfrog.util.collections.CollectionUtils.map;
 import com.mastfrog.util.preconditions.ConfigurationError;
@@ -181,20 +181,22 @@ final class SimpleOperationMetrics<Op extends Enum<Op>> extends MetricsRegistry 
         logRecord.put("minBuckets", MIN_BUCKETS);
         logRecord.put("opType", opType);
         for (Op op : opType.getEnumConstants()) {
-            withPercentileAndSampleCount(op, samplingInterval, (buckets, probability, method) -> {
+            withPercentileAndSampleCount(op, samplingInterval, (buckets, probability, method, weight) -> {
                 int weightedBuckets = (int) max(MIN_BUCKETS, round(buckets * operationWeight(op)));
                 OperationStatsMetric<Op> opMetric = new OperationStatsMetric<>(op, weightedBuckets, probability, method);
                 operationSinks.computeIfAbsent(op, o -> new ArrayList<>()).add(opMetric);
                 result.add(opMetric);
                 logRecord.put(op.name().toLowerCase().replace('_', '-'), map("buckets").to(weightedBuckets)
                         .map("sampleRate").to(probabilityToString(probability))
+                        .map("weight").to(weight)
                         .map("percentileMethod").finallyTo(method.name()));
             });
         }
-        withPercentileAndSampleCount(null, samplingInterval, (buckets, probability, method) -> {
+        withPercentileAndSampleCount(null, samplingInterval, (buckets, probability, method, weight) -> {
             OperationStatsMetric<All> newAll = new OperationStatsMetric<>(All.ALL, buckets, probability, method);
             logRecord.put("all", map("buckets").to(buckets)
                     .map("sampleRate").to(probabilityToString(probability))
+                    .map("weight").to(weight)
                     .map("percentileMethod").finallyTo(method.name()));
             overall.add(newAll);
             result.add(newAll);
@@ -207,7 +209,7 @@ final class SimpleOperationMetrics<Op extends Enum<Op>> extends MetricsRegistry 
         return probability == null ? "100%" : probability.toString();
     }
 
-    private void withPercentileAndSampleCount(Op op, Duration dur, TriConsumer<Integer, SampleProbability, PercentileMethod> c) {
+    private void withPercentileAndSampleCount(Op op, Duration dur, QuadConsumer<Integer, SampleProbability, PercentileMethod, Double> c) {
         long seconds = dur.toSeconds();
         int targetRequestsPerSecond = targetRequestsPerSecond();
         int maxStatsBuckets = maxStatsBuckets();
@@ -225,8 +227,9 @@ final class SimpleOperationMetrics<Op extends Enum<Op>> extends MetricsRegistry 
             method = PercentileMethod.NEAREST;
             probability = null;
         }
-        int weightedBuckets = (int) max(MIN_BUCKETS, round(buckets * operationWeight(op)));
-        c.accept(weightedBuckets, probability, method);
+        double weight = operationWeight(op);
+        int weightedBuckets = (int) max(MIN_BUCKETS, round(buckets * weight));
+        c.accept(weightedBuckets, probability, method, weight);
     }
 
     /**

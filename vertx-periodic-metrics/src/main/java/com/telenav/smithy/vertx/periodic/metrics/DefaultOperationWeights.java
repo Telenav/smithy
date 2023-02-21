@@ -16,6 +16,8 @@
 package com.telenav.smithy.vertx.periodic.metrics;
 
 import com.mastfrog.settings.Settings;
+import com.telenav.smithy.vertx.probe.Probe;
+import java.util.Arrays;
 import javax.inject.Inject;
 
 /**
@@ -25,10 +27,12 @@ import javax.inject.Inject;
 final class DefaultOperationWeights implements OperationWeights {
 
     private final Settings settings;
+    private final Probe<?> probe;
 
     @Inject
-    DefaultOperationWeights(Settings settings) {
+    DefaultOperationWeights(Settings settings, Probe<?> probe) {
         this.settings = settings;
+        this.probe = probe;
     }
 
     @Override
@@ -44,9 +48,26 @@ final class DefaultOperationWeights implements OperationWeights {
     }
 
     private Double getFromSettings(Enum<?> op) {
-        Double result = settings.getDouble(op.name() + ".weight");
-        if (result == null) {
-            return settings.getDouble(loggingNameOf(op) + ".weight");
+        for (String k : keys(op)) {
+            Double result = getDoubleFromSettings(k);
+            if (result != null) {
+                return result;
+            }
+        }
+        System.out.println("NO: " + Arrays.toString(keys(op)));
+        return null;
+    }
+
+    private String[] keys(Enum<?> op) {
+        return new String[]{op.name() + ".weight", loggingNameOf(op) + ".weight"};
+    }
+
+    private Double getDoubleFromSettings(String key) {
+        Double result = null;
+        try {
+            result = settings.getDouble(key);
+        } catch (NumberFormatException nfe) {
+            probe.onNonOperationFailure(key, nfe);
         }
         return result;
     }
