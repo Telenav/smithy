@@ -17,6 +17,7 @@ package com.telenav.periodic.metrics;
 
 import com.mastfrog.settings.Settings;
 import com.mastfrog.shutdown.hooks.ShutdownHookRegistry;
+import static com.telenav.periodic.metrics.MetricsModule.SETTINGS_KEY_OMIT_GC_METRICS;
 import com.telenav.periodic.metrics.MetricsRegistry.MetricsRegistrar;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,8 +43,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class MetricsSinks implements MetricsSink, Function<StandardMetricsPeriods, Map<Metric, Long>> {
-
-    public static final String SETTINGS_KEY_OMIT_GC_METRICS = "omit.gc.metrics";
 
     private final MetaMetricsSink all = new MetaMetricsSink();
     private final ShutdownHookRegistry hooks;

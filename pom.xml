@@ -71,6 +71,7 @@ limitations under the License.
         <module>request-id-support</module>
         <module>periodic-metrics</module>
         <module>vertx-periodic-metrics</module>
+        <module>smithy-vertx-bunyan-logging</module>
     </modules>
 
     <properties>
@@ -295,6 +296,11 @@ limitations under the License.
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>smithy-vertx-adapter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>smithy-vertx-bunyan-logging</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -19,6 +19,8 @@ import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Scopes;
 import com.google.inject.TypeLiteral;
+import com.mastfrog.giulius.annotations.Setting;
+import static com.mastfrog.giulius.annotations.Setting.ValueType.BOOLEAN;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -33,6 +35,9 @@ import javax.inject.Singleton;
  */
 public class MetricsModule implements Module {
 
+    @Setting(type = BOOLEAN, value = "If true, do not include JMX garbage "
+            + "collection metrics in emitted metrics.", defaultValue = "false")
+    public static final String SETTINGS_KEY_OMIT_GC_METRICS = "omit.gc.metrics";
     private Class<? extends OutboundMetricsSink> outbound;
     private final Set<Class<? extends MetricsRegistry>> registries = new HashSet<>();
 
