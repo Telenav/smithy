@@ -281,14 +281,17 @@ public final class VertxGuiceModule extends AbstractModule {
         private final VertxInitializer.Registry registry;
         private final UnaryOperator<VertxOptions> optsCustomizer;
         private Vertx vertx;
+        private final RequestScope scope;
         private final boolean installShutdownHook;
 
         @Inject
         VertxProvider(VertxInitializer.Registry registry,
                 UnaryOperator<VertxOptions> optsCustomizer,
+                RequestScope scope,
                 @Named("_vxShutdownHook") boolean installShutdownHook) {
             this.registry = registry;
             this.optsCustomizer = optsCustomizer;
+            this.scope = scope;
             this.installShutdownHook = installShutdownHook;
         }
 
@@ -297,7 +300,7 @@ public final class VertxGuiceModule extends AbstractModule {
             if (vertx == null) {
                 VertxOptions opts = optsCustomizer.apply(new VertxOptions());
                 // Pending - have option for using clusteredVertx instead
-                vertx = Vertx.vertx(opts);
+                vertx = scope.wrap(Vertx.vertx(opts));
                 try {
                     if (installShutdownHook) {
                         Runtime.getRuntime().addShutdownHook(new Thread(this, "Vertx-shutdown"));
@@ -330,13 +333,17 @@ public final class VertxGuiceModule extends AbstractModule {
     private static final class ExistingVertxProvider implements Provider<Vertx> {
 
         private final VertxInitializer.Registry registry;
+        private final RequestScope scope;
         private final Vertx vertx;
         private final AtomicBoolean configurersRun = new AtomicBoolean();
 
         @Inject
-        public ExistingVertxProvider(VertxInitializer.Registry registry, @Named("provided") Vertx vertx) {
+        public ExistingVertxProvider(VertxInitializer.Registry registry,
+                RequestScope scope,
+                @Named("provided") Vertx vertx) {
             this.registry = registry;
-            this.vertx = vertx;
+            this.scope = scope;
+            this.vertx = scope.wrap(vertx);
         }
 
         @Override

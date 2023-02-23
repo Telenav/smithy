@@ -588,7 +588,38 @@ public final class RequestScope implements Scope {
         public String toString() {
             return t.toString();
         }
+    }
 
+    <T> Handler<T> wrapGeneral(Handler<T> h) {
+        if (h instanceof GeneralWrappedHandler<?>) {
+            return h;
+        }
+        return new GeneralWrappedHandler<>(this, h);
+    }
+
+    public Vertx wrap(Vertx orig) {
+        if (orig instanceof VertxWrapper) {
+            return orig;
+        }
+        return new VertxWrapper(orig, this);
+    }
+
+    static class GeneralWrappedHandler<T> implements Handler<T> {
+
+        private final Snapshot snapshot;
+        private final Handler<T> orig;
+
+        public GeneralWrappedHandler(RequestScope scope, Handler<T> orig) {
+            this.snapshot = scope.snapshot();
+            this.orig = orig;
+        }
+
+        @Override
+        public void handle(T event) {
+            try (ScopeEntry entry = snapshot.enter()) {
+                orig.handle(event);
+            }
+        }
     }
 
     static class WrappedHandler implements Handler<RoutingContext> {

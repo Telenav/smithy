@@ -39,7 +39,7 @@ public class OperationStatsMetricTest {
         for (Metric m : met.metrics()) {
             found.add(m.toString());
         }
-        assertEquals(setOf("one.min", "one.max", "one.median", "one.http-requests",
+        assertEquals(setOf("one.min", "one.max", "one.median", "one.requests",
                 "one.p90", "one.mean", "one.p99", "one.p10"), found);
 
         // Now add some samples, just doing 1:1 counter values
@@ -61,7 +61,7 @@ public class OperationStatsMetricTest {
                 .map("one.p10").to(19L)
                 .map("one.p99").to(199L)
                 .map("one.mean").to(100L)
-                .map("one.http-requests").to(200L)
+                .map("one.requests").to(200L)
                 .map("one.p90").finallyTo(179L);
 
         // Make sure we got what we expect

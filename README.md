@@ -836,3 +836,17 @@ allows the code generator for the web UI to identify some model-defined Operatio
 which can be used for that purpose.  There is a default implementation that simply
 looks for a `GET` operation named `login` or `loginoperation` when its name is 
 lower-cased.
+
+
+Not Currently Supported
+-----------------------
+
+ * Output headers in output shapes
+   * While we do generate the code to dissect an HTTP request and assemble the input
+     object from a combination of HTTP inbound payload, path elements, query parameters
+     and HTTP headers, we do **not** currently dissect the output shape and extract
+     those elements that should be headers into headers and only send the part marked
+     as `@httpPayload` as the payload - the whole output shape is serialized as JSON
+     (but you can set headers as you wish on the `SmithyResponse` that is passed to
+     your operation interface).  This may change in a future version.
+ * Javascript/Typescript test generation for blobs
