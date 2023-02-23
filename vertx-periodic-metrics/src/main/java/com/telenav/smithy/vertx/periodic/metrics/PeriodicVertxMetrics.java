@@ -320,7 +320,7 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
 
         @Override
         public Met requestBegin(Met socketMetric, HttpRequest request) {
-            sink.onIncrement(BuiltInMetrics.HTTP_REQUESTS);
+            sink.onIncrement(BuiltInMetrics.REQUESTS);
             return next();
         }
 

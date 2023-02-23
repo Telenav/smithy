@@ -93,7 +93,7 @@ public final class OperationStatsMetric<Op extends Enum<Op>> implements MultiMet
         p90 = Metric.operationMetric(operation, StatisticalMetrics.P90);
         p10 = Metric.operationMetric(operation, StatisticalMetrics.P10);
         p99 = Metric.operationMetric(operation, StatisticalMetrics.P99);
-        count = Metric.operationMetric(operation, BuiltInMetrics.HTTP_REQUESTS);
+        count = Metric.operationMetric(operation, BuiltInMetrics.REQUESTS);
     }
 
     public Op operation() {

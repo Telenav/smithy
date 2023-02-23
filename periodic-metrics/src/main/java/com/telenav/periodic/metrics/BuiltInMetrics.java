@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.LongAdder;
  * @author Tim Boudreau
  */
 public enum BuiltInMetrics implements Metric {
-    HTTP_REQUESTS,
+    REQUESTS,
     HTTP_BYTES_READ,
     HTTP_BYTES_WRITTEN,
     EXCEPTION_OCCURRED,
@@ -109,7 +109,7 @@ public enum BuiltInMetrics implements Metric {
     @Override
     public boolean omitIfZero() {
         switch (this) {
-            case HTTP_REQUESTS:
+            case REQUESTS:
             case HTTP_RESPONSES_INITIATED:
             case G1_YOUNG_GENERATION_GC_COUNT:
             case G1_YOUNG_GENERATION_TIME:
