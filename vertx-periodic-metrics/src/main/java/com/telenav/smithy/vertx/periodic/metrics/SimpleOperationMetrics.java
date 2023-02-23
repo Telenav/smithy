@@ -15,6 +15,7 @@
  */
 package com.telenav.smithy.vertx.periodic.metrics;
 
+import com.mastfrog.concurrent.random.SampleProbability;
 import com.mastfrog.function.QuadConsumer;
 import com.mastfrog.settings.Settings;
 import static com.mastfrog.util.collections.CollectionUtils.map;
@@ -23,7 +24,6 @@ import com.telenav.periodic.metrics.MetricsRegistry;
 import com.telenav.periodic.metrics.MultiMetric;
 import com.telenav.periodic.metrics.OperationStatsMetric;
 import com.telenav.periodic.metrics.PercentileMethod;
-import com.telenav.periodic.metrics.SampleProbability;
 import static com.telenav.smithy.vertx.periodic.metrics.VertxMetricsSupport.GUICE_BINDING_OP_TYPE;
 import static com.telenav.smithy.vertx.periodic.metrics.VertxMetricsSupport.SETTINGS_KEY_MAX_STATS_BUCKETS;
 import static com.telenav.smithy.vertx.periodic.metrics.VertxMetricsSupport.SETTINGS_KEY_REQUESTS_PER_SECOND;
@@ -52,7 +52,7 @@ import javax.inject.Provider;
 final class SimpleOperationMetrics<Op extends Enum<Op>> extends MetricsRegistry {
 
     protected static final int DEFAULT_HARD_STATS_BUCKET_LIMIT = 5050000;
-    protected static final int DEFAULT_REQ_PER_SECOND = 2000;
+    protected static final int DEFAULT_REQ_PER_SECOND = 2400;
     protected static final int MIN_BUCKETS = 32;
     protected final Map<Op, List<OperationStatsMetric<Op>>> operationSinks;
     protected final List<OperationStatsMetric<All>> overall = new ArrayList<>();
@@ -183,7 +183,7 @@ final class SimpleOperationMetrics<Op extends Enum<Op>> extends MetricsRegistry 
         for (Op op : opType.getEnumConstants()) {
             withPercentileAndSampleCount(op, samplingInterval, (buckets, probability, method, weight) -> {
                 int weightedBuckets = (int) max(MIN_BUCKETS, round(buckets * operationWeight(op)));
-                OperationStatsMetric<Op> opMetric = new OperationStatsMetric<>(op, weightedBuckets, probability, method);
+                OperationStatsMetric<Op> opMetric = new OperationStatsMetric<Op>(op, weightedBuckets, probability, method);
                 operationSinks.computeIfAbsent(op, o -> new ArrayList<>()).add(opMetric);
                 result.add(opMetric);
                 logRecord.put(op.name().toLowerCase().replace('_', '-'), map("buckets").to(weightedBuckets)

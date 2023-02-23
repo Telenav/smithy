@@ -32,11 +32,14 @@ final class VertxMetricsCustomizer implements UnaryOperator<VertxOptions> {
 
     private final Provider<MetricsSink> sink;
     private final Settings settings;
+    private final ClientTimingConsumer clientTimings;
 
     @Inject
-    VertxMetricsCustomizer(Settings settings, Provider<MetricsSink> sink) {
+    VertxMetricsCustomizer(Settings settings, Provider<MetricsSink> sink,
+            ClientTimingConsumer clientTimings) {
         this.sink = sink;
         this.settings = settings;
+        this.clientTimings = clientTimings;
     }
 
     @Override
@@ -44,7 +47,7 @@ final class VertxMetricsCustomizer implements UnaryOperator<VertxOptions> {
         if (!Boolean.getBoolean("unit.test")) {
             MetricsOptions mo = new MetricsOptions();
             mo.setEnabled(true);
-            mo.setFactory(new PeriodicVertxMetrics(settings, sink.get()));
+            mo.setFactory(new PeriodicVertxMetrics(settings, sink.get(), clientTimings));
             return vxopts.setMetricsOptions(mo);
         }
         return vxopts;

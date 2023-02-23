@@ -24,8 +24,7 @@ import com.google.inject.name.Names;
 import com.telenav.periodic.metrics.MetricsModule;
 import com.telenav.periodic.metrics.OutboundMetricsSink;
 import static com.telenav.smithy.vertx.periodic.metrics.VertxMetricsSupport.GUICE_BINDING_OP_TYPE;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import com.telenav.vertx.guice.util.GuiceUtils;
 import java.time.Duration;
 import java.util.function.BiConsumer;
 import javax.inject.Inject;
@@ -40,12 +39,14 @@ final class VertxPeriodicMetricsModule<Op extends Enum<Op>> implements Module {
     private final Class<Op> opType;
     private final Class<? extends OutboundMetricsSink> sinkType;
     private final Class<? extends OperationWeights> weights;
+    private final boolean collectDbTimings;
 
     VertxPeriodicMetricsModule(Class<Op> opType, Class<? extends OutboundMetricsSink> sinkType,
-            Class<? extends OperationWeights> weights) {
+            Class<? extends OperationWeights> weights, boolean collectDbTimings) {
         this.opType = opType;
         this.sinkType = sinkType;
         this.weights = weights;
+        this.collectDbTimings = collectDbTimings;
     }
 
     @Override
@@ -67,13 +68,14 @@ final class VertxPeriodicMetricsModule<Op extends Enum<Op>> implements Module {
         // request injection of SimpleOperationMetrics<Op>, rather than the untyped
         // version
         Key<SimpleOperationMetrics<Op>> key
-                = (Key<SimpleOperationMetrics<Op>>) Key.get(
-                        new OneGenericFakeType<>(SimpleOperationMetrics.class, opType));
+                = GuiceUtils.keyForGenericType(SimpleOperationMetrics.class, opType);
+
         binder.bind(key).toProvider(new TypedSimpleOperationMetrics<Op>(
                 binder.getProvider(SimpleOperationMetrics.class)));
 
         Key<BiConsumer<Op, Duration>> key2
-                = (Key<BiConsumer<Op, Duration>>) Key.get(new TwoGenericFakeType<>(BiConsumer.class, opType, Duration.class));
+                = GuiceUtils.keyForGenericType(BiConsumer.class, opType, Duration.class);
+
         binder.bind(key2).toInstance(new TimingMetricsConsumer<>(binder.getProvider(SimpleOperationMetrics.class), opType));
 
         // So that untyped implementations like the general-purpose LoggingProbe can work,
@@ -86,6 +88,26 @@ final class VertxPeriodicMetricsModule<Op extends Enum<Op>> implements Module {
                 .withOutboundMetricsSink(sinkType));
         if (weights != null) {
             binder.bind(OperationWeights.class).to(weights);
+        }
+
+        if (collectDbTimings) {
+            binder.bind(DbTimingConsumer.class).asEagerSingleton();
+            binder.bind(ClientTimingConsumer.class).toProvider(ClientTimingsOverDbTimingConsumerProvider.class);
+        }
+    }
+
+    static class ClientTimingsOverDbTimingConsumerProvider implements Provider<ClientTimingConsumer> {
+
+        private final DbTimingConsumer timingConsumer;
+
+        @Inject
+        ClientTimingsOverDbTimingConsumerProvider(DbTimingConsumer timingConsumer) {
+            this.timingConsumer = timingConsumer;
+        }
+
+        @Override
+        public ClientTimingConsumer get() {
+            return timingConsumer;
         }
     }
 
@@ -103,71 +125,6 @@ final class VertxPeriodicMetricsModule<Op extends Enum<Op>> implements Module {
         @SuppressWarnings("unchecked")
         public SimpleOperationMetrics<Op> get() {
             return rawProvider.get();
-        }
-    }
-
-    private static final class OneGenericFakeType<R, T> implements ParameterizedType {
-
-        private final Class<T> genericType;
-        private final Class<R> topType;
-
-        public OneGenericFakeType(Class<R> topType, Class<T> genericType) {
-            this.topType = topType;
-            this.genericType = genericType;
-        }
-
-        public String getTypeName() {
-            return topType.getName();
-        }
-
-        public Type[] getActualTypeArguments() {
-            return new Type[]{genericType};
-        }
-
-        public Type getRawType() {
-            return topType;
-        }
-
-        public Type getOwnerType() {
-            return null;
-        }
-
-        public String toString() {
-            return topType.getSimpleName() + '<' + genericType.getSimpleName() + '>';
-        }
-    }
-
-    private static final class TwoGenericFakeType<R, T, U> implements ParameterizedType {
-
-        private final Class<T> genericType;
-        private final Class<R> topType;
-        private final Class<U> otherGenericType;
-
-        public TwoGenericFakeType(Class<R> topType, Class<T> genericType, Class<U> otherGenericType) {
-            this.topType = topType;
-            this.genericType = genericType;
-            this.otherGenericType = otherGenericType;
-        }
-
-        public String getTypeName() {
-            return topType.getName();
-        }
-
-        public Type[] getActualTypeArguments() {
-            return new Type[]{genericType, otherGenericType};
-        }
-
-        public Type getRawType() {
-            return topType;
-        }
-
-        public Type getOwnerType() {
-            return null;
-        }
-
-        public String toString() {
-            return topType.getSimpleName() + '<' + genericType.getSimpleName() + ", " + otherGenericType.getSimpleName()
-                    + '>';
         }
     }
 

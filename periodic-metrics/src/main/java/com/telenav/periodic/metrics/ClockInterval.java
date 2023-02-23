@@ -262,7 +262,7 @@ final class ClockInterval<T> implements Delayed, Supplier<T> {
 
         PeriodicQueue(ShutdownHooks hooks, Iterable<? extends ClockInterval<T>> q, BiConsumer<ClockInterval<T>, Boolean> onExpiry) {
             this.onExpiry = onExpiry;
-            hooks.addLast(onShutdown);
+            hooks.addFirst(onShutdown);
             q.forEach(this.q::offer);
         }
 

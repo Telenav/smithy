@@ -20,6 +20,7 @@ import static com.mastfrog.giulius.annotations.Setting.Tier.TERTIARY;
 import static com.mastfrog.giulius.annotations.Setting.ValueType.BOOLEAN;
 import com.mastfrog.settings.Settings;
 import com.telenav.periodic.metrics.OutboundMetricsSink;
+import com.telenav.smithy.vertx.periodic.metrics.VertxMetricsSupport;
 import static com.telenav.smithy.vertx.periodic.metrics.VertxMetricsSupport.vertxMetricsSupport;
 import com.telenav.smithy.vertx.probe.ProbeImplementation;
 import com.telenav.vertx.guice.VertxGuiceModule;
@@ -43,6 +44,7 @@ public final class BunyanLoggingAndMetricsSupport<Op extends Enum<Op>> {
             + "open)", defaultValue = DEFAULT_EXIT_ON_VERTICLE_FAILURE + "", tier = TERTIARY)
     public static final String SETTINGS_KEY_EXIT_ON_VERTICLE_LAUNCH_FAILULRE = "exit.on.verticle.failure";
 
+    private boolean collectDbTimings;
     private boolean installLoggingModule = true;
     private boolean installMetricsSupport = true;
     private final Class<Op> opType;
@@ -63,6 +65,11 @@ public final class BunyanLoggingAndMetricsSupport<Op extends Enum<Op>> {
         return this;
     }
 
+    public BunyanLoggingAndMetricsSupport<Op> collectDbMetrics() {
+        collectDbTimings = true;
+        return this;
+    }
+
     @SuppressWarnings("unchecked")
     public void attach(VertxGuiceModule mod, Consumer<Class<? super ProbeImplementation<? super Op>>> probeConsumer) {
         probeConsumer.accept((Class) DefaultLoggingProbe.class);
@@ -70,8 +77,11 @@ public final class BunyanLoggingAndMetricsSupport<Op extends Enum<Op>> {
             mod.withModule(new Logging<>(settings, opType));
         }
         if (installMetricsSupport) {
-            vertxMetricsSupport(opType, LogsOutboundMetricsSink.class)
-                    .attachTo(mod);
+            VertxMetricsSupport<Op> vms = vertxMetricsSupport(opType, LogsOutboundMetricsSink.class);
+            if (collectDbTimings) {
+                vms.collectDbTimings();
+            }
+            vms.attachTo(mod);
         }
     }
 

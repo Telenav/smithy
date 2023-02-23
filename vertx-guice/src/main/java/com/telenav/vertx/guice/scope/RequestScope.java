@@ -608,6 +608,11 @@ public final class RequestScope implements Scope {
                 orig.get().handle(new WrappedRoutingContext((RoutingContextInternal) event, snap));
             });
         }
+
+        @Override
+        public String toString() {
+            return "WrappedHandler(" + orig + ")";
+        }
     }
 
     static class WrappedRoutingContext implements RoutingContextInternal {

@@ -21,7 +21,9 @@ import com.google.inject.Guice;
 import com.google.inject.Module;
 import com.google.inject.Provider;
 import com.google.inject.Scopes;
+import com.google.inject.Singleton;
 import com.google.inject.TypeLiteral;
+import com.google.inject.name.Names;
 import static com.google.inject.name.Names.named;
 import com.telenav.vertx.guice.scope.RequestScope;
 import com.telenav.vertx.guice.util.CustomizerTypeOrInstanceList;
@@ -64,6 +66,7 @@ public final class VertxGuiceModule extends AbstractModule {
     private final TypeOrInstanceList<Verticle> verticleTypes = typeOrInstanceList();
     private final List<Module> modules = new ArrayList<>();
     private final RequestScope scope;
+    private boolean installVertxShutdownHook = true;
     private volatile boolean initialized;
     private Vertx vertxInstance;
 
@@ -73,6 +76,11 @@ public final class VertxGuiceModule extends AbstractModule {
 
     public VertxGuiceModule(RequestScope scope) {
         this.scope = scope == null ? new RequestScope() : scope;
+    }
+
+    public VertxGuiceModule dontInstallVertxShutdownHook() {
+        installVertxShutdownHook = false;
+        return this;
     }
 
     /**
@@ -256,6 +264,7 @@ public final class VertxGuiceModule extends AbstractModule {
             for (Module mod : modules) {
                 install(mod);
             }
+            bind(Boolean.class).annotatedWith(Names.named("_vxShutdownHook")).toInstance(installVertxShutdownHook);
             bind(VERTICLE_PROVIDERS).toInstance(verticleTypes.get(binder()));
             for (Class<? extends VertxInitializer> type : initializerTypes) {
                 bind(type).asEagerSingleton();
@@ -266,17 +275,21 @@ public final class VertxGuiceModule extends AbstractModule {
         }
     }
 
+    @Singleton
     private static final class VertxProvider implements Provider<Vertx>, Runnable {
 
         private final VertxInitializer.Registry registry;
         private final UnaryOperator<VertxOptions> optsCustomizer;
         private Vertx vertx;
+        private final boolean installShutdownHook;
 
         @Inject
         VertxProvider(VertxInitializer.Registry registry,
-                UnaryOperator<VertxOptions> optsCustomizer) {
+                UnaryOperator<VertxOptions> optsCustomizer,
+                @Named("_vxShutdownHook") boolean installShutdownHook) {
             this.registry = registry;
             this.optsCustomizer = optsCustomizer;
+            this.installShutdownHook = installShutdownHook;
         }
 
         @Override
@@ -286,13 +299,20 @@ public final class VertxGuiceModule extends AbstractModule {
                 // Pending - have option for using clusteredVertx instead
                 vertx = Vertx.vertx(opts);
                 try {
-                    Runtime.getRuntime().addShutdownHook(new Thread(this, "Vertx-shutdown"));
+                    if (installShutdownHook) {
+                        Runtime.getRuntime().addShutdownHook(new Thread(this, "Vertx-shutdown"));
+                    }
                     registry.init(vertx);
                 } catch (Exception ex) {
                     throw new Error(ex);
                 }
             }
             return vertx;
+        }
+
+        @Override
+        public String toString() {
+            return "VertxProvider(" + vertx + ")";
         }
 
         @Override

@@ -16,6 +16,7 @@
 package com.telenav.periodic.metrics;
 
 import com.mastfrog.concurrent.FlipFlop;
+import com.mastfrog.concurrent.random.SampleProbability;
 import com.mastfrog.concurrent.stats.LongStatisticCollector;
 import static com.mastfrog.util.collections.CollectionUtils.immutableSetOf;
 import com.mastfrog.util.collections.LongList;
@@ -49,6 +50,7 @@ public final class OperationStatsMetric<Op extends Enum<Op>> implements MultiMet
     private final Metric count;
     private final PercentileMethod percentileMethod;
     private final LongList list;
+    private final boolean isSampled;
 
     /**
      * Create a metric using DEFAULT_SAMPLES samples.
@@ -80,6 +82,7 @@ public final class OperationStatsMetric<Op extends Enum<Op>> implements MultiMet
             PercentileMethod percentileCalculation) {
         this.operation = operation;
         this.samples = samples;
+        this.isSampled = probability != null;
         this.percentileMethod = percentileCalculation == null ? PercentileMethod.INTERPOLATED : percentileCalculation;
         collector = statisticCollectorFlipFlop(samples, probability);
         list = LongList.create(samples);

@@ -51,6 +51,7 @@ public final class VertxMetricsSupport<Op extends Enum<Op>> {
     private final Class<Op> opType;
     private final Class<? extends OutboundMetricsSink> sinkType;
     private final Set<Module> additionalModules = new LinkedHashSet<>();
+    private boolean collectDbTimings;
     private Class<? extends OperationWeights> opWeights;
 
     public VertxMetricsSupport(Class<Op> opType, Class<? extends OutboundMetricsSink> sinkType) {
@@ -68,6 +69,11 @@ public final class VertxMetricsSupport<Op extends Enum<Op>> {
         return this;
     }
 
+    public VertxMetricsSupport<Op> collectDbTimings() {
+        collectDbTimings = true;
+        return this;
+    }
+
     public static <Op extends Enum<Op>> VertxMetricsSupport<Op> vertxMetricsSupport(Class<Op> opType,
             Class<? extends OutboundMetricsSink> sinkType) {
         return new VertxMetricsSupport<>(opType, sinkType);
@@ -82,7 +88,7 @@ public final class VertxMetricsSupport<Op extends Enum<Op>> {
      */
     public VertxGuiceModule attachTo(VertxGuiceModule module) {
         module.withVertxOptionsCustomizer(VertxMetricsCustomizer.class);
-        module.withModule(new VertxPeriodicMetricsModule<>(opType, sinkType, opWeights));
+        module.withModule(new VertxPeriodicMetricsModule<>(opType, sinkType, opWeights, collectDbTimings));
         additionalModules.forEach(mod -> {
             module.withModule(mod);
         });

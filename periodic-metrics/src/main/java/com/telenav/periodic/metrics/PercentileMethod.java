@@ -16,6 +16,7 @@
 package com.telenav.periodic.metrics;
 
 import com.mastfrog.util.collections.LongList;
+import static java.lang.Math.max;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -146,8 +147,8 @@ public enum PercentileMethod {
             // and weight low is 1 + (1 - weight high)
             weightLow = 1 + (1 - weightHigh);
         }
-        long origLow = series.get(ixlow);
-        long origHigh = series.get(ixhigh);
+        long origLow = series.get(max(0, ixlow));
+        long origHigh = series.get(max(0, ixhigh));
 
         double valLow = origLow * weightLow;
         double valHigh = origHigh * weightHigh;

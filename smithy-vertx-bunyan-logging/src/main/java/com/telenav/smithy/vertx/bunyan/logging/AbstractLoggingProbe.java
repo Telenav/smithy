@@ -250,6 +250,13 @@ abstract class AbstractLoggingProbe<Op extends Enum<Op>> implements ProbeImpleme
     }
 
     protected final Optional<Level> printable(Throwable thrown) {
+        // Things that can only be programmer error must always be logged
+        if (thrown instanceof NullPointerException || thrown instanceof ClassCastException
+                || thrown instanceof StackOverflowError
+                || thrown.getCause() instanceof NullPointerException || thrown.getCause() instanceof ClassCastException
+                || thrown.getCause() instanceof StackOverflowError) {
+            return ERROR_LEVEL;
+        }
         if (shuttingDown) {
             // We can get a flurry of exceptions during shutdown - ignore
             return Optional.empty();
@@ -266,7 +273,8 @@ abstract class AbstractLoggingProbe<Op extends Enum<Op>> implements ProbeImpleme
 //        if (thrown instanceof InvalidInputException || thrown.getCause() instanceof InvalidInputException) {
 //            return false;
 //        }
-        return isPrintable(thrown);
+        Optional<Level> result = isPrintable(thrown);
+        return result;
     }
     static final Optional<Level> ERROR_LEVEL = Optional.of(Level.ERROR);
 

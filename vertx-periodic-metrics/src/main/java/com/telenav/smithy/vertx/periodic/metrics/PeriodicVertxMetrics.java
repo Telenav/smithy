@@ -18,9 +18,16 @@ package com.telenav.smithy.vertx.periodic.metrics;
 import com.telenav.periodic.metrics.BuiltInMetrics;
 import com.telenav.periodic.metrics.MetricsSink;
 import com.mastfrog.settings.Settings;
+import com.mastfrog.util.strings.Strings;
+import static com.telenav.periodic.metrics.BuiltInMetrics.DB_RESETS;
+import static com.telenav.periodic.metrics.BuiltInMetrics.DB_RESPONSES;
+import static com.telenav.periodic.metrics.BuiltInMetrics.NET_CLIENT_BYTES_WRITTEN;
+import static com.telenav.periodic.metrics.BuiltInMetrics.NET_CLIENT_RESETS;
+import static com.telenav.periodic.metrics.BuiltInMetrics.NET_CLIENT_RESPONSES;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.datagram.DatagramSocketOptions;
+import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.ServerWebSocket;
@@ -28,13 +35,21 @@ import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.NetServerOptions;
 import io.vertx.core.net.SocketAddress;
 import io.vertx.core.spi.VertxMetricsFactory;
+import io.vertx.core.spi.metrics.ClientMetrics;
 import io.vertx.core.spi.metrics.DatagramSocketMetrics;
+import io.vertx.core.spi.metrics.EventBusMetrics;
+import io.vertx.core.spi.metrics.HttpClientMetrics;
 import io.vertx.core.spi.metrics.HttpServerMetrics;
 import io.vertx.core.spi.metrics.PoolMetrics;
 import io.vertx.core.spi.metrics.TCPMetrics;
 import io.vertx.core.spi.metrics.VertxMetrics;
 import io.vertx.core.spi.observability.HttpRequest;
 import io.vertx.core.spi.observability.HttpResponse;
+import static java.lang.System.currentTimeMillis;
+import java.time.Duration;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 /**
  * Implementation of VertxMetricsFactory which emits metrics into a MetricsSink.
@@ -45,30 +60,50 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
 
     private final Settings settings;
     private final MetricsSink sink;
+    private final ClientTimingConsumer clientTimings;
 
-    public PeriodicVertxMetrics(Settings settings, MetricsSink sink) {
+    public PeriodicVertxMetrics(Settings settings, MetricsSink sink,
+            ClientTimingConsumer clientTimings) {
         this.settings = settings;
         this.sink = sink;
+        this.clientTimings = clientTimings;
     }
 
     @Override
     public VertxMetrics metrics(VertxOptions vo) {
-        return new VMX(settings, sink);
+        return new VMX(settings, sink, clientTimings);
     }
 
     static class VMX implements VertxMetrics {
 
         private final Settings settings;
         private final MetricsSink sink;
+        private final ClientTimingConsumer clientTimings;
 
-        VMX(Settings settings, MetricsSink sink) {
+        VMX(Settings settings, MetricsSink sink, ClientTimingConsumer clientTimings) {
             this.settings = settings;
             this.sink = sink;
+            this.clientTimings = clientTimings;
         }
 
         @Override
         public HttpServerMetrics<?, ?, ?> createHttpServerMetrics(HttpServerOptions options, SocketAddress localAddress) {
             return new HTTPMX(sink);
+        }
+
+        @Override
+        public EventBusMetrics createEventBusMetrics() {
+            return null;
+        }
+
+        @Override
+        public ClientMetrics<?, ?, ?, ?> createClientMetrics(SocketAddress remoteAddress, String type, String namespace) {
+            return new CM(sink, "db".equals(namespace) || "sql".equals(type), clientTimings, namespace);
+        }
+
+        @Override
+        public HttpClientMetrics<?, ?, ?, ?> createHttpClientMetrics(HttpClientOptions options) {
+            return null;
         }
 
         @Override
@@ -94,6 +129,117 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
         @Override
         public void vertxCreated(Vertx vertx) {
             // do nothing
+        }
+    }
+
+    static class CM implements ClientMetrics<NetClientMetric, Long, Object, Object> {
+
+        private final MetricsSink sink;
+        private final boolean db;
+        private final ClientTimingConsumer clientTimings;
+        private final String namespace;
+        private final AtomicLong lngs = new AtomicLong();
+
+        public CM(MetricsSink sink, boolean db, ClientTimingConsumer clientTimings, String namespace) {
+            this.sink = sink;
+            this.db = db;
+            this.clientTimings = clientTimings;
+            this.namespace = namespace;
+        }
+
+        private final Long next() {
+            return lngs.incrementAndGet();
+        }
+
+        @Override
+        public Long enqueueRequest() {
+            return next();
+        }
+
+        @Override
+        public void dequeueRequest(Long taskMetric) {
+            ClientMetrics.super.dequeueRequest(taskMetric);
+        }
+
+        @Override
+        public NetClientMetric requestBegin(String uri, Object request) {
+            sink.onIncrement(db ? BuiltInMetrics.DB_REQUESTS : BuiltInMetrics.NET_CLIENT_REQUESTS);
+            return new NetClientMetric(request);
+        }
+
+        @Override
+        public void requestEnd(NetClientMetric requestMetric, long bytesWritten) {
+            requestMetric.touch();
+            if (bytesWritten < 0) {
+                // Postgres driver always passes -1
+                return;
+            }
+            sink.onMetric(NET_CLIENT_BYTES_WRITTEN, bytesWritten);
+        }
+
+        @Override
+        public void responseBegin(NetClientMetric requestMetric, Object response) {
+//            System.out.println("RESP BEGIN " + response.getClass().getName() + " " + response + " " + requestMetric);
+        }
+
+        @Override
+        public void requestReset(NetClientMetric requestMetric) {
+            sink.onIncrement(db ? DB_RESETS : NET_CLIENT_RESETS);
+        }
+
+        @Override
+        public void requestEnd(NetClientMetric requestMetric) {
+            requestEnd(requestMetric, -1);
+        }
+
+        @Override
+        public void responseEnd(NetClientMetric requestMetric) {
+            responseEnd(requestMetric, -1);
+        }
+
+        @Override
+        public void responseEnd(NetClientMetric requestMetric, long bytesRead) {
+            sink.onIncrement(db ? DB_RESPONSES : NET_CLIENT_RESPONSES);
+            if (bytesRead > 0) {
+                // Postgres driver always passes -1
+                sink.onMetric(BuiltInMetrics.NET_CLIENT_BYTES_READ, bytesRead);
+            }
+            if (!(clientTimings instanceof NoOpClientTimingConsumer)) {
+                requestMetric.withAges((age, sinceSend) -> {
+                    clientTimings.onTiming(namespace, age, sinceSend, requestMetric.req);
+                });
+            }
+        }
+    }
+
+    static class NetClientMetric {
+
+        private final long start = currentTimeMillis();
+        private volatile long touched;
+        private final Object req;
+
+        NetClientMetric(Object req) {
+            this.req = req;
+        }
+
+        void touch() {
+            touched = currentTimeMillis();
+        }
+
+        Duration age() {
+            return Duration.ofMillis(currentTimeMillis() - start);
+        }
+
+        void withAges(BiConsumer<Duration, Duration> c) {
+            long now = currentTimeMillis();
+            Duration age = Duration.ofMillis(now - start);
+            Duration sinceSend = Duration.ofMillis(now - touched);
+            c.accept(age, sinceSend);
+        }
+
+        @Override
+        public String toString() {
+            return age() + " " + Strings.elide(Objects.toString(req), 16);
         }
     }
 
