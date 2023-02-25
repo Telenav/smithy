@@ -24,6 +24,7 @@ import static com.telenav.periodic.metrics.BuiltInMetrics.DB_RESPONSES;
 import static com.telenav.periodic.metrics.BuiltInMetrics.NET_CLIENT_BYTES_WRITTEN;
 import static com.telenav.periodic.metrics.BuiltInMetrics.NET_CLIENT_RESETS;
 import static com.telenav.periodic.metrics.BuiltInMetrics.NET_CLIENT_RESPONSES;
+import com.telenav.smithy.vertx.probe.Probe;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.datagram.DatagramSocketOptions;
@@ -58,37 +59,37 @@ import java.util.function.BiConsumer;
  */
 final class PeriodicVertxMetrics implements VertxMetricsFactory {
 
-    private final Settings settings;
     private final MetricsSink sink;
     private final ClientTimingConsumer clientTimings;
+    private final Probe<?> probe;
 
-    public PeriodicVertxMetrics(Settings settings, MetricsSink sink,
-            ClientTimingConsumer clientTimings) {
-        this.settings = settings;
+    public PeriodicVertxMetrics(MetricsSink sink,
+            ClientTimingConsumer clientTimings, Probe<?> probe) {
         this.sink = sink;
         this.clientTimings = clientTimings;
+        this.probe = probe;
     }
 
     @Override
     public VertxMetrics metrics(VertxOptions vo) {
-        return new VMX(settings, sink, clientTimings);
+        return new VMX(sink, clientTimings, probe);
     }
 
     static class VMX implements VertxMetrics {
 
-        private final Settings settings;
         private final MetricsSink sink;
         private final ClientTimingConsumer clientTimings;
+        private final Probe<?> probe;
 
-        VMX(Settings settings, MetricsSink sink, ClientTimingConsumer clientTimings) {
-            this.settings = settings;
+        VMX(MetricsSink sink, ClientTimingConsumer clientTimings, Probe<?> probe) {
             this.sink = sink;
             this.clientTimings = clientTimings;
+            this.probe = probe;
         }
 
         @Override
         public HttpServerMetrics<?, ?, ?> createHttpServerMetrics(HttpServerOptions options, SocketAddress localAddress) {
-            return new HTTPMX(sink);
+            return new HTTPMX(sink, probe);
         }
 
         @Override
@@ -98,7 +99,7 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
 
         @Override
         public ClientMetrics<?, ?, ?, ?> createClientMetrics(SocketAddress remoteAddress, String type, String namespace) {
-            return new CM(sink, "db".equals(namespace) || "sql".equals(type), clientTimings, namespace);
+            return new CM(sink, "db".equals(namespace) || "sql".equals(type), clientTimings, namespace, probe);
         }
 
         @Override
@@ -113,12 +114,12 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
 
         @Override
         public TCPMetrics<?> createNetClientMetrics(NetClientOptions options) {
-            return new NCMX(sink);
+            return new NCMX(sink, probe);
         }
 
         @Override
         public DatagramSocketMetrics createDatagramSocketMetrics(DatagramSocketOptions options) {
-            return new DGMX(sink);
+            return new DGMX(sink, probe);
         }
 
         @Override
@@ -139,12 +140,14 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
         private final ClientTimingConsumer clientTimings;
         private final String namespace;
         private final AtomicLong lngs = new AtomicLong();
+        private final Probe<?> probe;
 
-        public CM(MetricsSink sink, boolean db, ClientTimingConsumer clientTimings, String namespace) {
+        public CM(MetricsSink sink, boolean db, ClientTimingConsumer clientTimings, String namespace, Probe<?> probe) {
             this.sink = sink;
             this.db = db;
             this.clientTimings = clientTimings;
             this.namespace = namespace;
+            this.probe = probe;
         }
 
         private final Long next() {
@@ -157,34 +160,26 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
         }
 
         @Override
-        public void dequeueRequest(Long taskMetric) {
-            ClientMetrics.super.dequeueRequest(taskMetric);
-        }
-
-        @Override
         public NetClientMetric requestBegin(String uri, Object request) {
-            sink.onIncrement(db ? BuiltInMetrics.DB_REQUESTS : BuiltInMetrics.NET_CLIENT_REQUESTS);
+            probe.catching(() -> sink.onIncrement(db ? BuiltInMetrics.DB_REQUESTS : BuiltInMetrics.NET_CLIENT_REQUESTS));
             return new NetClientMetric(request);
         }
 
         @Override
         public void requestEnd(NetClientMetric requestMetric, long bytesWritten) {
-            requestMetric.touch();
-            if (bytesWritten < 0) {
-                // Postgres driver always passes -1
-                return;
-            }
-            sink.onMetric(NET_CLIENT_BYTES_WRITTEN, bytesWritten);
-        }
-
-        @Override
-        public void responseBegin(NetClientMetric requestMetric, Object response) {
-//            System.out.println("RESP BEGIN " + response.getClass().getName() + " " + response + " " + requestMetric);
+            probe.catching(() -> {
+                requestMetric.touch();
+                if (bytesWritten < 0) {
+                    // Postgres driver always passes -1
+                    return;
+                }
+                sink.onMetric(NET_CLIENT_BYTES_WRITTEN, bytesWritten);
+            });
         }
 
         @Override
         public void requestReset(NetClientMetric requestMetric) {
-            sink.onIncrement(db ? DB_RESETS : NET_CLIENT_RESETS);
+            probe.catching(() -> sink.onIncrement(db ? DB_RESETS : NET_CLIENT_RESETS));
         }
 
         @Override
@@ -199,16 +194,18 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
 
         @Override
         public void responseEnd(NetClientMetric requestMetric, long bytesRead) {
-            sink.onIncrement(db ? DB_RESPONSES : NET_CLIENT_RESPONSES);
-            if (bytesRead > 0) {
-                // Postgres driver always passes -1
-                sink.onMetric(BuiltInMetrics.NET_CLIENT_BYTES_READ, bytesRead);
-            }
-            if (!(clientTimings instanceof NoOpClientTimingConsumer)) {
-                requestMetric.withAges((age, sinceSend) -> {
-                    clientTimings.onTiming(namespace, age, sinceSend, requestMetric.req);
-                });
-            }
+            probe.catching(() -> {
+                sink.onIncrement(db ? DB_RESPONSES : NET_CLIENT_RESPONSES);
+                if (bytesRead > 0) {
+                    // Postgres driver always passes -1
+                    sink.onMetric(BuiltInMetrics.NET_CLIENT_BYTES_READ, bytesRead);
+                }
+                if (!(clientTimings instanceof NoOpClientTimingConsumer)) {
+                    requestMetric.withAges((age, sinceSend) -> {
+                        clientTimings.onTiming(namespace, age, sinceSend, requestMetric.req);
+                    });
+                }
+            });
         }
     }
 
@@ -246,9 +243,11 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
     static class NCMX implements TCPMetrics<Met> {
 
         private final MetricsSink sink;
+        private final Probe<?> probe;
 
-        NCMX(MetricsSink sink) {
+        NCMX(MetricsSink sink, Probe<?> probe) {
             this.sink = sink;
+            this.probe = probe;
         }
 
         private long nextId() {
@@ -257,61 +256,65 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
 
         @Override
         public Met connected(SocketAddress remoteAddress, String remoteName) {
-            sink.onIncrement(BuiltInMetrics.NET_CONNECTS);
+            probe.catching(() -> sink.onIncrement(BuiltInMetrics.NET_CONNECTS));
             return new Met();
         }
 
         @Override
         public void disconnected(Met socketMetric, SocketAddress remoteAddress) {
-            sink.onIncrement(BuiltInMetrics.NET_DISCONNECTS);
+            probe.catching(() -> sink.onIncrement(BuiltInMetrics.NET_DISCONNECTS));
         }
 
         @Override
         public void bytesRead(Met socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
-            sink.onMetric(BuiltInMetrics.NET_BYTES_READ, numberOfBytes);
+            probe.catching(() -> sink.onMetric(BuiltInMetrics.NET_BYTES_READ, numberOfBytes));
         }
 
         @Override
         public void bytesWritten(Met socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
-            sink.onMetric(BuiltInMetrics.NET_BYTES_WRITTEN, numberOfBytes);
+            probe.catching(() -> sink.onMetric(BuiltInMetrics.NET_BYTES_WRITTEN, numberOfBytes));
         }
 
         @Override
         public void exceptionOccurred(Met socketMetric, SocketAddress remoteAddress, Throwable t) {
-            sink.onIncrement(BuiltInMetrics.EXCEPTION_OCCURRED);
+            probe.catching(() -> sink.onIncrement(BuiltInMetrics.EXCEPTION_OCCURRED));
         }
     }
 
     static class DGMX implements DatagramSocketMetrics {
 
         private final MetricsSink sink;
+        private final Probe<?> probe;
 
-        public DGMX(MetricsSink sink) {
+        public DGMX(MetricsSink sink, Probe<?> probe) {
             this.sink = sink;
+            this.probe = probe;
         }
 
         @Override
         public void bytesRead(Void socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
-            sink.onMetric(BuiltInMetrics.DATAGRAM_BYTES_READ, numberOfBytes);
+            probe.catching(() -> sink.onMetric(BuiltInMetrics.DATAGRAM_BYTES_READ, numberOfBytes));
         }
 
         @Override
         public void bytesWritten(Void socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
-            sink.onMetric(BuiltInMetrics.DATAGRAM_BYTES_WRITTEN, numberOfBytes);
+            probe.catching(() -> sink.onMetric(BuiltInMetrics.DATAGRAM_BYTES_WRITTEN, numberOfBytes));
         }
 
         @Override
         public void exceptionOccurred(Void socketMetric, SocketAddress remoteAddress, Throwable t) {
-            sink.onIncrement(BuiltInMetrics.EXCEPTION_OCCURRED);
+            probe.catching(() -> sink.onIncrement(BuiltInMetrics.EXCEPTION_OCCURRED));
         }
     }
 
     static class HTTPMX implements HttpServerMetrics<Met, Met, Met> {
 
         private final MetricsSink sink;
+        private final Probe<?> probe;
 
-        HTTPMX(MetricsSink sink) {
+        HTTPMX(MetricsSink sink, Probe<?> probe) {
             this.sink = sink;
+            this.probe = probe;
         }
 
         private Met next() {
@@ -320,30 +323,32 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
 
         @Override
         public Met requestBegin(Met socketMetric, HttpRequest request) {
-            sink.onIncrement(BuiltInMetrics.REQUESTS);
+            probe.catching(() -> sink.onIncrement(BuiltInMetrics.REQUESTS));
             return next();
         }
 
         @Override
         public void requestReset(Met requestMetric) {
-            sink.onIncrement(BuiltInMetrics.HTTP_REQUEST_RESET);
+            probe.catching(() -> sink.onIncrement(BuiltInMetrics.HTTP_REQUEST_RESET));
         }
 
         @Override
         public void responseEnd(Met requestMetric, HttpResponse response, long bytesWritten) {
-            sink.onIncrement(BuiltInMetrics.HTTP_RESPONSES_COMPLETED);
+            probe.catching(() -> sink.onIncrement(BuiltInMetrics.HTTP_RESPONSES_COMPLETED));
         }
 
         @Override
         public void responseBegin(Met requestMetric, HttpResponse response) {
-            sink.onIncrement(BuiltInMetrics.HTTP_RESPONSES_INITIATED);
-            if (response.statusCode() >= 200 && response.statusCode() < 400) {
-                sink.onIncrement(BuiltInMetrics.HTTP_NON_ERROR_RESPONSES);
-            } else if (response.statusCode() >= 400 && response.statusCode() < 500) {
-                sink.onIncrement(BuiltInMetrics.HTTP_CLIENT_ERROR_RESPONSES);
-            } else if (response.statusCode() >= 500) {
-                sink.onIncrement(BuiltInMetrics.HTTP_SERVER_ERROR_RESPONSES);
-            }
+            probe.catching(() -> {
+                sink.onIncrement(BuiltInMetrics.HTTP_RESPONSES_INITIATED);
+                if (response.statusCode() >= 200 && response.statusCode() < 400) {
+                    sink.onIncrement(BuiltInMetrics.HTTP_NON_ERROR_RESPONSES);
+                } else if (response.statusCode() >= 400 && response.statusCode() < 500) {
+                    sink.onIncrement(BuiltInMetrics.HTTP_CLIENT_ERROR_RESPONSES);
+                } else if (response.statusCode() >= 500) {
+                    sink.onIncrement(BuiltInMetrics.HTTP_SERVER_ERROR_RESPONSES);
+                }
+            });
         }
 
         @Override
@@ -363,17 +368,17 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
 
         @Override
         public void bytesRead(Met socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
-            sink.onMetric(BuiltInMetrics.HTTP_BYTES_READ, numberOfBytes);
+            probe.catching(() -> sink.onMetric(BuiltInMetrics.HTTP_BYTES_READ, numberOfBytes));
         }
 
         @Override
         public void bytesWritten(Met socketMetric, SocketAddress remoteAddress, long numberOfBytes) {
-            sink.onMetric(BuiltInMetrics.HTTP_BYTES_WRITTEN, numberOfBytes);
+            probe.catching(() -> sink.onMetric(BuiltInMetrics.HTTP_BYTES_WRITTEN, numberOfBytes));
         }
 
         @Override
         public void exceptionOccurred(Met socketMetric, SocketAddress remoteAddress, Throwable t) {
-            sink.onIncrement(BuiltInMetrics.EXCEPTION_OCCURRED);
+            probe.catching(() -> sink.onIncrement(BuiltInMetrics.EXCEPTION_OCCURRED));
         }
 
         @Override

@@ -15,7 +15,6 @@
  */
 package com.telenav.smithy.vertx.bunyan.logging;
 
-import com.mastfrog.bunyan.java.v2.Level;
 import com.mastfrog.bunyan.java.v2.Log;
 import com.mastfrog.bunyan.java.v2.Logs;
 import com.mastfrog.settings.Settings;
@@ -28,12 +27,14 @@ import static com.telenav.smithy.vertx.bunyan.logging.BunyanLoggingAndMetricsSup
 import static com.telenav.smithy.vertx.bunyan.logging.BunyanLoggingAndMetricsSupport.SETTINGS_KEY_EXIT_ON_VERTICLE_LAUNCH_FAILULRE;
 import com.telenav.smithy.vertx.probe.Probe;
 import com.telenav.smithy.vertx.probe.ProbeImplementation;
+import com.telenav.vertx.guice.scope.RequestScope;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Verticle;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClosedException;
 import io.vertx.core.impl.NoStackTraceThrowable;
+import io.vertx.core.net.SocketAddress;
 import io.vertx.ext.web.RoutingContext;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
@@ -210,11 +211,13 @@ abstract class AbstractLoggingProbe<Op extends Enum<Op>> implements ProbeImpleme
 
     @Override
     public final void onFailure(Op op, RoutingContext event, Throwable thrown) {
-        printable(thrown).ifPresent(logLevel -> {
+        loggabilityInternal(thrown).apply("failure", logs, thrown, log -> {
             sink.onIncrement(BuiltInMetrics.EXCEPTION_OCCURRED);
-            logs.log("failure", logLevel, log -> {
-                includeEventInfo(event, logs.error("failure").add("op", loggingNameOf(op)).add(thrown));
-            });
+            log.add("op", loggingNameOf(op));
+            SocketAddress addr = event.request().remoteAddress();
+            if (addr != null) {
+                log.add("address", addr.toString());
+            }
             if (dumpStacks) {
                 thrown.printStackTrace(System.err);
             }
@@ -238,48 +241,40 @@ abstract class AbstractLoggingProbe<Op extends Enum<Op>> implements ProbeImpleme
 
     @Override
     public final void onNonOperationFailure(String message, Throwable thrown) {
-        printable(thrown).ifPresent(logLevel -> {
+        loggabilityInternal(thrown).apply("failure", logs, thrown, log -> {
             sink.onIncrement(BuiltInMetrics.EXCEPTION_OCCURRED);
-            logs.log("failure", logLevel, log -> {
-                log.add(message).add(thrown);
-            });
             if (dumpStacks) {
                 thrown.printStackTrace(System.err);
             }
         });
     }
 
-    protected final Optional<Level> printable(Throwable thrown) {
+    protected final Loggability loggabilityInternal(Throwable thrown) {
         // Things that can only be programmer error must always be logged
         if (thrown instanceof NullPointerException || thrown instanceof ClassCastException
                 || thrown instanceof StackOverflowError
                 || thrown.getCause() instanceof NullPointerException || thrown.getCause() instanceof ClassCastException
                 || thrown.getCause() instanceof StackOverflowError) {
-            return ERROR_LEVEL;
+            return Loggability.ERROR;
         }
         if (shuttingDown) {
             // We can get a flurry of exceptions during shutdown - ignore
-            return Optional.empty();
+            return Loggability.NONE;
         }
         if (thrown instanceof ClosedChannelException || thrown instanceof HttpClosedException) {
-            return Optional.empty();
+            return Loggability.DEBUG_NOSTACK;
         }
         if (thrown instanceof IOException && ("Connection reset by peer".equals(thrown.getMessage()) || "Broken pipe".equals(thrown.getMessage()))) {
-            return Optional.empty();
+            return Loggability.DEBUG_NOSTACK;
         }
         if (thrown instanceof NoStackTraceThrowable && "Pool closed".equals(thrown.getMessage())) {
-            return Optional.empty();
+            return Loggability.DEBUG_NOSTACK;
         }
-//        if (thrown instanceof InvalidInputException || thrown.getCause() instanceof InvalidInputException) {
-//            return false;
-//        }
-        Optional<Level> result = isPrintable(thrown);
-        return result;
+        return loggability(thrown);
     }
-    static final Optional<Level> ERROR_LEVEL = Optional.of(Level.ERROR);
 
-    protected Optional<Level> isPrintable(Throwable th) {
-        return ERROR_LEVEL;
+    protected Loggability loggability(Throwable th) {
+        return Loggability.ERROR;
     }
 
 }

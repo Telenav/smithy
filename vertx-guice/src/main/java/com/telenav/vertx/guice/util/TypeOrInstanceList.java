@@ -39,6 +39,16 @@ public class TypeOrInstanceList<T> {
         // this package
     }
 
+    public TypeOrInstanceList<T> copy() {
+        TypeOrInstanceList<T> result = new TypeOrInstanceList<>();
+        result.entries.addAll(entries);
+        return result;
+    }
+    
+    public void addAll(TypeOrInstanceList<T> other) {
+        entries.addAll(other.entries);
+    }
+
     public static <T> TypeOrInstanceList<T> typeOrInstanceList() {
         return new TypeOrInstanceList<>();
     }

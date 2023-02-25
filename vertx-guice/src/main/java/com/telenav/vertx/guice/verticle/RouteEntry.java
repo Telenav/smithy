@@ -17,13 +17,16 @@ package com.telenav.vertx.guice.verticle;
 
 import com.google.inject.Binder;
 import com.google.inject.Provider;
+import com.telenav.vertx.guice.util.TypeOrInstance;
 import io.vertx.core.Handler;
 import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  *
@@ -33,9 +36,12 @@ final class RouteEntry {
 
     final Function<Router, Route> rc;
     final List<Function<Binder, Provider<? extends Handler<RoutingContext>>>> handlers = new ArrayList<>();
+    private final Supplier<Optional<TypeOrInstance<Handler<RoutingContext>>>> failureHandler;
 
-    RouteEntry(Function<Router, Route> rc, List<Function<Binder, Provider<? extends Handler<RoutingContext>>>> allHandlers) {
+    RouteEntry(Function<Router, Route> rc, List<Function<Binder, Provider<? extends Handler<RoutingContext>>>> allHandlers,
+            Supplier<Optional<TypeOrInstance<Handler<RoutingContext>>>> failureHandler) {
         this.rc = rc;
+        this.failureHandler = failureHandler;
         if (allHandlers.isEmpty()) {
             throw new IllegalStateException("Handler list is empty");
         }
@@ -47,7 +53,8 @@ final class RouteEntry {
         for (Function<Binder, Provider<? extends Handler<RoutingContext>>> f : handlers) {
             handlerProviders.add(f.apply(binder));
         }
-        return new RouteCreationHandler(rc, handlerProviders);
+        Optional<Provider<? extends Handler<RoutingContext>>> fh = failureHandler.get().map(f -> f.apply(binder));
+        return new RouteCreationHandler(rc, handlerProviders, fh);
     }
 
     @Override

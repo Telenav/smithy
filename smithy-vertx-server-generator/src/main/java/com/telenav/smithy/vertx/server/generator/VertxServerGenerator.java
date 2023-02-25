@@ -130,7 +130,6 @@ import software.amazon.smithy.model.traits.RequiredTrait;
 public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     private static final String BODY_PLACEHOLDER = "--body--";
-    private static final String ERROR_NOTIFICATIONS_FIELD = "errorNotifications";
     private final ScopeBindings scope = new ScopeBindings();
     private final boolean debug;
     private final boolean generateProbeCode;
@@ -198,8 +197,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
         requestIdSupport.generateModuleMethods(cb);
 
-        generateErrorNotificationSupport(cb);
-
         generateCustomizeVerticleFieldsAndMethods(cb);
         generateProbeGuiceModuleMethods(cb);
 
@@ -215,39 +212,6 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
         cb.sortMembers();
         registerZipMarkupTask();
         addTo.accept(cb);
-    }
-
-    private <T> void generateErrorNotificationSupport(ClassBuilder<T> cb) {
-        cb.innerClass("ErrorNotifications", ib -> {
-            ib.makePublic()
-                    .docComment("Interface which can be passed to <code>withErrorNotificationsTo</code> "
-                            + "to log errors which propagate up to the top of the context.")
-                    .toInterface()
-                    .annotatedWith("FunctionalInterface")
-                    .closeAnnotation();
-            ib.method("onError", mth -> {
-                mth.addArgument("RoutingContext", "ctx")
-                        .addArgument("Throwable", "thrown");
-            });
-        });
-
-        cb.field(ERROR_NOTIFICATIONS_FIELD, fld -> {
-            fld.withModifier(PRIVATE)
-                    .initializedAsLambda("ErrorNotifications", lb -> {
-                        lb.withArgument("ctx").withArgument("thrown")
-                                .body().endBlock();
-                    });
-        });
-
-        cb.method("withErrorNotificationsTo", mth -> {
-            mth.withModifier(PUBLIC).withModifier(FINAL)
-                    .docComment("Provide an error handler for logging."
-                            + "@param notificationsTo an implementation of ErrorNotifications");
-            mth.addArgument("ErrorNotifications", "notificationsTo")
-                    .returning(cb.className());
-            mth.body().statement("this.errorNotifications = notificationsTo")
-                    .returningThis().endBlock();
-        });
     }
 
     private void registerZipMarkupTask() {
@@ -1082,88 +1046,8 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
     }
 
     public <C, X, B extends BlockBuilderBase<C, B, X>> void generateErrorHandlingRouterCustomizer(B bb, ClassBuilder<String> routerBuilder, String verticleBuilderName) {
-        bb.iff().booleanExpression("defaultErrorHandling")
-                .invoke("customizingRouterWith")
-                .withLambdaArgument(lb -> {
-                    lb.withArgument("rtr");
-                    lb.body(lbb -> {
-                        lbb.lineComment("This code attaches an error handler to the router for the HTTP server")
-                                .lineComment("which intercepts what would be 500 responses due to thrown exceptions in")
-                                .lineComment("handlers and translates them to appropriate responses");
-                        lbb.returningInvocationOf("errorHandler")
-                                .withArgument(500)
-                                .withLambdaArgument(subLb -> {
-                                    subLb.withArgument("ctx");
-                                    subLb.body(subBb -> {
-                                        subBb.declare("failure")
-                                                .initializedByInvoking("failure")
-                                                .on("ctx")
-                                                .as("Throwable");
-                                        Variable v = variable("failure");
-                                        routerBuilder.importing(DateTimeParseException.class);
-                                        routerBuilder.importing(validationExceptions().fqn());
-                                        ClassBuilder.IfBuilder<?> test = subBb.iff(v.isInstance("IllegalArgumentException")
-                                                .logicalOrWith(v.isInstance("DateTimeParseException")
-                                                        .logicalOrWith(v.isInstance(validationExceptions().name()))));
-                                        test.lineComment("These exceptions all indicate input data that could not be parsed.");
-                                        test.invoke("sendErrorResponse")
-                                                .withArgumentFromInvoking("getMessage")
-                                                .on("failure")
-                                                .withArgument(400)
-                                                .withArgument("ctx")
-                                                .withArgument("failure")
-                                                .inScope();
-
-                                        routerBuilder.importing("com.telenav.smithy.http.ResponseException");
-
-                                        test = test.elseIf().variable("failure").instanceOf("ResponseException")
-                                                .lineComment("Convenience exception in smithy-java-http-extensions which")
-                                                .lineComment("can be used to specify an error response code and message.")
-                                                .invoke("sendErrorResponse")
-                                                .withArgumentFromInvoking("getMessage")
-                                                .on("failure")
-                                                .withArgumentFromInvoking("status")
-                                                .on("((ResponseException) failure)")
-                                                .withArgument("ctx")
-                                                .withArgument("failure")
-                                                .inScope();
-
-                                        test = test.elseIf().variable("failure").instanceOf("UnsupportedOperationException")
-                                                .lineComment("Used by the generated mock implementations to indicate a real")
-                                                .lineComment("implementation was not bound, and should be translated to a")
-                                                .lineComment("501 Not Implemented response.")
-                                                .invoke("sendErrorResponse")
-                                                .withArgumentFromInvoking("getMessage")
-                                                .on("failure")
-                                                .withArgument(501)
-                                                .withArgument("ctx")
-                                                .withArgument("failure")
-                                                .inScope();
-
-                                        test.elseIf().booleanExpression("failure != null")
-                                                .invoke("sendErrorResponse")
-                                                .withArgumentFromInvoking("getMessage")
-                                                .on("failure")
-                                                .withArgument(500)
-                                                .withArgument("ctx")
-                                                .withArgument("failure")
-                                                .inScope();
-
-                                        /// We do not want to invoke next() here - if we do
-                                        // and if the request was dropped on the floor, we will
-                                        // wind up in an endless loop.
-                                        test.orElse()
-                                                .invoke("sendErrorResponse")
-                                                .withStringLiteral("Unspecified error")
-                                                .withArgument(500)
-                                                .withArgument("ctx")
-                                                .withArgument("failure")
-                                                .inScope()
-                                                .endIf();
-                                    });
-                                }).on("rtr");
-                    });
-                }).on(verticleBuilderName).endIf();
+        bb.invoke("withFailureHandler").withClassArgument("SendErrorResponse")
+                .on(verticleBuilderName);
     }
 
     private void generateCheckTypeMethod(ClassBuilder<String> cb) {
@@ -1223,69 +1107,176 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                 });
     }
 
-    public void generateSendErrorResponseMethod(ClassBuilder<String> routerBuilder) {
-        routerBuilder.method("sendErrorResponse", m1 -> {
-            m1.docComment("Used by the default error handling code to send an error "
-                    + "response."
-                    + "\n@param message The exception message or null"
-                    + "\n@param statusCode The http status code"
-                    + "\n@param ctx The routing context"
-                    + "\n@param thrown The thrown exception (some may contain headers to "
-                    + "add to the response)"
-            );
-            routerBuilder.importing("io.vertx.ext.web.RoutingContext");
-            m1.withModifier(PRIVATE, FINAL);
-            m1.addArgument("String", "message")
-                    .addArgument("int", "statusCode")
-                    .addArgument("RoutingContext", "ctx")
-                    .addArgument("Throwable", "thrown");
-            m1.body(mbb -> {
-                routerBuilder.importing("io.vertx.core.http.HttpServerResponse");
+    public void generateSendErrorResponseMethod(ClassBuilder<String> rb) {
 
-                mbb.trying(tri -> {
-                    tri.lineComment("In the case the application provided error handler")
-                            .lineComment("throws, simply print it and move on.");
-                    tri.invoke("onError")
-                            .withArgument("ctx")
-                            .withArgument("thrown")
-                            .on(ERROR_NOTIFICATIONS_FIELD);
-                    tri.catching("Throwable")
-                            .invoke("printStackTrace")
-                            .on("th2")
-                            .as("th2").endTryCatch();
+        rb.innerClass("SendErrorResponse", cb -> {
+            cb.importing("io.vertx.ext.web.RoutingContext", "io.vertx.core.Handler",
+                    "com.google.inject.Inject", "javax.inject.Singleton",
+                    "com.telenav.smithy.http.ResponseException",
+                    "com.telenav.vertx.guice.scope.RequestScope");
+
+            String probeType = "Probe<" + operationEnumTypeName() + ">";
+            cb.withModifier(PRIVATE, STATIC, FINAL).implementing("Handler<RoutingContext>");
+            cb.annotatedWith("Singleton").closeAnnotation();
+            cb.field("probe")
+                    .withModifier(PRIVATE, FINAL)
+                    .ofType(probeType);
+            cb.field("scope").withModifier(PRIVATE, FINAL).ofType("RequestScope");
+
+            cb.constructor(con -> {
+                con.setModifier(PRIVATE)
+                        .addArgument(probeType, "probe")
+                        .addArgument("RequestScope", "scope")
+                        .annotatedWith("Inject").closeAnnotation();
+                con.body(bb -> {
+                    bb.assignField("probe").ofThis().toExpression("probe");
+                    bb.assignField("scope").ofThis().toExpression("scope");
                 });
+            });
+            cb.importing(Optional.class);
+            cb.overridePublic("handle", mth -> {
+                mth.addArgument("RoutingContext", "ctx");
+                mth.body(bb -> {
+                    bb.declare("failure").initializedByInvoking("failure")
+                            .on("ctx").as("Throwable");
 
-                mbb.declare("resp")
-                        .initializedByInvoking("response")
-                        .on("ctx")
-                        .as("HttpServerResponse");
-                mbb.blankLine().lineComment("ResponseException may bear a header such as www-authenticate");
-                mbb.iff(variable("thrown").isInstance("ResponseException"))
-                        .invoke("withHeaderNameAndValue")
-                        .withLambdaArgument()
-                        .withArgument("headerName")
-                        .withArgument("headerValue")
-                        .body(lbb -> {
-                            lbb.invoke("putHeader")
-                                    .withArgument("headerName")
-                                    .withArgument("headerValue")
-                                    .on("resp");
-                        })
-                        .on("((ResponseException) thrown)")
-                        .endIf();
-                mbb.lineComment("Send the response with the status code from the exception");
-                mbb.ifNull("message")
-                        .invoke("end")
-                        .onInvocationOf("setStatusCode")
-                        .withArgument("statusCode")
-                        .on("resp")
-                        .orElse()
-                        .invoke("end")
-                        .withArgument("message")
-                        .onInvocationOf("setStatusCode")
-                        .withArgument("statusCode")
-                        .on("resp")
-                        .endIf();
+                    bb.declare("op")
+                            .initializedByInvoking("getSafe")
+                            .withClassArgument(operationEnumTypeName())
+                            .on("scope")
+                            .as("Optional<" + operationEnumTypeName() + ">");
+
+                    bb.iff(invocationOf("isPresent").on("op"))
+                            .invoke("onFailure")
+                            .withArgumentFromInvoking("get").on("op")
+                            .withArgument("ctx")
+                            .withArgument("failure")
+                            .on("probe")
+                            .orElse()
+                            .invoke("onNonOperationFailure")
+                            .withStringLiteral("failure")
+                            .withArgument("failure")
+                            .on("probe")
+                            .endIf();
+
+                    bb.declare("m")
+                            .initializedTo().ternary()
+                            .invocationOf("getMessage").on("failure").equals(variable("null"))
+                            .endCondition().invoke("toString").on("failure")
+                            .invoke("getMessage").on("failure").as("String");
+
+                    Variable v = variable("failure");
+                    cb.importing(DateTimeParseException.class);
+                    cb.importing(validationExceptions().fqn());
+                    ClassBuilder.IfBuilder<?> test = bb.iff(v.isInstance("IllegalArgumentException")
+                            .logicalOrWith(v.isInstance("DateTimeParseException")
+                                    .logicalOrWith(
+                                            invocationOf("getCause").on("failure").isInstance(validationExceptions().name()))
+                                    .logicalOrWith(v.isInstance(validationExceptions().name()))));
+
+                    test.lineComment("These exceptions all indicate input data that could not be parsed.");
+                    test.invoke("sendErrorResponse")
+                            .withArgument("m")
+                            .withArgument(400)
+                            .withArgument("ctx")
+                            .withArgument("failure")
+                            .inScope();
+
+                    test = test.elseIf().variable("failure").instanceOf("ResponseException")
+                            .lineComment("Convenience exception in smithy-java-http-extensions which")
+                            .lineComment("can be used to specify an error response code and message.")
+                            .invoke("sendErrorResponse")
+                            .withArgument("m")
+                            .withArgumentFromInvoking("status")
+                            .on("((ResponseException) failure)")
+                            .withArgument("ctx")
+                            .withArgument("failure")
+                            .inScope();
+
+                    test = test.elseIf().variable("failure").instanceOf("UnsupportedOperationException")
+                            .lineComment("Used by the generated mock implementations to indicate a real")
+                            .lineComment("implementation was not bound, and should be translated to a")
+                            .lineComment("501 Not Implemented response.")
+                            .invoke("sendErrorResponse")
+                            .withArgument("m")
+                            .withArgument(501)
+                            .withArgument("ctx")
+                            .withArgument("failure")
+                            .inScope();
+
+                    test.elseIf().booleanExpression("failure != null")
+                            .invoke("sendErrorResponse")
+                            .withArgument("m")
+                            .withArgument(500)
+                            .withArgument("ctx")
+                            .withArgument("failure")
+                            .inScope();
+
+                    /// We do not want to invoke next() here - if we do
+                    // and if the request was dropped on the floor, we will
+                    // wind up in an endless loop.
+                    test.orElse()
+                            .invoke("sendErrorResponse")
+                            .withStringLiteral("Unspecified error")
+                            .withArgument(500)
+                            .withArgument("ctx")
+                            .withArgument("failure")
+                            .inScope()
+                            .endIf();
+//                            FINISH ME
+                });
+            });
+
+            cb.method("sendErrorResponse", m1 -> {
+                m1.docComment("Used by the default error handling code to send an error "
+                        + "response."
+                        + "\n@param message The exception message or null"
+                        + "\n@param statusCode The http status code"
+                        + "\n@param ctx The routing context"
+                        + "\n@param thrown The thrown exception (some may contain headers to "
+                        + "add to the response)"
+                );
+                cb.importing("io.vertx.ext.web.RoutingContext");
+                m1.withModifier(PRIVATE, FINAL);
+                m1.addArgument("String", "message")
+                        .addArgument("int", "statusCode")
+                        .addArgument("RoutingContext", "ctx")
+                        .addArgument("Throwable", "thrown");
+                m1.body(mbb -> {
+                    cb.importing("io.vertx.core.http.HttpServerResponse");
+
+                    mbb.declare("resp")
+                            .initializedByInvoking("response")
+                            .on("ctx")
+                            .as("HttpServerResponse");
+                    mbb.blankLine().lineComment("ResponseException may bear a header such as www-authenticate");
+                    mbb.iff(variable("thrown").isInstance("ResponseException"))
+                            .invoke("withHeaderNameAndValue")
+                            .withLambdaArgument()
+                            .withArgument("headerName")
+                            .withArgument("headerValue")
+                            .body(lbb -> {
+                                lbb.invoke("putHeader")
+                                        .withArgument("headerName")
+                                        .withArgument("headerValue")
+                                        .on("resp");
+                            })
+                            .on("((ResponseException) thrown)")
+                            .endIf();
+                    mbb.lineComment("Send the response with the status code from the exception");
+                    mbb.ifNull("message")
+                            .invoke("end")
+                            .onInvocationOf("setStatusCode")
+                            .withArgument("statusCode")
+                            .on("resp")
+                            .orElse()
+                            .invoke("end")
+                            .withArgument("message")
+                            .onInvocationOf("setStatusCode")
+                            .withArgument("statusCode")
+                            .on("resp")
+                            .endIf();
+                });
             });
         });
     }

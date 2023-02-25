@@ -16,15 +16,12 @@
 package com.telenav.smithy.vertx.bunyan.logging;
 
 import com.google.inject.ImplementedBy;
-import com.mastfrog.bunyan.java.v2.Level;
 import com.mastfrog.bunyan.java.v2.Log;
 import com.mastfrog.giulius.help.GiuliusHelp;
 import com.mastfrog.giulius.help.Tier;
-import static com.telenav.smithy.vertx.bunyan.logging.AbstractLoggingProbe.ERROR_LEVEL;
 import static com.telenav.smithy.vertx.bunyan.logging.AbstractLoggingProbe.PW_PATTERN;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.regex.Matcher;
 
 /**
@@ -84,13 +81,12 @@ public interface LoggingProbeConfiguration {
     }
 
     /**
-     * Determine if a thrown exception should be logged.
+     * Determine if a thrown exception should be logged, and how.
      *
      * @param thrown A thrown exception
      * @return True if it should be logged
      */
-    default Optional<Level> isLoggable(Throwable thrown) {
-        return ERROR_LEVEL;
+    default Loggability loggability(Throwable thrown) {
+        return Loggability.ERROR;
     }
-
 }

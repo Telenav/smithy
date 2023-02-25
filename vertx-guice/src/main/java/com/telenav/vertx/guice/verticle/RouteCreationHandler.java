@@ -22,7 +22,9 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  *
@@ -32,13 +34,16 @@ final class RouteCreationHandler {
 
     private final Function<Router, Route> rc;
     private final List<Provider<? extends Handler<RoutingContext>>> handlers = new ArrayList<>();
+    private final Optional<Provider<? extends Handler<RoutingContext>>> failureHandler;
 
-    RouteCreationHandler(Function<Router, Route> rc, List<Provider<? extends Handler<RoutingContext>>> handlers) {
+    RouteCreationHandler(Function<Router, Route> rc, List<Provider<? extends Handler<RoutingContext>>> handlers,
+            Optional<Provider<? extends Handler<RoutingContext>>> failureHandler) {
         this.rc = rc;
         if (handlers.isEmpty()) {
             throw new IllegalStateException("Empty handler list for " + rc);
         }
         this.handlers.addAll(handlers);
+        this.failureHandler = failureHandler;
     }
 
     Route applyTo(Router router) {
@@ -48,6 +53,7 @@ final class RouteCreationHandler {
             // instance if we will always get the same instance
             route.handler(new LazyRoutingHandler(p));
         }
+        failureHandler.ifPresent(fh -> route.failureHandler(fh.get()));
         return route;
     }
 

@@ -17,6 +17,7 @@ package com.telenav.smithy.vertx.periodic.metrics;
 
 import com.mastfrog.settings.Settings;
 import com.telenav.periodic.metrics.MetricsSink;
+import com.telenav.smithy.vertx.probe.Probe;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.metrics.MetricsOptions;
 import java.util.function.UnaryOperator;
@@ -31,15 +32,15 @@ import javax.inject.Provider;
 final class VertxMetricsCustomizer implements UnaryOperator<VertxOptions> {
 
     private final Provider<MetricsSink> sink;
-    private final Settings settings;
     private final ClientTimingConsumer clientTimings;
+    private final Probe<?> probe;
 
     @Inject
-    VertxMetricsCustomizer(Settings settings, Provider<MetricsSink> sink,
-            ClientTimingConsumer clientTimings) {
+    VertxMetricsCustomizer(Provider<MetricsSink> sink,
+            ClientTimingConsumer clientTimings, Probe<?> probe) {
         this.sink = sink;
-        this.settings = settings;
         this.clientTimings = clientTimings;
+        this.probe = probe;
     }
 
     @Override
@@ -47,7 +48,7 @@ final class VertxMetricsCustomizer implements UnaryOperator<VertxOptions> {
         if (!Boolean.getBoolean("unit.test")) {
             MetricsOptions mo = new MetricsOptions();
             mo.setEnabled(true);
-            mo.setFactory(new PeriodicVertxMetrics(settings, sink.get(), clientTimings));
+            mo.setFactory(new PeriodicVertxMetrics(sink.get(), clientTimings, probe));
             return vxopts.setMetricsOptions(mo);
         }
         return vxopts;

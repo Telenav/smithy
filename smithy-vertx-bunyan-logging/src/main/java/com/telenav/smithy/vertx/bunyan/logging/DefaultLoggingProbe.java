@@ -66,4 +66,8 @@ final class DefaultLoggingProbe<Op extends Enum<Op>> extends AbstractLoggingProb
         return 0;
     }
 
+    @Override
+    protected Loggability loggability(Throwable th) {
+        return config.loggability(th);
+    }
 }

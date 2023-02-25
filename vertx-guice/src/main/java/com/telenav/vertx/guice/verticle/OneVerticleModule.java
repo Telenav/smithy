@@ -16,7 +16,6 @@
 package com.telenav.vertx.guice.verticle;
 
 import com.google.inject.AbstractModule;
-import com.google.inject.Binder;
 import com.google.inject.Key;
 import com.google.inject.PrivateBinder;
 import com.google.inject.Provider;

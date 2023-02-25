@@ -29,6 +29,6 @@
             <artifactId>giulius-annotation-processors</artifactId>
             <scope>provided</scope>
         </dependency>
-        
+
     </dependencies>
 </project>

@@ -97,7 +97,6 @@ public final class Logging<Op extends Enum<Op>> implements Module {
                     System.out.println("Logging to " + logFile);
                     config.logToFile(logFile);
                     if (settings.getBoolean("log.console", false)) {
-                        System.out.println("LOG CONSOLE TRUE");
                         config.logToConsole();
                     }
                 } else {

@@ -590,18 +590,11 @@ public final class RequestScope implements Scope {
         }
     }
 
-    <T> Handler<T> wrapGeneral(Handler<T> h) {
+    public <T> Handler<T> wrapGeneral(Handler<T> h) {
         if (h instanceof GeneralWrappedHandler<?>) {
             return h;
         }
         return new GeneralWrappedHandler<>(this, h);
-    }
-
-    public Vertx wrap(Vertx orig) {
-        if (orig instanceof VertxWrapper) {
-            return orig;
-        }
-        return new VertxWrapper(orig, this);
     }
 
     static class GeneralWrappedHandler<T> implements Handler<T> {

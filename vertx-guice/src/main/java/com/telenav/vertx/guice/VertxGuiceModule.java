@@ -35,6 +35,7 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Verticle;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
+import io.vertx.ext.web.Router;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -60,6 +61,8 @@ public final class VertxGuiceModule extends AbstractModule {
     private final CustomizerTypeOrInstanceList<VertxOptions> vertxOptionsCustomizers
             = customizerTypeOrInstanceList();
     private final CustomizerTypeOrInstanceList<DeploymentOptions> deploymentOptionsCustomizers
+            = customizerTypeOrInstanceList();
+    private final CustomizerTypeOrInstanceList<Router> routerCustomizers
             = customizerTypeOrInstanceList();
     private final List<Class<? extends VertxInitializer>> initializerTypes
             = new ArrayList<>();
@@ -200,6 +203,16 @@ public final class VertxGuiceModule extends AbstractModule {
         return this;
     }
 
+    public VertxGuiceModule customizingAllRoutersWith(Class<? extends UnaryOperator<Router>> c) {
+        routerCustomizers.add(c);
+        return this;
+    }
+
+    public VertxGuiceModule customizingAllRoutersWith(UnaryOperator<Router> c) {
+        routerCustomizers.add(c);
+        return this;
+    }
+
     /**
      * Add a Verticle which is created using a builder.
      *
@@ -208,7 +221,7 @@ public final class VertxGuiceModule extends AbstractModule {
     public VerticleBuilder<VertxGuiceModule> withVerticle() {
         return VerticleBuilder.verticleBuilder(pm -> {
             return withModule(pm);
-        }, this::withVerticle);
+        }, this::withVerticle).customizingRouterWith(routerCustomizers);
     }
 
     /**
@@ -300,7 +313,7 @@ public final class VertxGuiceModule extends AbstractModule {
             if (vertx == null) {
                 VertxOptions opts = optsCustomizer.apply(new VertxOptions());
                 // Pending - have option for using clusteredVertx instead
-                vertx = scope.wrap(Vertx.vertx(opts));
+                vertx = Vertx.vertx(opts);
                 try {
                     if (installShutdownHook) {
                         Runtime.getRuntime().addShutdownHook(new Thread(this, "Vertx-shutdown"));
@@ -343,7 +356,7 @@ public final class VertxGuiceModule extends AbstractModule {
                 @Named("provided") Vertx vertx) {
             this.registry = registry;
             this.scope = scope;
-            this.vertx = scope.wrap(vertx);
+            this.vertx = vertx;
         }
 
         @Override

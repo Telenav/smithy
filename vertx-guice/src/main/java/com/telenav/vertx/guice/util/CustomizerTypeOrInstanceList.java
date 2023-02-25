@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.function.UnaryOperator;
 
 /**
- * A TypeOrInstanceList specialized for UnaryOperators.  Non-API.
+ * A TypeOrInstanceList specialized for UnaryOperators. Non-API.
  *
  * @author Tim Boudreau
  */
@@ -37,6 +37,12 @@ public final class CustomizerTypeOrInstanceList<T> extends TypeOrInstanceList<Un
 
     public UnaryOperator<T> toFunction(Binder binder) {
         return new Func<>(super.get(binder));
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public TypeOrInstanceList<UnaryOperator<T>> copy() {
+        return (CustomizerTypeOrInstanceList<T>) super.copy();
     }
 
     static class Func<T> implements UnaryOperator<T> {

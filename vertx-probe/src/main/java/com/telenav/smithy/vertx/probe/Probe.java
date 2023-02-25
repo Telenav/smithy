@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Delegating ProbeImplementation, which may have a collection of
@@ -188,4 +189,51 @@ public class Probe<Ops extends Enum<Ops>> implements ProbeImplementation<Ops> {
         }
         return false;
     }
+
+    /**
+     * Can be used to ensure throwables are not swallowed, since it is
+     * fairly easy to have that happen in Vertx.
+     * 
+     * @param run A runnable
+     */
+    public final boolean catching(Runnable run) {
+        try {
+            run.run();
+            return true;
+        } catch (Exception | Error e) {
+            onNonOperationFailure("error", e);
+        }
+        return false;
+    }
+
+    public final <T> T rethrowing(Supplier<T> supp) {
+        try {
+            return supp.get();
+        } catch (Exception | Error e) {
+            onNonOperationFailure("error", e);
+            return chuck(e);
+        }
+    }
+
+    public final void rethrowing(Runnable run) {
+        try {
+            run.run();
+        } catch (Exception | Error e) {
+            onNonOperationFailure("error", e);
+            chuck(e);
+        }
+    }
+
+    private static <ReturnType> ReturnType chuck(Throwable t) {
+        chuck(RuntimeException.class, t);
+        throw new AssertionError(t); //should not get here
+    }
+
+    // Checked exceptions only exist at compile time, so trick the compiler
+    // with generics into thinking a checked exception is unchecked
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> void chuck(Class<T> type, Throwable t) throws T {
+        throw (T) t;
+    }
+
 }

@@ -21,6 +21,7 @@ import com.google.inject.Provider;
 import com.google.inject.util.Providers;
 import com.telenav.vertx.guice.util.CustomizerTypeOrInstanceList;
 import static com.telenav.vertx.guice.util.CustomizerTypeOrInstanceList.customizerTypeOrInstanceList;
+import com.telenav.vertx.guice.util.TypeOrInstance;
 import io.vertx.core.Handler;
 import io.vertx.core.Verticle;
 import io.vertx.core.http.HttpMethod;
@@ -49,6 +50,7 @@ public final class VerticleBuilder<T> {
     private final CustomizerTypeOrInstanceList<Router> routerCustomizer = customizerTypeOrInstanceList();
     private int port = 8888;
     private final List<RouteEntry> entries = new ArrayList<>();
+    private TypeOrInstance<Handler<RoutingContext>> globalFailureHandler;
 
     VerticleBuilder(Function<VerticleBuilder<T>, T> converter) {
         this.converter = converter;
@@ -58,6 +60,21 @@ public final class VerticleBuilder<T> {
         return new VerticleBuilder<>(vb -> {
             return c.apply(new OneVerticleModule(vb.info(), con));
         });
+    }
+
+    public VerticleBuilder<T> withFailureHandler(Handler<RoutingContext> h) {
+        this.globalFailureHandler = TypeOrInstance.fromInstance(h);
+        return this;
+    }
+
+    public VerticleBuilder<T> withFailureHandler(Class<? extends Handler<RoutingContext>> h) {
+        this.globalFailureHandler = TypeOrInstance.fromType(h);
+        return this;
+    }
+
+    public VerticleBuilder<T> customizingRouterWith(CustomizerTypeOrInstanceList<Router> customizers) {
+        routerCustomizer.addAll(customizers);
+        return this;
     }
 
     VerticleInfo info() {
@@ -106,7 +123,7 @@ public final class VerticleBuilder<T> {
                 if (handler.isEmpty()) {
                     throw new IllegalStateException("Handler list is empty");
                 }
-                entries.add(new RouteEntry(rc, handler));
+                entries.add(new RouteEntry(rc, handler, () -> Optional.ofNullable(globalFailureHandler)));
                 return this;
             });
         });
