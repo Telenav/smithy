@@ -42,8 +42,8 @@ public interface VertxLauncher {
         final AtomicReference<Throwable> thrown = new AtomicReference<>();
         Vertx result;
         result = start(futs -> {
+            @SuppressWarnings("ThrowableResultIgnored")
             Consumer<Throwable> thrownUpdater = thr -> {
-                thr.printStackTrace();
                 thrown.updateAndGet(old -> {
                     if (old == null) {
                         return thr;

@@ -101,30 +101,30 @@ public final class InjectedVerticle extends AbstractVerticle {
                 th = new Exception("Unspecified failures");
             }
         }
-        if (th instanceof Exception) {
-            throw (Exception) th;
-        } else if (th instanceof Error) {
-            throw (Error) th;
+        if (th instanceof Exception exception) {
+            throw exception;
+        } else if (th instanceof Error error) {
+            throw error;
         } else if (th != null) { // ThreadDeath?
             throw new Error(th);
         }
-        HttpServer server = result.result();
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try {
-                CountDownLatch shutdownLatch = new CountDownLatch(1);
-                server.close(closeResult -> {
-                    try {
-                        if (closeResult.cause() != null) {
-                            closeResult.cause().printStackTrace();
-                        }
-                    } finally {
-                        shutdownLatch.countDown();
-                    }
-                });
-                shutdownLatch.await();
-            } catch (InterruptedException ex) {
-                ex.printStackTrace();
-            }
-        }, "Shutdown http"));
+//        HttpServer server = result.result();
+//        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+//            try {
+//                CountDownLatch shutdownLatch = new CountDownLatch(1);
+//                server.close(closeResult -> {
+//                    try {
+//                        if (closeResult.cause() != null) {
+//                            closeResult.cause().printStackTrace();
+//                        }
+//                    } finally {
+//                        shutdownLatch.countDown();
+//                    }
+//                });
+//                shutdownLatch.await();
+//            } catch (InterruptedException ex) {
+//                ex.printStackTrace();
+//            }
+//        }, "Shutdown http"));
     }
 }

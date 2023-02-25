@@ -15,7 +15,6 @@
  */
 package com.telenav.smithy.vertx.periodic.metrics;
 
-import com.mastfrog.settings.Settings;
 import com.telenav.periodic.metrics.MetricsSink;
 import com.telenav.smithy.vertx.probe.Probe;
 import io.vertx.core.VertxOptions;

@@ -127,7 +127,6 @@ final class AsyncProbe<Ops extends Enum<Ops>> extends AbstractProbe<Ops> {
         // If we switched into shutdown state, make SURE any remaining
         // items are emitted:
         emitOneBatch(drainAll(records));
-        System.err.println("emit loop exit");
     }
 
     @SuppressWarnings("empty-statement")

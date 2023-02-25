@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.function.UnaryOperator;
 
 /**
- * A TypeOrInstanceList specialized for UnaryOperators. Non-API.
+ * A TypeOrInstanceList specialized for UnaryOperators.
  *
  * @author Tim Boudreau
  */
