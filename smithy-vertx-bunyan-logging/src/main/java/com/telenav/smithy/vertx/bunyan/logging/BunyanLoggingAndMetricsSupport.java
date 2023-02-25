@@ -27,6 +27,8 @@ import com.telenav.vertx.guice.VertxGuiceModule;
 import java.util.function.Consumer;
 
 /**
+ * Wires up bunyan logging to a vertx server, and wires up periodic metrics
+ * support to logging.
  *
  * @author Tim Boudreau
  */
