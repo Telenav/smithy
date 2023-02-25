@@ -17,7 +17,6 @@ package com.telenav.smithy.vertx.periodic.metrics;
 
 import com.telenav.periodic.metrics.BuiltInMetrics;
 import com.telenav.periodic.metrics.MetricsSink;
-import com.mastfrog.settings.Settings;
 import com.mastfrog.util.strings.Strings;
 import static com.telenav.periodic.metrics.BuiltInMetrics.DB_RESETS;
 import static com.telenav.periodic.metrics.BuiltInMetrics.DB_RESPONSES;
@@ -63,7 +62,7 @@ final class PeriodicVertxMetrics implements VertxMetricsFactory {
     private final ClientTimingConsumer clientTimings;
     private final Probe<?> probe;
 
-    public PeriodicVertxMetrics(MetricsSink sink,
+    PeriodicVertxMetrics(MetricsSink sink,
             ClientTimingConsumer clientTimings, Probe<?> probe) {
         this.sink = sink;
         this.clientTimings = clientTimings;

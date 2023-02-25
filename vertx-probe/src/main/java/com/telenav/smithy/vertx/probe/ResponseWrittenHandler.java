@@ -17,7 +17,6 @@ package com.telenav.smithy.vertx.probe;
 
 import io.vertx.core.Handler;
 import io.vertx.ext.web.RoutingContext;
-import java.util.Optional;
 
 /**
  *

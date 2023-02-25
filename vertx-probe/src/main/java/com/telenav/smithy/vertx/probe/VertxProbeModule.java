@@ -236,5 +236,4 @@ public final class VertxProbeModule<O extends Enum<O>> extends AbstractModule {
             return null;
         }
     }
-
 }

@@ -20,6 +20,7 @@ import com.google.inject.Key;
 import com.google.inject.Provider;
 import com.google.inject.Scope;
 import com.google.inject.TypeLiteral;
+import com.telenav.vertx.guice.util.GuiceUtils;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
@@ -226,8 +227,7 @@ public final class RequestScope implements Scope {
      */
     @SuppressWarnings("unchecked")
     public <T> RequestScope bindOptional(Binder binder, Class<T> type) {
-        Key<Optional<T>> key = (Key<Optional<T>>) Key.get(new FakeOptionalType<>(type));
-//        binder.bind(key).toProvider(new P<>(key, Providers.of(Optional.empty()))).in(this);
+        Key<Optional<T>> key = GuiceUtils.keyForGenericType(Optional.class, type);
         binder.bind(key).toProvider(new OP(key)).in(this);
         return this;
     }
