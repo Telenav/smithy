@@ -542,19 +542,35 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
 
     public void generateStartMethod(ClassBuilder<String> cb) {
         cb.method("start", mth -> {
+            mth.withModifier(PUBLIC)
+                    .docComment("Start the server on the default port in "
+                            + "Guice's <code>Stage.PRODUCTION</code>."
+                            + "\n@return the Vertx instance")
+                    .returning("Vertx");
+
+            mth.body(bb -> {
+                bb.returningInvocationOf("start")
+                        .withArgumentFromField("PRODUCTION").of("Stage")
+                        .onThis();
+            });
+        });
+        cb.method("start", mth -> {
             cb.importing("static com.google.inject.Guice.createInjector",
                     "com.telenav.vertx.guice.VertxLauncher",
+                    "com.google.inject.Stage",
                     "io.vertx.core.Vertx");
-
             mth.withModifier(PUBLIC)
                     .docComment("Start the server on the default port."
+                            + "\n@param stage the Guice stage"
                             + "\n@return the Vertx instance")
+                    .addArgument("Stage", "stage")
                     .returning("Vertx")
                     .body(bb -> {
                         bb.returningInvocationOf("start")
                                 .onInvocationOf("getInstance")
                                 .withClassArgument("VertxLauncher")
                                 .onInvocationOf("createInjector")
+                                .withArgument("stage")
                                 .withArgument("this")
                                 .inScope();
                     });
@@ -574,6 +590,7 @@ public class VertxServerGenerator extends AbstractJavaGenerator<ServiceShape> {
                                 .onInvocationOf("getInstance")
                                 .withClassArgument("VertxLauncher")
                                 .onInvocationOf("createInjector")
+                                .withArgumentFromField("PRODUCTION").of("Stage")
                                 .withArgumentFromInvoking("configuringVerticleWith")
                                 .withLambdaArgument(lb -> {
                                     lb.withArgument("vb")
