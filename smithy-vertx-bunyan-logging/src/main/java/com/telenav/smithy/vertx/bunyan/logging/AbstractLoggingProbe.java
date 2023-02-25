@@ -27,7 +27,6 @@ import static com.telenav.smithy.vertx.bunyan.logging.BunyanLoggingAndMetricsSup
 import static com.telenav.smithy.vertx.bunyan.logging.BunyanLoggingAndMetricsSupport.SETTINGS_KEY_EXIT_ON_VERTICLE_LAUNCH_FAILULRE;
 import com.telenav.smithy.vertx.probe.Probe;
 import com.telenav.smithy.vertx.probe.ProbeImplementation;
-import com.telenav.vertx.guice.scope.RequestScope;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Handler;
 import io.vertx.core.Verticle;
@@ -214,9 +213,13 @@ abstract class AbstractLoggingProbe<Op extends Enum<Op>> implements ProbeImpleme
         loggabilityInternal(thrown).apply("failure", logs, thrown, log -> {
             sink.onIncrement(BuiltInMetrics.EXCEPTION_OCCURRED);
             log.add("op", loggingNameOf(op));
+            Object reqId = event.get(Probe.REQUEST_ID_KEY);
+            if (reqId != null) {
+                log.add(Probe.REQUEST_ID_KEY, reqId);
+            }
             SocketAddress addr = event.request().remoteAddress();
             if (addr != null) {
-                log.add("address", addr.toString());
+                log.add("addr", addr.toString());
             }
             if (dumpStacks) {
                 thrown.printStackTrace(System.err);
