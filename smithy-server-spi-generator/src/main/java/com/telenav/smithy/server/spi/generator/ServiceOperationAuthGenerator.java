@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.telenav.smithy.simple.server.generator;
+package com.telenav.smithy.server.spi.generator;
 
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -27,8 +27,8 @@ import com.telenav.smithy.names.operation.OperationNames;
 import static com.telenav.smithy.names.operation.OperationNames.authPackage;
 import static com.telenav.smithy.names.operation.OperationNames.serviceAuthenticatedOperationsEnumName;
 import static com.telenav.smithy.names.operation.OperationNames.serviceAuthenticationMechanismTypeName;
-import static com.telenav.smithy.simple.server.generator.OperationGenerator.ensureGraphs;
 import com.telenav.smithy.utils.ResourceGraph;
+import com.telenav.smithy.utils.ResourceGraphs;
 import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -61,7 +61,7 @@ final class ServiceOperationAuthGenerator extends AbstractJavaGenerator<ServiceS
 
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
-        ResourceGraph rg = ensureGraphs(model, shape);
+        ResourceGraph rg = ResourceGraphs.graph(model);
         Set<Shape> ops = rg.filteredClosure(shape, sh -> sh.getType() == OPERATION);
 
         Set<String> mechanisms = new TreeSet<>();

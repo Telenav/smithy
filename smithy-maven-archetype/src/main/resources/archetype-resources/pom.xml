@@ -123,6 +123,13 @@
                             <version>\${smithy-tools.version}</version>
                         </dependency>
 
+                        <!-- Generates the service provider interfaces for the \${aidLower} service -->
+                        <dependency>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>smithy-server-spi-generator</artifactId>
+                            <version>\${smithy-tools.version}</version>
+                        </dependency>
+
                     </dependencies>
 
                 </plugin>

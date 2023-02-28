@@ -33,6 +33,13 @@
             <groupId>com.mastfrog</groupId>
             <artifactId>acteur</artifactId>
         </dependency>
+
+        <!-- For markup serving - can be removed if none-->
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>acteur-resources</artifactId>
+        </dependency>
+
         <!-- Needed to generate Acteur's Page classes from @HttpCall annotations
         on the generated Acteur subclasses -->
         <dependency>

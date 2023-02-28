@@ -72,6 +72,7 @@ limitations under the License.
         <module>periodic-metrics</module>
         <module>vertx-periodic-metrics</module>
         <module>smithy-vertx-bunyan-logging</module>
+        <module>smithy-server-spi-generator</module>
     </modules>
 
     <properties>

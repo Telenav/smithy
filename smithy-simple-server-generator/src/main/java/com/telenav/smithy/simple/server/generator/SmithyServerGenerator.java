@@ -56,8 +56,7 @@ public final class SmithyServerGenerator implements SmithyGenerator {
 
     @Override
     public boolean supportsGenerationTarget(GenerationTarget target) {
-        return target.equals(SERVER)
-                || target.equals(SERVER_SPI);
+        return target.equals(SERVER);
     }
 
     @Override
@@ -79,12 +78,6 @@ public final class SmithyServerGenerator implements SmithyGenerator {
         if (target.equals(SERVER)) {
             List<ModelElementGenerator> generators = new ArrayList<>();
             collectServerGeneratorsFor(shape, model, destSourceRoot, target, language, settings, logger,
-                    generators::add);
-            return generators;
-
-        } else if (SERVER_SPI.equals(target)) {
-            List<ModelElementGenerator> generators = new ArrayList<>();
-            collectServerSpiGeneratorsFor(shape, model, destSourceRoot, target, language, settings, logger,
                     generators::add);
             return generators;
         }
@@ -143,25 +136,5 @@ public final class SmithyServerGenerator implements SmithyGenerator {
         }
     }
 
-    private void collectServerSpiGeneratorsFor(Shape shape,
-            Model model,
-            Path destSourceRoot,
-            GenerationTarget targets,
-            LanguageWithVersion language,
-            SmithyGenerationSettings settings, SmithyGenerationLogger logger,
-            Consumer<ModelElementGenerator> c) {
-        switch (shape.getType()) {
-            case SERVICE:
-                ServiceShape svc = shape.asServiceShape().get();
-                c.accept(new ServiceOperationAuthGenerator(svc,
-                        model, destSourceRoot, targets, language));
-                break;
-            case OPERATION:
-                c.accept(new OperationInterfaceGenerator(
-                        shape.asOperationShape().get(),
-                        model, destSourceRoot, targets, language));
-                break;
-        }
-    }
 
 }

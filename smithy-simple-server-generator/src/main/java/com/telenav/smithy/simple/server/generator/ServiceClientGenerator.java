@@ -168,7 +168,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
         Optional<HttpTrait> httpOpt = op.getTrait(HttpTrait.class);
         // "login" type calls may have no input or output - their only purpose is
         // to trigger the browser's basic auth dialog.
-        
+
 //        if (!input.isPresent() && !output.isPresent()) {
 //            throw new ConfigurationError(op.getId()
 //                    + " has no input AND no output");
@@ -336,6 +336,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
         this.generateHeaderSettingHttpInvocation(bb, twoArg, httpMethod, outputType, headerMembers, headerForMemberName, requiredHeaderTraits, cb, x -> x);
     }
 
+    @SuppressWarnings("unchecked")
     public <T, B extends BlockBuilderBase<T, BlockBuilder<T>, T>> void generateHeaderSettingHttpInvocation(
             B bb, boolean twoArg,
             String httpMethod, String outputType, Set<Map.Entry<String, MemberShape>> headerMembers,

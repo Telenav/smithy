@@ -13,20 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.telenav.smithy.simple.server.generator;
+package com.telenav.smithy.server.spi.generator;
 
 import com.mastfrog.java.vogon.ClassBuilder;
 import com.mastfrog.java.vogon.ClassBuilder.MethodBuilder;
 import com.telenav.smithy.generators.GenerationTarget;
 import com.telenav.smithy.generators.LanguageWithVersion;
 import com.telenav.smithy.generators.SettingsKey;
+import com.telenav.smithy.java.generators.auth.AuthUtils;
+import static com.telenav.smithy.java.generators.auth.AuthUtils.withAuthInfo;
 import com.telenav.smithy.java.generators.base.AbstractJavaGenerator;
 import static com.telenav.smithy.java.generators.builtin.struct.impl.Registry.applyGeneratedAnnotation;
 import static com.telenav.smithy.names.TypeNames.packageOf;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceFqn;
 import static com.telenav.smithy.names.operation.OperationNames.operationInterfaceName;
 import com.telenav.smithy.server.common.OperationEnumBindingGenerator;
-import static com.telenav.smithy.simple.server.generator.OperationGenerator.withAuthInfo;
 import com.telenav.smithy.utils.ResourceGraph;
 import com.telenav.smithy.utils.ResourceGraphs;
 import static com.telenav.smithy.utils.ShapeUtils.maybeImport;
@@ -50,8 +51,10 @@ import software.amazon.smithy.model.shapes.ShapeId;
 final class OperationInterfaceGenerator extends AbstractJavaGenerator<OperationShape> {
 
     private static final SettingsKey<Set<ShapeId>> OP_ENUM_GENERATED_KEY = SettingsKey.key(Set.class, "opEnums");
+    private final AuthUtils auth;
     OperationInterfaceGenerator(OperationShape shape, Model model, Path destSourceRoot, GenerationTarget target, LanguageWithVersion language) {
         super(shape, model, destSourceRoot, target, language);
+        auth = new AuthUtils(model, shape);
     }
     
     private void maybeGenerateOpEnum(Consumer<ClassBuilder<String>> addTo) {

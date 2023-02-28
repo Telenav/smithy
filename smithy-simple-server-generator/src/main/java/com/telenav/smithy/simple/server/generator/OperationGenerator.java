@@ -49,7 +49,7 @@ import static com.telenav.smithy.server.common.OriginType.URI_PATH;
 import static com.telenav.smithy.server.common.OriginType.URI_QUERY;
 import com.telenav.smithy.server.common.PayloadOrigin;
 import com.telenav.smithy.server.common.RequestParameterOrigin;
-import com.telenav.smithy.extensions.AuthenticatedTrait;
+import com.telenav.smithy.java.generators.auth.AuthUtils;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.enumConstantName;
 import static com.telenav.smithy.names.TypeNames.packageOf;
@@ -100,11 +100,13 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
     static boolean graphsBuilt;
     private final ResourceGraph graph;
+    private final AuthUtils auth;
     private ActeurRequestIdSupport requestIdSupport;
 
     OperationGenerator(OperationShape shape, Model model, Path destSourceRoot,
             GenerationTarget target, LanguageWithVersion language) {
         super(shape, model, destSourceRoot, target, language);
+        auth = new AuthUtils(model, shape);
         graph = ensureGraphs(model);
     }
 
@@ -229,26 +231,6 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
         return cb.className();
     }
 
-    interface AuthInfoConsumer {
-
-        void authInfo(Shape payload, String mechanism, String pkg, String payloadType, boolean optional);
-    }
-
-    private boolean withAuthInfo(AuthInfoConsumer c) {
-        return withAuthInfo(shape, model, names(), c);
-    }
-
-    public static boolean withAuthInfo(OperationShape shape, Model model, TypeNames names, AuthInfoConsumer c) {
-        Optional<AuthenticatedTrait> tr = shape.getTrait(AuthenticatedTrait.class);
-        tr.ifPresent(auth -> {
-            Shape payload = model.expectShape(auth.getPayload());
-            String pkg = names.packageOf(payload);
-            String nm = typeNameOf(payload);
-            c.authInfo(payload, auth.getMechanism(), pkg, nm, auth.isOptional());
-        });
-        return tr.isPresent();
-    }
-
     @Override
     protected void generate(Consumer<ClassBuilder<String>> addTo) {
         requestIdSupport = new ActeurRequestIdSupport(ctx, addTo);
@@ -283,7 +265,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
             });
         });
 
-        boolean hasAuth = withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
+        boolean hasAuth = auth.withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
             String[] fqns = new String[]{pkg + "." + payloadType};
             maybeImport(cb, fqns);
             if (optional) {
@@ -389,7 +371,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
                 "javax.inject.Inject"
         );
 
-        withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
+        auth.withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
             String[] fqns = new String[]{pkg + "." + payloadType};
             maybeImport(cb, fqns);
             if (optional) {
@@ -475,7 +457,7 @@ final class OperationGenerator extends AbstractJavaGenerator<OperationShape> {
 
         InvocationBuilder<BlockBuilder<ClassBuilder<T>>> inv
                 = bb.invoke("respond").withArgument("request");
-        withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
+        auth.withAuthInfo((Shape payload, String mechanism, String pkg, String payloadType, boolean optional) -> {
             if (optional) {
                 cb.importing(Optional.class);
                 inv.withArgumentFromInvoking("ofNullable")

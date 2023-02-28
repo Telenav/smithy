@@ -44,9 +44,9 @@ limitations under the License.
                 </configuration>
                 <!--
                 These dependencies determine what traits are available for use
-                in Smithy models, and what and code generators are available 
+                in Smithy models, and what and code generators are available
                 for use when generating code.
-                
+
                 If, for example, you do not wish to build a Vert.x server,
                 simply remove the dependency on it and no code will be generated
                 for it.
@@ -90,19 +90,28 @@ limitations under the License.
                         <artifactId>smithy-java-http-extensions</artifactId>
                         <version>${project.version}</version>
                     </dependency>
+
                     <!-- Generates the Vert.x framework Java server implementation -->
                     <dependency>
                         <groupId>${project.groupId}</groupId>
                         <artifactId>smithy-vertx-server-generator</artifactId>
                         <version>${project.version}</version>
                     </dependency>
+
                     <!-- Generates the Acteur framework server implementation -->
                     <dependency>
                         <groupId>${project.groupId}</groupId>
                         <artifactId>smithy-simple-server-generator</artifactId>
                         <version>${project.version}</version>
                     </dependency>
-                    
+
+                    <!-- Generates the Acteur framework server implementation -->
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>smithy-server-spi-generator</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+
                     <!-- Generates a typescript client SDK -->
                     <dependency>
                         <groupId>${project.groupId}</groupId>
@@ -116,7 +125,7 @@ limitations under the License.
                         <artifactId>smithy-openapi-wrapper</artifactId>
                         <version>${project.version}</version>
                     </dependency>
-                    
+
                     <!-- Indirect dependencies that are needed -->
                     <dependency>
                         <groupId>${project.groupId}</groupId>
