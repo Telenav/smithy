@@ -25,7 +25,6 @@ import com.telenav.smithy.generators.SmithyGenerator;
 import com.mastfrog.util.service.ServiceProvider;
 import java.nio.file.Path;
 
-import static java.util.Arrays.asList;
 import java.util.Collection;
 import java.util.List;
 

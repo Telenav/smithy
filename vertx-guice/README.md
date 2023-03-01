@@ -69,6 +69,25 @@ Example usage taken from tests:
         launcher.start();
 ```
 
+Features
+========
+
+* Verticles, and all handlers in them, can be bound *by type*, be instantiated on the fly by Guice,
+and injected with whatever dependencies they request, enabling separation of business logic from
+application configuration.
+* Code that needs to run on verticle launch can be bound - multiply - simply implement
+`VertxInitializer` and bind your implementation as an eager singleton.
+* `RequestScope` - handlers can provide objects for injection into subsequent handlers
+* Nearly all configuration of Vertx can be handled using multiply-bound, injectable types - for
+example, if you want to customize `VertxOptions` on launch, call `VertxGuiceModule.withVertxOptionsCustomizer()`
+with *either* a `UnaryOperator<VertxOptions>` *or a `Class<? extends UnaryOperator<VertxOptions>>` - and
+in the latter case, the `UnaryOperator` implementation is injectable, itself - and can be called multiple
+times with different `Class<? extends UnaryOperator<VertxOptions>>`s and all of them will, in turn, get to
+configure their corner of Vertx's setup.  The same is true of routers and deployment options.  This pattern
+solves a lot of ugly cases where configuration needs to know other aspects of the server's configuration that
+aren't available until runtime, but must do their configuring before launch.
+
+
 Vertx Pros and Cons
 ===================
 
@@ -102,8 +121,3 @@ general thoughts on pro's and con's of vertex:
 
 Compared with Spring, it is still far less of an abomination, but it could use some further decomposing.
 
-#### Future Plans
-
-At some point, we may look at converting this all to use Dagger (compile-time injection via
-code-generation is, I think, the future of dependency injection); for now, this gets us up 
-and running with something solid.

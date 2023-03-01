@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright 2023 Telenav.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.telenav.smithy.simple.server.generator;
+package com.telenav.smithy.smithy.java.sdk.generator;
 
 import com.mastfrog.function.TriConsumer;
 import com.mastfrog.java.vogon.ClassBuilder;
@@ -33,6 +33,7 @@ import static com.telenav.smithy.names.JavaSymbolProvider.escape;
 import com.telenav.smithy.names.TypeNames;
 import static com.telenav.smithy.names.TypeNames.typeNameOf;
 import com.telenav.smithy.utils.ResourceGraph;
+import com.telenav.smithy.utils.ResourceGraphs;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -78,7 +79,7 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
             SmithyGenerationSettings sgs) {
         super(shape, model, destSourceRoot, target, language);
         generateDebugComments = sgs.is(DEBUG);
-        graph = OperationGenerator.ensureGraphs(model, shape);
+        graph = ResourceGraphs.graph(model, shape);
     }
 
     static String clientPackage(ServiceShape service, Model model) {
@@ -497,8 +498,6 @@ public class ServiceClientGenerator extends AbstractJavaGenerator<ServiceShape> 
                     found = true;
 
                     Shape target = model.expectShape(m.getValue().getTarget());
-                    boolean isRaw = "smithy.api".equals(target.getId().getNamespace());
-                    boolean required = m.getValue().getTrait(RequiredTrait.class).isPresent();
 
                     switch (target.getType()) {
                         case BIG_DECIMAL:

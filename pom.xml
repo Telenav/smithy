@@ -73,6 +73,7 @@ limitations under the License.
         <module>vertx-periodic-metrics</module>
         <module>smithy-vertx-bunyan-logging</module>
         <module>smithy-server-spi-generator</module>
+        <module>smithy-java-sdk-generator</module>
     </modules>
 
     <properties>
@@ -302,6 +303,16 @@ limitations under the License.
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>smithy-vertx-bunyan-logging</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>smithy-server-spi-generator</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>smithy-java-sdk-generator</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

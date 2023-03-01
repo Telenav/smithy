@@ -112,6 +112,13 @@ limitations under the License.
                         <version>${project.version}</version>
                     </dependency>
 
+                    <!-- Generates the java client SDK library -->
+                    <dependency>
+                        <groupId>${project.groupId}</groupId>
+                        <artifactId>smithy-java-sdk-generator</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+
                     <!-- Generates a typescript client SDK -->
                     <dependency>
                         <groupId>${project.groupId}</groupId>
